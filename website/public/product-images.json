@@ -1,0 +1,128 @@
+[
+  {
+    "file": "baguette-1.jpg",
+    "product_key": "baguette",
+    "alt_text": "Baguette \u2013 franz\u00f6sisches Sauerteig-Baguette mit knuspriger Kruste, 330g",
+    "sequence": 1
+  },
+  {
+    "file": "baguette-2.jpg",
+    "product_key": "baguette",
+    "alt_text": "Baguette \u2013 franz\u00f6sisches Sauerteig-Baguette mit knuspriger Kruste, 330g",
+    "sequence": 2
+  },
+  {
+    "file": "baguette-3.jpg",
+    "product_key": "baguette",
+    "alt_text": "Baguette \u2013 franz\u00f6sisches Sauerteig-Baguette mit knuspriger Kruste, 330g",
+    "sequence": 3
+  },
+  {
+    "file": "brioche-1.jpg",
+    "product_key": "brioche",
+    "alt_text": "Brioche \u2013 geflochtenes Butterhefegeb\u00e4ck mit Mandeln, ideal zum Fr\u00fchst\u00fcck",
+    "sequence": 1
+  },
+  {
+    "file": "brioche-2.jpg",
+    "product_key": "brioche",
+    "alt_text": "Brioche \u2013 geflochtenes Butterhefegeb\u00e4ck mit Mandeln, ideal zum Fr\u00fchst\u00fcck",
+    "sequence": 2
+  },
+  {
+    "file": "brioche-3.jpg",
+    "product_key": "brioche",
+    "alt_text": "Brioche \u2013 geflochtenes Butterhefegeb\u00e4ck mit Mandeln, ideal zum Fr\u00fchst\u00fcck",
+    "sequence": 3
+  },
+  {
+    "file": "ciabatta-naturale-1.jpg",
+    "product_key": "ciabatta-naturale",
+    "alt_text": "Ciabatta Naturale \u2013 italienisches Sauerteig-Wei\u00dfbrot mit luftiger Krume, 300g",
+    "sequence": 1
+  },
+  {
+    "file": "ciabatta-naturale-2.jpg",
+    "product_key": "ciabatta-naturale",
+    "alt_text": "Ciabatta Naturale \u2013 italienisches Sauerteig-Wei\u00dfbrot mit luftiger Krume, 300g",
+    "sequence": 2
+  },
+  {
+    "file": "ciabatta-olive-origano-1.jpg",
+    "product_key": "ciabatta-olive-origano",
+    "alt_text": "Ciabatta Olive & Origano \u2013 mediterranes Sauerteigbrot mit Oliven und Oregano, 300g",
+    "sequence": 1
+  },
+  {
+    "file": "ciabatta-olive-origano-2.jpg",
+    "product_key": "ciabatta-olive-origano",
+    "alt_text": "Ciabatta Olive & Origano \u2013 mediterranes Sauerteigbrot mit Oliven und Oregano, 300g",
+    "sequence": 2
+  },
+  {
+    "file": "ciabatta-olive-origano-3.jpg",
+    "product_key": "ciabatta-olive-origano",
+    "alt_text": "Ciabatta Olive & Origano \u2013 mediterranes Sauerteigbrot mit Oliven und Oregano, 300g",
+    "sequence": 3
+  },
+  {
+    "file": "focaccia-naturale-1.jpg",
+    "product_key": "focaccia-naturale",
+    "alt_text": "Focaccia Naturale \u2013 italienisches Oliven\u00f6l-Fladenbrot mit Rosmarin und Meersalz, 300g",
+    "sequence": 1
+  },
+  {
+    "file": "focaccia-naturale-2.jpg",
+    "product_key": "focaccia-naturale",
+    "alt_text": "Focaccia Naturale \u2013 italienisches Oliven\u00f6l-Fladenbrot mit Rosmarin und Meersalz, 300g",
+    "sequence": 2
+  },
+  {
+    "file": "focaccia-naturale-3.jpg",
+    "product_key": "focaccia-naturale",
+    "alt_text": "Focaccia Naturale \u2013 italienisches Oliven\u00f6l-Fladenbrot mit Rosmarin und Meersalz, 300g",
+    "sequence": 3
+  },
+  {
+    "file": "focaccia-pomodorini-1.jpg",
+    "product_key": "focaccia-pomodorini",
+    "alt_text": "Focaccia Pomodorini \u2013 italienisches Fladenbrot mit Mini-Tomaten und Rosmarin, 300g",
+    "sequence": 1
+  },
+  {
+    "file": "focaccia-pomodorini-2.jpg",
+    "product_key": "focaccia-pomodorini",
+    "alt_text": "Focaccia Pomodorini \u2013 italienisches Fladenbrot mit Mini-Tomaten und Rosmarin, 300g",
+    "sequence": 2
+  },
+  {
+    "file": "focaccia-pomodorini-3.jpg",
+    "product_key": "focaccia-pomodorini",
+    "alt_text": "Focaccia Pomodorini \u2013 italienisches Fladenbrot mit Mini-Tomaten und Rosmarin, 300g",
+    "sequence": 3
+  },
+  {
+    "file": "stockdorf-sourdough-1.jpg",
+    "product_key": "stockdorf-sourdough",
+    "alt_text": "Stockdorf Sourdough \u2013 handgemachtes Sauerteigbrot aus Stockdorf bei M\u00fcnchen, 750g",
+    "sequence": 1
+  },
+  {
+    "file": "stockdorf-sourdough-2.jpg",
+    "product_key": "stockdorf-sourdough",
+    "alt_text": "Stockdorf Sourdough \u2013 handgemachtes Sauerteigbrot aus Stockdorf bei M\u00fcnchen, 750g",
+    "sequence": 2
+  },
+  {
+    "file": "stockdorf-sourdough-3.jpg",
+    "product_key": "stockdorf-sourdough",
+    "alt_text": "Stockdorf Sourdough \u2013 handgemachtes Sauerteigbrot aus Stockdorf bei M\u00fcnchen, 750g",
+    "sequence": 3
+  },
+  {
+    "file": "wheat-rye-sourdough-1.jpg",
+    "product_key": "wheat-rye-sourdough",
+    "alt_text": "Wheat & Rye Sourdough \u2013 dunkles Roggenmischbrot mit Honig, 750g",
+    "sequence": 1
+  }
+]

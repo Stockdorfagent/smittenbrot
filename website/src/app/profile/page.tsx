@@ -1,0 +1,125 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
+import { PickupLocation } from '@/lib/types';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+export default function ProfilePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [locations, setLocations] = useState<PickupLocation[]>([]);
+  const [preferredLocation, setPreferredLocation] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) { router.push('/login'); return; }
+      setUser(session.user);
+      setEmail(session.user.email || '');
+
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('name, preferred_pickup_location_id')
+        .eq('id', session.user.id)
+        .single();
+      if (customer?.name) setName(customer.name);
+      if (customer?.preferred_pickup_location_id) setPreferredLocation(customer.preferred_pickup_location_id);
+
+      const { data: locs } = await supabase
+        .from('pickup_locations')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+      if (locs) setLocations(locs);
+
+      setLoading(false);
+    });
+  }, [router]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    setSaved(false);
+    await supabase.from('customers').upsert({
+      id: user.id,
+      email,
+      name,
+      preferred_pickup_location_id: preferredLocation || null,
+    });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  if (loading) {
+    return <div className="max-w-xl mx-auto px-4 py-20 text-center text-smitten-text/40">Lädt...</div>;
+  }
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-10">
+      <h1 className="text-2xl font-display font-bold text-smitten-text">Mein Konto</h1>
+
+      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-smitten-text/70">E-Mail</label>
+          <p className="mt-1 text-smitten-text">{email}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-smitten-text/70">Name</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            placeholder="Dein Name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-smitten-text/70">Bevorzugter Abholort</label>
+          <select value={preferredLocation} onChange={e => setPreferredLocation(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
+            <option value="">– Bitte wählen –</option>
+            {locations.map(loc => (
+              <option key={loc.id} value={loc.id}>{loc.name} – {loc.address}</option>
+            ))}
+          </select>
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+          {saving ? 'Wird gespeichert...' : saved ? '✓ Gespeichert' : 'Speichern'}
+        </button>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <Link href="/subscriptions"
+          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          <p className="font-medium text-smitten-text">Meine Abos</p>
+          <p className="text-sm text-smitten-text/60">Übersicht und Verwaltung</p>
+        </Link>
+        <Link href="/orders"
+          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          <p className="font-medium text-smitten-text">Meine Bestellungen</p>
+          <p className="text-sm text-smitten-text/60">Bestellverlauf und Rechnungen</p>
+        </Link>
+        <Link href="/admin/discounts"
+          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          <p className="font-medium text-smitten-text">Rabattcodes</p>
+          <p className="text-sm text-smitten-text/60">Rabattaktionen verwalten</p>
+        </Link>
+        <Link href="/admin"
+          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          <p className="font-medium text-smitten-text">Admin Bereich</p>
+          <p className="text-sm text-smitten-text/60">Dashboard und Einstellungen</p>
+        </Link>
+        <button onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
+          className="w-full text-left bg-white rounded-xl border border-red-100 p-4 hover:border-red-200 transition-colors">
+          <p className="font-medium text-red-600">Abmelden</p>
+          <p className="text-sm text-red-400">Von deinem Konto abmelden</p>
+        </button>
+      </div>
+    </div>
+  );
+}

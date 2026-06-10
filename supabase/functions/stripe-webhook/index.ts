@@ -1,0 +1,623 @@
+// ============================================================
+// Smittenbrot — Stripe Webhook Edge Function
+// ============================================================
+// Validates Stripe webhook signatures and processes:
+//   - payment_intent.succeeded
+//   - payment_intent.payment_failed
+//   - charge.refunded
+//
+// Returns 200 OK immediately, processes asynchronously.
+// Uses natural idempotency by checking current order state
+// before applying changes (duplicate events are no-ops).
+// ============================================================
+
+import Stripe from "stripe";
+import { serve } from "std/http/server";
+import { createClient } from "@supabase/supabase-js";
+
+// ── Environment Variables ────────────────────────────────────
+
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// ── Clients ──────────────────────────────────────────────────
+
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: "2025-03-31.basil",
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
+
+// ── Constants ────────────────────────────────────────────────
+
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
+// ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Log an entry to the audit_log table.
+ * Uses the service-role client so RLS is bypassed.
+ */
+async function logAudit(
+  action: string,
+  entityType: string,
+  entityId: string,
+  oldData: Record<string, unknown> | null,
+  newData: Record<string, unknown> | null,
+): Promise<void> {
+  const { error } = await supabase.from("audit_log").insert({
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    old_data: oldData,
+    new_data: newData,
+    // Stripe webhook events are system-triggered — no authenticated user.
+    performed_by: null,
+  });
+
+  if (error) {
+    console.error(`[stripe-webhook] Failed to write audit_log for ${action}:`, error);
+  }
+}
+
+/**
+ * Insert a notification record.
+ */
+async function insertNotification(
+  customerId: string | null,
+  type: string,
+  channel: string,
+): Promise<void> {
+  const { error } = await supabase.from("notifications").insert({
+    customer_id: customerId,
+    type,
+    channel,
+    sent_at: new Date().toISOString(),
+    delivered: false,
+  });
+
+  if (error) {
+    console.error(`[stripe-webhook] Failed to insert notification (${type}):`, error);
+  }
+}
+
+/**
+ * Send a receipt email for a paid one-time order via Brevo.
+ * Errors are logged but never thrown — non-blocking.
+ */
+async function sendReceiptEmail(
+  order: Record<string, unknown>,
+): Promise<void> {
+  try {
+    // Only send for one-time orders
+    if (order.order_type !== "one_time") {
+      return;
+    }
+
+    // Resolve recipient email
+    const recipientEmail = (order.customer_email as string | null) ?? "";
+    if (!recipientEmail) {
+      console.warn(
+        `[stripe-webhook] No customer_email for order ${order.id} — skipping receipt.`,
+      );
+      return;
+    }
+
+    if (!BREVO_API_KEY) {
+      console.error(
+        "[stripe-webhook] BREVO_API_KEY not configured — cannot send receipt.",
+      );
+      return;
+    }
+
+    const orderId = order.id as string;
+    const orderPrefix = orderId.substring(orderId.length - 8).toUpperCase();
+    const customerName = (order.customer_name as string) ?? "Kunde";
+    const totalCents = order.total_cents as number;
+    const totalEur = (totalCents / 100).toFixed(2);
+
+    // Fetch order items with product names
+    const { data: items, error: itemsError } = await supabase
+      .from("order_items")
+      .select("quantity, unit_price_cents, product:product_id(name)")
+      .eq("order_id", orderId);
+
+    if (itemsError) {
+      console.error(
+        `[stripe-webhook] Failed to fetch items for order ${orderId}:`,
+        itemsError,
+      );
+      // Continue with a simplified receipt
+    }
+
+    // Fetch pickup location name
+    let pickupName = "Abholort";
+    const pickupLocationId = order.pickup_location_id as string;
+    if (pickupLocationId) {
+      const { data: location } = await supabase
+        .from("pickup_locations")
+        .select("name, address")
+        .eq("id", pickupLocationId)
+        .single();
+      if (location) {
+        pickupName = `${location.name} (${location.address})`;
+      }
+    }
+
+    const fulfillmentDate = order.fulfillment_date as string;
+
+    // Build items HTML table
+    let itemsHtml = "";
+    let subtotalCents = 0;
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const productName =
+          (item.product as { name?: string } | null)?.name ?? "Unbekanntes Produkt";
+        const lineTotal = item.unit_price_cents * item.quantity;
+        subtotalCents += lineTotal;
+        itemsHtml += `
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${item.quantity}× ${productName}</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">${(lineTotal / 100).toFixed(2)}€</td>
+          </tr>`;
+      }
+    }
+
+    const subject = `Deine Smittenbrot Rechnung ${orderPrefix}`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #f7140f; font-size: 24px; margin: 0;">🍞 Smittenbrot</h1>
+          <p style="color: #999; font-size: 14px;">Handgemachtes Brot aus Stockdorf</p>
+        </div>
+
+        <h2 style="color: #f7140f; font-size: 20px;">Vielen Dank für deine Bestellung! 🎉</h2>
+
+        <p>Hallo ${customerName},</p>
+        <p>vielen Dank für deine Bestellung bei Smittenbrot. Deine Zahlung ist erfolgreich eingegangen.</p>
+
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr>
+            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Bestellnummer:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderPrefix}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Datum:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${new Date().toLocaleDateString("de-DE")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Abholung am:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${fulfillmentDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Abholort:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${pickupName}</td>
+          </tr>
+        </table>
+
+        <h3 style="color: #f7140f; font-size: 16px; border-bottom: 2px solid #f7140f; padding-bottom: 6px;">Bestellübersicht</h3>
+
+        <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+          <thead>
+            <tr style="background: #F3F4F6;">
+              <th style="padding: 10px; text-align: left; font-size: 14px;">Produkt</th>
+              <th style="padding: 10px; text-align: right; font-size: 14px;">Preis</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style="padding: 12px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td>
+              <td style="padding: 12px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f7140f;">${totalEur}€</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style="background: #F3F4F6; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #666;">
+          <p style="margin: 0 0 8px;"><strong>Hinweis zur Mehrwertsteuer:</strong></p>
+          <p style="margin: 0;">Auf alle Produkte wird die reduzierte Mehrwertsteuer von <strong>7%</strong> erhoben. Die ausgewiesenen Preise sind Bruttopreise inklusive der gesetzlichen Mehrwertsteuer.</p>
+        </div>
+
+        <div style="background: #f0f7f0; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #555;">
+          <p style="margin: 0 0 8px;"><strong>📅 Abholinformation:</strong></p>
+          <p style="margin: 0;">
+            Deine Bestellung ist ab dem <strong>${fulfillmentDate}</strong> zur Abholung bereit.<br>
+            Bitte bringe deine Bestellnummer (${orderPrefix}) mit oder nenne sie beim Abholen.
+          </p>
+        </div>
+
+        <p style="font-size: 14px; margin-top: 20px;">
+          Nochmals vielen Dank für deine Unterstützung!<br>
+          Wir freuen uns, dich bald wieder bei Smittenbrot begrüßen zu dürfen.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0 20px;">
+
+        <div style="text-align: center; color: #999; font-size: 12px;">
+          <p style="margin: 4px 0;">Smittenbrot – Handgemachtes Brot aus Stockdorf</p>
+          <p style="margin: 4px 0;">hello@smittenbrot.de</p>
+        </div>
+      </div>
+    `.trim();
+
+    const payload = {
+      sender: { email: "hello@smittenbrot.de", name: "Smittenbrot" },
+      to: [{ email: recipientEmail }],
+      subject,
+      htmlContent,
+    };
+
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": BREVO_API_KEY,
+        "Accept": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.json();
+      console.error(
+        `[stripe-webhook] Brevo API error (${response.status}) sending receipt to ${recipientEmail}:`,
+        JSON.stringify(body),
+      );
+      return;
+    }
+
+    console.log(
+      `[stripe-webhook] Receipt email sent to ${recipientEmail} for order ${orderId} (subject: "${subject}").`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[stripe-webhook] Failed to send receipt email for order ${order.id}: ${msg}`,
+    );
+  }
+}
+
+/**
+ * Find an order by its Stripe PaymentIntent ID.
+ */
+async function findOrderByPaymentIntent(
+  paymentIntentId: string,
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      `[stripe-webhook] Error querying order for PI ${paymentIntentId}:`,
+      error,
+    );
+    return null;
+  }
+
+  return data ?? null;
+}
+
+// ── Event Handlers ───────────────────────────────────────────
+
+/**
+ * payment_intent.succeeded
+ *
+ * Marks the associated order as payment_status='paid'.
+ * Does NOT change fulfillment status — that is managed independently.
+ * Naturally idempotent: skips if payment_status is already 'paid'.
+ */
+async function handlePaymentIntentSucceeded(
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> {
+  const piId = paymentIntent.id;
+
+  const order = await findOrderByPaymentIntent(piId);
+  if (!order) {
+    console.warn(
+      `[stripe-webhook] No order found for PaymentIntent ${piId}. Skipping.`,
+    );
+    return;
+  }
+
+  // Idempotency check: if already paid, do nothing.
+  if (order.payment_status === "paid") {
+    console.log(
+      `[stripe-webhook] Order ${order.id} already paid. Skipping duplicate event.`,
+    );
+    return;
+  }
+
+  const oldData: Record<string, unknown> = {
+    payment_status: order.payment_status,
+  };
+  const newData: Record<string, unknown> = {
+    payment_status: "paid",
+  };
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ payment_status: "paid", updated_at: new Date().toISOString() })
+    .eq("id", order.id);
+
+  if (error) {
+    console.error(
+      `[stripe-webhook] Failed to update order ${order.id} to paid:`,
+      error,
+    );
+    return;
+  }
+
+  await logAudit(
+    "payment_intent.succeeded",
+    "order",
+    order.id as string,
+    oldData,
+    newData,
+  );
+
+  console.log(
+    `[stripe-webhook] Order ${order.id} marked as paid (PI: ${piId}).`,
+  );
+
+  // Send receipt email for one-time orders (non-blocking)
+  await sendReceiptEmail(order);
+}
+
+/**
+ * payment_intent.payment_failed
+ *
+ * Marks the associated order as payment_status='failed'.
+ * If the order belongs to a subscription, sets the subscription
+ * status to 'payment_failed'.
+ * Logs to audit_log and creates a payment_failed notification.
+ * Naturally idempotent: skips if payment_status is already 'failed'.
+ */
+async function handlePaymentIntentFailed(
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> {
+  const piId = paymentIntent.id;
+
+  const order = await findOrderByPaymentIntent(piId);
+  if (!order) {
+    console.warn(
+      `[stripe-webhook] No order found for PaymentIntent ${piId}. Skipping.`,
+    );
+    return;
+  }
+
+  // Idempotency check: if already failed, do nothing.
+  if (order.payment_status === "failed") {
+    console.log(
+      `[stripe-webhook] Order ${order.id} already failed. Skipping duplicate event.`,
+    );
+    return;
+  }
+
+  const oldData: Record<string, unknown> = {
+    payment_status: order.payment_status,
+  };
+  const newData: Record<string, unknown> = {
+    payment_status: "failed",
+  };
+
+  // 1. Update order payment_status
+  const { error: orderError } = await supabase
+    .from("orders")
+    .update({ payment_status: "failed", updated_at: new Date().toISOString() })
+    .eq("id", order.id);
+
+  if (orderError) {
+    console.error(
+      `[stripe-webhook] Failed to update order ${order.id} to failed:`,
+      orderError,
+    );
+    return;
+  }
+
+  // 2. If subscription order, mark subscription as payment_failed
+  if (order.subscription_id && order.order_type === "subscription") {
+    const { error: subError } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "payment_failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.subscription_id);
+
+    if (subError) {
+      console.error(
+        `[stripe-webhook] Failed to update subscription ${order.subscription_id} to payment_failed:`,
+        subError,
+      );
+    }
+  }
+
+  // 3. Create a payment_failed notification
+  await insertNotification(
+    (order.customer_id as string | null) ?? null,
+    "payment_failed",
+    "both",
+  );
+
+  // 4. Audit log
+  await logAudit(
+    "payment_intent.payment_failed",
+    "order",
+    order.id as string,
+    oldData,
+    newData,
+  );
+
+  console.log(
+    `[stripe-webhook] Order ${order.id} marked as failed (PI: ${piId}).`,
+  );
+}
+
+/**
+ * charge.refunded
+ *
+ * Marks the associated order as payment_status='refunded' and
+ * status='refunded'.
+ * Naturally idempotent: skips if payment_status is already 'refunded'.
+ */
+async function handleChargeRefunded(
+  charge: Stripe.Charge,
+): Promise<void> {
+  const piId = charge.payment_intent as string;
+
+  const order = await findOrderByPaymentIntent(piId);
+  if (!order) {
+    console.warn(
+      `[stripe-webhook] No order found for PaymentIntent ${piId}. Skipping.`,
+    );
+    return;
+  }
+
+  // Idempotency check: if already refunded, do nothing.
+  if (order.payment_status === "refunded") {
+    console.log(
+      `[stripe-webhook] Order ${order.id} already refunded. Skipping duplicate event.`,
+    );
+    return;
+  }
+
+  const oldData: Record<string, unknown> = {
+    payment_status: order.payment_status,
+    status: order.status,
+  };
+  const newData: Record<string, unknown> = {
+    payment_status: "refunded",
+    status: "refunded",
+  };
+
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      payment_status: "refunded",
+      status: "refunded",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+
+  if (error) {
+    console.error(
+      `[stripe-webhook] Failed to update order ${order.id} to refunded:`,
+      error,
+    );
+    return;
+  }
+
+  await logAudit(
+    "charge.refunded",
+    "order",
+    order.id as string,
+    oldData,
+    newData,
+  );
+
+  console.log(
+    `[stripe-webhook] Order ${order.id} marked as refunded (PI: ${piId}, charge: ${charge.id}).`,
+  );
+}
+
+// ── Webhook Dispatcher ───────────────────────────────────────
+
+/**
+ * Route a verified Stripe event to its handler.
+ *
+ * Returns true if the event type is one we handle, false otherwise.
+ */
+function dispatchEvent(event: Stripe.Event): boolean {
+  switch (event.type) {
+    case "payment_intent.succeeded": {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      // Fire-and-forget — 200 has already been returned.
+      handlePaymentIntentSucceeded(paymentIntent);
+      return true;
+    }
+
+    case "payment_intent.payment_failed": {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      handlePaymentIntentFailed(paymentIntent);
+      return true;
+    }
+
+    case "charge.refunded": {
+      const charge = event.data.object as Stripe.Charge;
+      handleChargeRefunded(charge);
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
+// ── HTTP Handler ─────────────────────────────────────────────
+
+serve(async (req: Request): Promise<Response> => {
+  // Only accept POST
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Verify Stripe webhook signature
+  const signature = req.headers.get("stripe-signature");
+  if (!signature) {
+    return new Response(
+      JSON.stringify({ error: "Missing stripe-signature header" }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const rawBody = await req.text();
+
+  let event: Stripe.Event;
+  try {
+    event = await stripe.webhooks.constructEventAsync(
+      rawBody,
+      signature,
+      STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Signature verification failed";
+    console.error("[stripe-webhook] Signature verification failed:", message);
+    return new Response(JSON.stringify({ error: `Webhook Error: ${message}` }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Return 200 immediately — handlers run asynchronously
+  const handled = dispatchEvent(event);
+
+  if (!handled) {
+    console.log(`[stripe-webhook] Unhandled event type: ${event.type}`);
+  }
+
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+});
