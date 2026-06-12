@@ -14,6 +14,22 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    if (error) {
+      setError(error.message);
+    } else {
+      setResetSent(true);
+    }
+    setLoading(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,15 +216,34 @@ export default function LoginPage() {
       </div>
 
       {mode === 'login' && (
-        <p className="mt-6 text-center text-sm text-smitten-text/60">
-          Noch kein Konto?{' '}
-          <button
-            onClick={() => { setMode('register'); setError(''); }}
-            className="text-smitten-secondary hover:underline font-medium"
-          >
-            Jetzt registrieren
-          </button>
-        </p>
+        <>
+          {resetSent ? (
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 text-center">
+              Passwort-Reset-Link wurde an {email} gesendet.
+            </div>
+          ) : (
+          <>
+          <div className="mt-4 text-center">
+            <button
+              onClick={handleResetPassword}
+              disabled={!email || loading}
+              className="text-sm text-smitten-secondary hover:underline disabled:opacity-50"
+            >
+              Passwort vergessen?
+            </button>
+          </div>
+          <p className="mt-6 text-center text-sm text-smitten-text/60">
+            Noch kein Konto?{' '}
+            <button
+              onClick={() => { setMode('register'); setError(''); }}
+              className="text-smitten-secondary hover:underline font-medium"
+            >
+              Jetzt registrieren
+            </button>
+          </p>
+          </>
+          )}
+        </>
       )}
     </div>
   );
