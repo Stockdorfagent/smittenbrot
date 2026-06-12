@@ -28,7 +28,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "@stripe/stripe-react-native",
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "smittenbrot",
     "extra": {
