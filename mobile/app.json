@@ -29,7 +29,13 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
-      "@stripe/stripe-react-native",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "",
+          "enableGooglePay": true
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "scheme": "smittenbrot",
