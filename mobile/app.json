@@ -9,7 +9,9 @@
     "splash": {
       "backgroundColor": "#FFFFFF"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "de.smittenbrot.app",
@@ -28,6 +30,15 @@
       "expo-router",
       "expo-notifications"
     ],
-    "scheme": "smittenbrot"
+    "scheme": "smittenbrot",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "60b1dbbc-f675-4169-bd0d-114e4e6cd013"
+      }
+    },
+    "owner": "stockdorfagent"
   }
 }
