@@ -1,0 +1,17 @@
+{
+  "name": "smittenbrot",
+  "private": true,
+  "workspaces": [
+    "website",
+    "mobile",
+    "shared"
+  ],
+  "scripts": {
+    "dev:website": "npm run dev -w website",
+    "dev:mobile": "npm run dev -w mobile",
+    "build:website": "npm run build -w website",
+    "build:mobile": "npm run build -w mobile",
+    "lint": "npm run lint -w website && npm run lint -w mobile",
+    "typecheck": "npm run typecheck -w shared"
+  }
+}

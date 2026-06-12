@@ -67,6 +67,10 @@ export default function OrderDetailPage() {
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [canCancel, setCanCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [cancelSuccess, setCancelSuccess] = useState(false);
 
   useEffect(() => {
     async function fetchInvoice() {
@@ -89,6 +93,19 @@ export default function OrderDetailPage() {
       }
 
       setOrder(orderData);
+
+      // Check if order can still be cancelled (before cutoff)
+      if (orderData.payment_status === 'paid' && 
+          orderData.status !== 'cancelled' && 
+          orderData.status !== 'refunded' &&
+          orderData.status !== 'fulfilled') {
+        const now = new Date();
+        const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+        const cutDate = new Date(orderData.fulfillment_date + 'T14:00:00+02:00');
+        if (berlin < cutDate) {
+          setCanCancel(true);
+        }
+      }
 
       // Fetch order items with product names
       const { data: itemsData } = await supabase
@@ -128,6 +145,32 @@ export default function OrderDetailPage() {
     }
     fetchInvoice();
   }, [id]);
+
+  async function handleCancelOrder() {
+    if (!confirm('Möchtest du die gesamte Bestellung stornieren? Der Betrag wird zurückerstattet.')) return;
+    setCancelling(true);
+    setCancelError('');
+    setCancelSuccess(false);
+
+    try {
+      const res = await fetch('/api/refund-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCancelError(data.error || 'Fehler bei der Stornierung');
+        setCancelling(false);
+        return;
+      }
+      setCancelSuccess(true);
+      setCanCancel(false);
+    } catch {
+      setCancelError('Verbindungsfehler');
+    }
+    setCancelling(false);
+  }
 
   if (loading) {
     return (
@@ -308,6 +351,30 @@ export default function OrderDetailPage() {
             Gemäß § 14 UStG. Bei 7% MwSt. gemäß § 12 Abs. 2 UStG (ermäßigter Steuersatz).
           </p>
         </div>
+
+        {/* Cancel / Refund button */}
+        {canCancel && (
+          <div className="mt-8 no-print">
+            <button
+              onClick={handleCancelOrder}
+              disabled={cancelling}
+              className="w-full border border-red-300 text-red-600 py-3 rounded-full font-medium text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {cancelling ? 'Wird storniert...' : 'Gesamte Bestellung stornieren & Rückerstattung'}
+            </button>
+            <p className="mt-2 text-xs text-center text-smitten-text/40">
+              Rückerstattung erfolgt auf das ursprüngliche Zahlungsmittel. Nur möglich vor Bestellschluss.
+            </p>
+          </div>
+        )}
+        {cancelError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{cancelError}</div>
+        )}
+        {cancelSuccess && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+            Bestellung wurde storniert und der Betrag zurückerstattet.
+          </div>
+        )}
       </div>
 
       {/* Print styles */}
