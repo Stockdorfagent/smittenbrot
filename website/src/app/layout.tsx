@@ -43,6 +43,9 @@ export default function RootLayout({
                 <a href="/agb" className="hover:text-smitten-primary transition-colors">
                   AGB
                 </a>
+                <a href="/app" className="hover:text-smitten-primary transition-colors">
+                  App
+                </a>
                 <a href="/contact" className="hover:text-smitten-primary transition-colors">
                   Kontakt
                 </a>

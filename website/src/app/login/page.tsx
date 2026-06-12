@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -15,6 +15,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    // Check if user arrived via password reset link
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setIsRecovery(true);
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) setEmail(session.user.email || '');
+      });
+    }
+  }, []);
 
   const handleResetPassword = async () => {
     if (!email) return;
@@ -27,6 +40,21 @@ export default function LoginPage() {
       setError(error.message);
     } else {
       setResetSent(true);
+    }
+    setLoading(false);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword) return;
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setError(error.message);
+    } else {
+      setError('Passwort erfolgreich geändert!');
+      setIsRecovery(false);
     }
     setLoading(false);
   };
@@ -99,8 +127,27 @@ export default function LoginPage() {
   return (
     <div className="max-w-md mx-auto px-4 py-10">
       <h1 className="text-2xl font-display font-bold text-smitten-text text-center">
-        {mode === 'login' ? 'Anmelden' : 'Registrieren'}
+        {isRecovery ? 'Neues Passwort' : mode === 'login' ? 'Anmelden' : 'Registrieren'}
       </h1>
+
+      {isRecovery ? (
+        <form onSubmit={handleUpdatePassword} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-smitten-text/70">Neues Passwort</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent" />
+          </div>
+          {error && (
+            <div className={`p-3 rounded-lg text-sm ${error.includes('erfolgreich') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {error}
+            </div>
+          )}
+          <button type="submit" disabled={loading}
+            className="w-full bg-smitten-primary text-white py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+            {loading ? 'Wird gespeichert...' : 'Passwort speichern'}
+          </button>
+        </form>
+      ) : (<>
 
       <div className="mt-6 flex gap-2 justify-center">
         <button
@@ -244,6 +291,8 @@ export default function LoginPage() {
           </>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

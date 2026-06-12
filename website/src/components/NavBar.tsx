@@ -11,6 +11,7 @@ const navLinks = [
   { href: '/products', label: 'Sortiment' },
   { href: '/subscriptions', label: 'Abo' },
   { href: '/about', label: 'Über Smittenbrot' },
+  { href: '/app', label: 'App' },
 ];
 
 export default function NavBar() {
