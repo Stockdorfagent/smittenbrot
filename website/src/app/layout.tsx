@@ -38,7 +38,7 @@ export default function RootLayout({
                   Datenschutz
                 </a>
                 <a href="/zahlung-abholung" className="hover:text-smitten-primary transition-colors">
-                  Zahlung &amp; Abholung
+                  Zahlung
                 </a>
                 <a href="/agb" className="hover:text-smitten-primary transition-colors">
                   AGB

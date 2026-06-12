@@ -138,9 +138,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 Datenschutz
               </a>
               <span className="text-smitten-text/30">·</span>
-              <a href="/zahlung-abholung" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                Zahlung &amp; Abholung
-              </a>
+                <a href="/zahlung-abholung" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
+                  Zahlung
+                </a>
               <span className="text-smitten-text/30">·</span>
                 <a href="/agb" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
                   AGB
