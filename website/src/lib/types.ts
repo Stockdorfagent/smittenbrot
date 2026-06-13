@@ -71,6 +71,17 @@ export interface SubscriptionItem {
   quantity: number;
 }
 
+export interface Customer {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  preferred_pickup_location_id: string | null;
+  push_token: string | null;
+  stripe_customer_id: string | null;
+  created_at: string;
+}
+
 export function formatPrice(cents: number): string {
   return `€${(cents / 100).toFixed(2).replace('.', ',')}`;
 }
