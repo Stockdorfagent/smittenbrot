@@ -16,6 +16,18 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
+  const [creating, setCreating] = useState(false);
+  const [newForm, setNewForm] = useState({
+    name: '',
+    description: '',
+    price_cents: 0,
+    capacity: 10,
+    cycle: 'permanent' as string,
+    available_wed: true,
+    available_sat: true,
+    active: false,
+  });
+  const [uploading, setUploading] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [warningAction, setWarningAction] = useState<(() => void) | null>(null);
 
@@ -173,6 +185,49 @@ export default function AdminProductsPage() {
     await handleDisable(product.id, true);
   }
 
+  async function handleCreateProduct() {
+    const slug = newForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const { data, error } = await supabase
+      .from('products')
+      .insert({
+        name: newForm.name,
+        description: newForm.description,
+        price_cents: newForm.price_cents,
+        capacity: newForm.capacity,
+        cycle: newForm.cycle,
+        available_wed: newForm.available_wed,
+        available_sat: newForm.available_sat,
+        active: newForm.active,
+      })
+      .select()
+      .single();
+    if (!error) {
+      setCreating(false);
+      setNewForm({ name: '', description: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, active: false });
+      loadProducts();
+    }
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>, productId: string) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('productId', productId);
+    try {
+      const res = await fetch('/api/upload-product-photo', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) {
+        await supabase.from('products').update({ cover_image_url: data.url }).eq('id', productId);
+        loadProducts();
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+    }
+    setUploading(false);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -184,6 +239,63 @@ export default function AdminProductsPage() {
   return (
     <div>
       <h1 className="text-2xl font-display font-bold text-smitten-text">Produkte</h1>
+
+      <button onClick={() => setCreating(true)}
+        className="mt-4 px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
+        + Neues Produkt
+      </button>
+
+      {creating && (
+        <div className="mt-4 bg-white rounded-xl border border-smitten-cream p-5 space-y-4">
+          <h2 className="font-display font-bold text-smitten-text">Neues Produkt</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Name *</label>
+              <input type="text" value={newForm.name} onChange={e => setNewForm({...newForm, name: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Preis (€)</label>
+              <input type="number" step="0.01" value={newForm.price_cents / 100} onChange={e => setNewForm({...newForm, price_cents: Math.round(Number(e.target.value) * 100)})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Kapazität</label>
+              <input type="number" value={newForm.capacity} onChange={e => setNewForm({...newForm, capacity: Number(e.target.value)})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Zyklus</label>
+              <select value={newForm.cycle} onChange={e => setNewForm({...newForm, cycle: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white">
+                <option value="permanent">Immer</option>
+                <option value="week_a">Woche A</option>
+                <option value="week_b">Woche B</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">Beschreibung</label>
+            <textarea value={newForm.description} onChange={e => setNewForm({...newForm, description: e.target.value})} rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+          </div>
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_sat} onChange={e => setNewForm({...newForm, available_sat: e.target.checked})} className="rounded" /> Samstag</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.active} onChange={e => setNewForm({...newForm, active: e.target.checked})} className="rounded" /> Aktiv</label>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleCreateProduct} disabled={!newForm.name}
+              className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 disabled:opacity-50">
+              Speichern
+            </button>
+            <button onClick={() => setCreating(false)}
+              className="px-4 py-2 border border-smitten-cream text-sm rounded-lg text-smitten-text/60 hover:bg-smitten-bg">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
 
       {warning && (
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -314,6 +426,18 @@ export default function AdminProductsPage() {
                     />
                     Aktiv
                   </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-smitten-text cursor-pointer">
+                    <span className="px-3 py-1.5 border border-smitten-cream text-xs rounded-lg hover:bg-smitten-bg transition-colors">
+                      {uploading ? 'Lade hoch...' : 'Foto hochladen'}
+                    </span>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={(e) => handlePhotoUpload(e, editingId)} disabled={uploading} />
+                  </label>
+                  {editForm.cover_image_url && (
+                    <img src={editForm.cover_image_url} alt="" className="h-10 w-10 object-cover rounded" />
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
