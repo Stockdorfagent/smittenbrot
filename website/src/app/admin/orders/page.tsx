@@ -11,7 +11,7 @@ interface OrderWithItems extends Order {
 }
 
 const statusLabels: Record<string, string> = {
-  scheduled: 'Geplant',
+  scheduled: 'Neu',
   processing: 'In Bearbeitung',
   grace_period_open: 'Änderungsfenster',
   locked_for_production: 'Für Produktion gesperrt',
@@ -276,20 +276,50 @@ export default function AdminOrdersPage() {
                     </table>
                     <div className="mt-3 flex items-center gap-2">
                       {order.status !== 'fulfilled' && order.status !== 'cancelled' && (
-                        <button
-                          onClick={() => markFulfilled(order.id)}
-                          className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                          Als abgeholt markieren
-                        </button>
+                        <>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Soll eine Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' gesendet werden?')) {
+                                setSending(prev => ({ ...prev, [order.id]: true }));
+                                // Send notification
+                                const location = locations.find(l => l.id === order.pickup_location_id);
+                                const template = location?.notification_template || 'Ihre Bestellung {ORDER_NUMBER} ist abholbereit bei {PICKUP_LOCATION}.';
+                                const message = template
+                                  .replace('{ORDER_NUMBER}', order.id.slice(0, 8))
+                                  .replace('{PICKUP_LOCATION}', location?.name || '')
+                                  .replace('{CODE}', '')
+                                  .replace('{PICKUP_TIME}', '');
+                                await supabase.from('notifications').insert({
+                                  customer_id: order.customer_id,
+                                  type: 'pickup_ready',
+                                  channel: 'both',
+                                  sent_at: new Date().toISOString(),
+                                  delivered: true,
+                                });
+                                // Mark as fulfilled
+                                await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order.id);
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
+                                setSending(prev => ({ ...prev, [order.id]: false }));
+                              }
+                            }}
+                            disabled={sending[order.id]}
+                            className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            {sending[order.id] ? 'Wird gesendet...' : 'Abholbenachrichtigung senden & abhaken'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Bestellung als abgeholt markieren (ohne Benachrichtigung)?')) {
+                                await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order.id);
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
+                              }
+                            }}
+                            className="px-3 py-1.5 border border-smitten-cream text-smitten-text/60 text-xs rounded-lg hover:border-smitten-text/30 transition-colors"
+                          >
+                            Nur abhaken
+                          </button>
+                        </>
                       )}
-                      <button
-                        onClick={() => sendPickupNotification(order.id)}
-                        disabled={sending[order.id]}
-                        className="px-3 py-1.5 bg-smitten-primary text-white text-xs rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50"
-                      >
-                        {sending[order.id] ? 'Sende...' : 'Abholbenachrichtigung senden'}
-                      </button>
                     </div>
                   </div>
                 )}
