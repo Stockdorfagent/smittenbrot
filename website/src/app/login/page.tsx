@@ -17,8 +17,13 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [showMigrationNotice, setShowMigrationNotice] = useState(false);
 
   useEffect(() => {
+    // Show migration notice on first visit
+    if (typeof window !== 'undefined' && !localStorage.getItem('smb_migrated_dismiss')) {
+      setShowMigrationNotice(true);
+    }
     // Detect password recovery from email link
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
@@ -163,10 +168,14 @@ export default function LoginPage() {
         </form>
       ) : (<>
 
-      <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+      {showMigrationNotice && (
+      <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800"
+        onClick={() => { setShowMigrationNotice(false); localStorage.setItem('smb_migrated_dismiss', '1'); }}
+        style={{ cursor: 'pointer' }}>
         <strong>Willkommen beim neuen Smittenbrot!</strong>
-        {' '}Bitte setze dein Passwort zurück, um auf dein Konto zuzugreifen.
+        {' '}Bitte setze dein Passwort zurück, um auf dein Konto zuzugreifen. <span className="text-xs opacity-60">(× schließen)</span>
       </div>
+      )}
 
       <div className="mt-6 flex gap-2 justify-center">
         <button
