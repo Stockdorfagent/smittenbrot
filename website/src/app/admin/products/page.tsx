@@ -40,7 +40,8 @@ export default function AdminProductsPage() {
     const { data } = await supabase
       .from('products')
       .select('*')
-      .order('sort_order', { ascending: true });
+      .order('active', { ascending: false })
+      .order('name', { ascending: true });
     if (data) setProducts(data);
     setLoading(false);
   }
