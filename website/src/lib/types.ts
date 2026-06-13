@@ -14,7 +14,6 @@ export interface Product {
   images: string[];
   sort_order: number;
   created_at: string;
-  updated_at: string;
 }
 
 export interface PickupLocation {
@@ -22,6 +21,7 @@ export interface PickupLocation {
   name: string;
   address: string;
   active: boolean;
+  cabinet_code: string | null;
   notification_template: string;
   sort_order: number;
 }

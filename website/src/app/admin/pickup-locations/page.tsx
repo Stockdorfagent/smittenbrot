@@ -13,6 +13,7 @@ export default function AdminPickupLocationsPage() {
   const [addForm, setAddForm] = useState({
     name: '',
     address: '',
+    cabinet_code: '',
     notification_template: '',
     active: true,
     sort_order: 0,
@@ -49,6 +50,7 @@ export default function AdminPickupLocationsPage() {
       .update({
         name: editForm.name,
         address: editForm.address,
+        cabinet_code: editForm.cabinet_code,
         notification_template: editForm.notification_template,
         active: editForm.active,
         sort_order: editForm.sort_order,
@@ -66,13 +68,14 @@ export default function AdminPickupLocationsPage() {
     const { error } = await supabase.from('pickup_locations').insert({
       name: addForm.name,
       address: addForm.address,
+      cabinet_code: addForm.cabinet_code,
       notification_template: addForm.notification_template,
       active: addForm.active,
       sort_order: addForm.sort_order,
     });
     if (!error) {
       setShowAdd(false);
-      setAddForm({ name: '', address: '', notification_template: '', active: true, sort_order: 0 });
+      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', active: true, sort_order: 0 });
       loadLocations();
     }
   }
@@ -127,15 +130,27 @@ export default function AdminPickupLocationsPage() {
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-smitten-text/60 mb-1">Adresse</label>
-            <input
-              type="text"
-              value={addForm.address}
-              onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
-              placeholder="Straße, PLZ, Ort"
-              className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Adresse</label>
+              <input
+                type="text"
+                value={addForm.address}
+                onChange={(e) => setAddForm({ ...addForm, address: e.target.value })}
+                placeholder="Straße, PLZ, Ort"
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Schrankcode</label>
+              <input
+                type="text"
+                value={addForm.cabinet_code}
+                onChange={(e) => setAddForm({ ...addForm, cabinet_code: e.target.value })}
+                placeholder="z.B. 1234 (wird in {CODE} eingesetzt)"
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">
@@ -203,6 +218,7 @@ export default function AdminPickupLocationsPage() {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Adresse</label>
                   <input
@@ -211,6 +227,17 @@ export default function AdminPickupLocationsPage() {
                     onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs text-smitten-text/60 mb-1">Schrankcode</label>
+                  <input
+                    type="text"
+                    value={editForm.cabinet_code || ''}
+                    onChange={(e) => setEditForm({ ...editForm, cabinet_code: e.target.value })}
+                    placeholder="Ersetzt {CODE} in der Vorlage"
+                    className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                  />
+                </div>
                 </div>
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Benachrichtigungsvorlage</label>

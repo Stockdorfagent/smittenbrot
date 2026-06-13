@@ -330,7 +330,7 @@ export default function AdminOrdersPage() {
                                 const message = template
                                   .replace('{ORDER_NUMBER}', order.id.slice(0, 8))
                                   .replace('{PICKUP_LOCATION}', location?.name || '')
-                                  .replace('{CODE}', '')
+                                  .replace('{CODE}', location?.cabinet_code || '')
                                   .replace('{PICKUP_TIME}', '');
                                 await supabase.from('notifications').insert({
                                   customer_id: order.customer_id,
