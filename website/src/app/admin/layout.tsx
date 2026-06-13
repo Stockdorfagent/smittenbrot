@@ -36,10 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     const user = session.user;
     const admin =
-      user.email === 'sophia@smittenbrot.de' ||
-      user.email === 'hello@smittenbrot.de' ||
-      user.user_metadata?.is_admin === true ||
-      user.app_metadata?.is_admin === true;
+      user.email === 'sophia@smittenbrot.de';
     if (!admin) {
       router.push('/login');
       return;
