@@ -17,6 +17,9 @@ export default function AdminDashboard() {
   const [orderCount, setOrderCount] = useState<number>(0);
   const [fulfilledCount, setFulfilledCount] = useState<number>(0);
   const [activeSubs, setActiveSubs] = useState<number>(0);
+  const [revenueMonth, setRevenueMonth] = useState<number>(0);
+  const [revenueDay, setRevenueDay] = useState<number>(0);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -106,6 +109,31 @@ export default function AdminDashboard() {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active');
       setActiveSubs(subCount || 0);
+
+      // Revenue queries
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const { data: monthOrders } = await supabase
+        .from('orders')
+        .select('total_cents')
+        .gte('fulfillment_date', monthStart)
+        .eq('payment_status', 'paid');
+      setRevenueMonth((monthOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
+
+      if (targetDate) {
+        const { data: dayOrders } = await supabase
+          .from('orders')
+          .select('total_cents')
+          .eq('fulfillment_date', targetDate)
+          .eq('payment_status', 'paid');
+        setRevenueDay((dayOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
+      }
+
+      const { data: allOrders } = await supabase
+        .from('orders')
+        .select('total_cents')
+        .eq('payment_status', 'paid');
+      setTotalRevenue((allOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
     } catch (err) {
       console.error('Dashboard error:', err);
     } finally {
@@ -125,10 +153,22 @@ export default function AdminDashboard() {
     <div>
       <h1 className="text-2xl font-display font-bold text-smitten-text">Dashboard</h1>
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-5 border border-smitten-cream">
           <p className="text-sm text-smitten-text/60">Aktive Abos</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{activeSubs}</p>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+          <p className="text-sm text-smitten-text/60">Umsatz {productionDay || 'aktuell'}</p>
+          <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(revenueDay)}</p>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+          <p className="text-sm text-smitten-text/60">Umsatz diesen Monat</p>
+          <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(revenueMonth)}</p>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+          <p className="text-sm text-smitten-text/60">Gesamtumsatz</p>
+          <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(totalRevenue)}</p>
         </div>
         {productionDay && (
         <div className="bg-white rounded-xl p-5 border border-smitten-cream">
