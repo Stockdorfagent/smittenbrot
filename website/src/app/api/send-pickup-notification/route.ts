@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        sender: { email: 'hello@smittenbrot.de', name: 'Smittenbrot' },
+        sender: { email: 'info@smittenbrot.de', name: 'Smittenbrot' },
         to: [{ email: recipientEmail }],
         subject: `Deine Smittenbrot Bestellung #${orderNum} ist abholbereit!`,
         textContent: message,

@@ -253,7 +253,7 @@ async function sendReceiptEmail(
     `.trim();
 
     const payload = {
-      sender: { email: "hello@smittenbrot.de", name: "Smittenbrot" },
+      sender: { email: "info@smittenbrot.de", name: "Smittenbrot" },
       to: [{ email: recipientEmail }],
       subject,
       htmlContent,
