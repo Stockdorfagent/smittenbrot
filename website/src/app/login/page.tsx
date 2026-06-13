@@ -19,7 +19,16 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
-    // Check if user arrived via password reset link
+    // Detect password recovery from email link
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) setEmail(session.user.email || '');
+        });
+      }
+    });
+    // Also check hash directly on mount (for page reloads)
     const hash = window.location.hash;
     if (hash && hash.includes('type=recovery')) {
       setIsRecovery(true);
@@ -27,6 +36,7 @@ export default function LoginPage() {
         if (session?.user) setEmail(session.user.email || '');
       });
     }
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleResetPassword = async () => {
@@ -154,10 +164,8 @@ export default function LoginPage() {
       ) : (<>
 
       <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-        <p className="font-medium">Willkommen beim neuen Smittenbrot!</p>
-        <p className="mt-1">
-          Ich habe meine Website umgestellt. Wenn du bereits ein Konto bei mir hattest, kannst du dich mit deiner E-Mail-Adresse anmelden. Klicke auf <strong>„Passwort vergessen?"</strong>, um ein neues Passwort zu wählen. Deine bisherigen Bestellungen sind bereits in deinem Konto hinterlegt.
-        </p>
+        <strong>Willkommen beim neuen Smittenbrot!</strong>
+        {' '}Bitte setze dein Passwort zurück, um auf dein Konto zuzugreifen.
       </div>
 
       <div className="mt-6 flex gap-2 justify-center">
