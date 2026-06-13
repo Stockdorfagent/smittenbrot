@@ -33,13 +33,17 @@ export default function LoginPage() {
     if (!email) return;
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    if (error) {
-      setError(error.message);
-    } else {
-      setResetSent(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        setResetSent(true);
+      }
+    } catch (err) {
+      setError('Ein Fehler ist aufgetreten. Bitte versuche es später erneut.');
     }
     setLoading(false);
   };
