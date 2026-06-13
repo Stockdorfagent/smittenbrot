@@ -17,14 +17,8 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
   const [newPassword, setNewPassword] = useState('');
-  const [showMigrationNotice, setShowMigrationNotice] = useState(false);
 
   useEffect(() => {
-    // Show migration notice on first visit
-    if (typeof window !== 'undefined' && !localStorage.getItem('smb_migrated_dismiss')) {
-      setShowMigrationNotice(true);
-    }
-    // Detect password recovery from email link
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
@@ -85,7 +79,11 @@ export default function LoginPage() {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setError(error.message);
+      if (error.message === 'Invalid login credentials') {
+        setError('Dein Konto wurde migriert. Bitte klicke auf „Passwort vergessen?", um ein neues Passwort zu wählen.');
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
       return;
     }
@@ -167,15 +165,6 @@ export default function LoginPage() {
           </button>
         </form>
       ) : (<>
-
-      {showMigrationNotice && (
-      <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800"
-        onClick={() => { setShowMigrationNotice(false); localStorage.setItem('smb_migrated_dismiss', '1'); }}
-        style={{ cursor: 'pointer' }}>
-        <strong>Willkommen beim neuen Smittenbrot!</strong>
-        {' '}Bitte setze dein Passwort zurück, um auf dein Konto zuzugreifen. <span className="text-xs opacity-60">(× schließen)</span>
-      </div>
-      )}
 
       <div className="mt-6 flex gap-2 justify-center">
         <button
