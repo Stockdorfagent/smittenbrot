@@ -33,6 +33,19 @@ export default function AdminSettingsPage() {
   const [receiptDateFrom, setReceiptDateFrom] = useState('');
   const [receiptDateTo, setReceiptDateTo] = useState('');
 
+  // Stripe fees state
+  const [feeDateFrom, setFeeDateFrom] = useState('');
+  const [feeDateTo, setFeeDateTo] = useState('');
+  const [stripeFeeLoading, setStripeFeeLoading] = useState(false);
+  const [stripeFeeSummary, setStripeFeeSummary] = useState<{
+    days: number;
+    transactions: number;
+    total_gross_cents: number;
+    total_fee_cents: number;
+    total_net_cents: number;
+  } | null>(null);
+  const [stripeFeeError, setStripeFeeError] = useState('');
+
   // Seller info state
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null);
   const [sellerForm, setSellerForm] = useState({
@@ -240,6 +253,45 @@ export default function AdminSettingsPage() {
     a.download = `bestellungen-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportStripeFees() {
+    setStripeFeeError('');
+    setStripeFeeSummary(null);
+    if (!feeDateFrom) {
+      setStripeFeeError('Bitte wähle ein Startdatum.');
+      return;
+    }
+
+    setStripeFeeLoading(true);
+    try {
+      const res = await fetch('/api/export-stripe-fees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_date: feeDateFrom, to_date: feeDateTo || null }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setStripeFeeError(data.error || 'Export fehlgeschlagen');
+        return;
+      }
+
+      // Trigger CSV download
+      const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setStripeFeeSummary(data.summary);
+    } catch (err: any) {
+      setStripeFeeError(err.message || 'Export fehlgeschlagen');
+    } finally {
+      setStripeFeeLoading(false);
+    }
   }
 
   async function exportDatevCsv() {
@@ -484,6 +536,47 @@ export default function AdminSettingsPage() {
           <p className="mt-3 text-xs text-smitten-text/40">
             Kontonummern: Erlöse 7% → 8400 (SKR04) | Umsatzsteuer 7% → 1776. Bitte vor dem Import mit deinem Steuerberater abstimmen.
           </p>
+        </div>
+
+        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Stripe-Gebühren
+          </h2>
+          <p className="text-sm text-smitten-text/60 mt-2">
+            Exportiere die von Stripe erhobenen Transaktionsgebühren als CSV. Enthält Bruttoumsatz, Gebühren und Nettobetrag pro Tag.
+          </p>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
+              <input type="date" value={feeDateFrom} onChange={e => setFeeDateFrom(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
+              <input type="date" value={feeDateTo} onChange={e => setFeeDateTo(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <button onClick={exportStripeFees} disabled={stripeFeeLoading}
+              className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+              {stripeFeeLoading ? 'Lade...' : 'Stripe-Gebühren exportieren'}
+            </button>
+          </div>
+          {stripeFeeSummary && (
+            <div className="mt-3 p-3 bg-smitten-bg rounded-lg border border-smitten-cream text-sm">
+              <p className="text-smitten-text font-medium">Exportiert</p>
+              <p className="text-smitten-text/60 mt-1">
+                {stripeFeeSummary.days} Tage · {stripeFeeSummary.transactions} Transaktionen
+              </p>
+              <p className="text-smitten-text/60">
+                Brutto: €{(stripeFeeSummary.total_gross_cents / 100).toFixed(2).replace('.', ',')} ·
+                Gebühren: €{(stripeFeeSummary.total_fee_cents / 100).toFixed(2).replace('.', ',')} ·
+                Netto: €{(stripeFeeSummary.total_net_cents / 100).toFixed(2).replace('.', ',')}
+              </p>
+            </div>
+          )}
+          {stripeFeeError && (
+            <p className="mt-3 text-sm text-red-500">{stripeFeeError}</p>
+          )}
         </div>
       </div>
 
