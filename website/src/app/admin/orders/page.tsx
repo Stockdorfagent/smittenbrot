@@ -245,7 +245,7 @@ export default function AdminOrdersPage() {
                         {order.customer_name || order.customer_email || 'Gast'}
                       </p>
                       <p className="text-xs text-smitten-text/40 mt-0.5">
-                        <strong className="text-smitten-text/60">{order.invoice_number}</strong> · {new Date(order.fulfillment_date).toLocaleDateString('de-DE')} · {order.location_name}
+                        <strong className="text-smitten-text/60">{(order as any).order_number}</strong> · {new Date(order.fulfillment_date).toLocaleDateString('de-DE')} · {order.location_name}
                       </p>
                     </div>
                     <div className="text-right ml-4 flex items-center gap-3">
@@ -328,7 +328,7 @@ export default function AdminOrdersPage() {
                                 const location = locations.find(l => l.id === order.pickup_location_id);
                                 const template = location?.notification_template || 'Ihre Bestellung {ORDER_NUMBER} ist abholbereit bei {PICKUP_LOCATION}.';
                                 const message = template
-                                  .replace('{ORDER_NUMBER}', order.id.slice(0, 8))
+                                  .replace('{ORDER_NUMBER}', order.order_number?.replace(/^0+/, '') || order.id.slice(0, 8))
                                   .replace('{PICKUP_LOCATION}', location?.name || '')
                                   .replace('{CODE}', location?.cabinet_code || '')
                                   .replace('{PICKUP_TIME}', '');

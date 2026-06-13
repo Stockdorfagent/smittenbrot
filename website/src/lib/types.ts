@@ -41,6 +41,7 @@ export interface Order {
   customer_email: string | null;
   customer_name: string | null;
   invoice_number: string | null;
+  order_number: string | null;
   discount_code: string | null;
   discount_cents: number | null;
   created_at: string;
