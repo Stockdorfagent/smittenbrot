@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface CustomerWithStats {
@@ -196,9 +196,8 @@ export default function AdminCustomersPage() {
               </tr>
             ) : (
               filtered.map((c) => (
-                <>
+                <Fragment key={c.id}>
                   <tr
-                    key={c.id}
                     className="border-b border-smitten-cream last:border-0 hover:bg-smitten-cream/30 cursor-pointer"
                     onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
                   >
@@ -220,7 +219,7 @@ export default function AdminCustomersPage() {
                     </td>
                   </tr>
                   {expandedId === c.id && (
-                    <tr key={`${c.id}-detail`}>
+                    <tr>
                       <td colSpan={6} className="px-4 py-3 bg-smitten-cream/20">
                         <div className="text-xs text-smitten-text/60 space-y-1">
                           <p><strong>Kunde seit:</strong> {new Date(c.created_at).toLocaleDateString('de-DE')}</p>
@@ -243,7 +242,7 @@ export default function AdminCustomersPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))
             )}
           </tbody>
