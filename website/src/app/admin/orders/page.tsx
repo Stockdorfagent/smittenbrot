@@ -36,6 +36,8 @@ export default function AdminOrdersPage() {
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sending, setSending] = useState<Record<string, boolean>>({});
+  const [invoiceFrom, setInvoiceFrom] = useState('');
+  const [invoiceTo, setInvoiceTo] = useState('');
 
   useEffect(() => {
     loadData();
@@ -127,6 +129,25 @@ export default function AdminOrdersPage() {
     setSending((prev) => ({ ...prev, [orderId]: false }));
   }
 
+  async function downloadInvoices() {
+    if (!invoiceFrom) return;
+    const to = invoiceTo || '2099-12-31';
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, invoice_number')
+      .gte('fulfillment_date', invoiceFrom)
+      .lte('fulfillment_date', to)
+      .not('invoice_number', 'is', null)
+      .neq('status', 'cancelled');
+    if (!orders || orders.length === 0) {
+      alert('Keine Rechnungen im gewählten Zeitraum.');
+      return;
+    }
+    for (const o of orders) {
+      window.open(`/orders/${o.id}`, '_blank');
+    }
+  }
+
   const filteredOrders = orders.filter((o) => {
     if (statusFilter && o.status !== statusFilter) return false;
     if (locationFilter && o.pickup_location_id !== locationFilter) return false;
@@ -181,6 +202,23 @@ export default function AdminOrdersPage() {
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
         </select>
+      </div>
+
+      <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-end gap-3 flex-wrap">
+        <div>
+          <label className="block text-xs text-smitten-text/60 mb-1">Rechnungen von</label>
+          <input type="date" value={invoiceFrom} onChange={e => setInvoiceFrom(e.target.value)}
+            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+        </div>
+        <div>
+          <label className="block text-xs text-smitten-text/60 mb-1">bis</label>
+          <input type="date" value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)}
+            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+        </div>
+        <button onClick={downloadInvoices}
+          className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
+          Rechnungen öffnen ({invoiceFrom ? `ab ${invoiceFrom}` : 'Datum wählen'})
+        </button>
       </div>
 
       {filteredOrders.length === 0 ? (
