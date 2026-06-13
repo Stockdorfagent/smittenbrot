@@ -322,26 +322,17 @@ export default function AdminOrdersPage() {
                         <>
                           <button
                             onClick={async () => {
-                              if (confirm('Soll eine Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' gesendet werden?')) {
+                              if (confirm('Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' senden und Bestellung als abgeholt markieren?')) {
                                 setSending(prev => ({ ...prev, [order.id]: true }));
-                                // Send notification
-                                const location = locations.find(l => l.id === order.pickup_location_id);
-                                const template = location?.notification_template || 'Ihre Bestellung {ORDER_NUMBER} ist abholbereit bei {PICKUP_LOCATION}.';
-                                const message = template
-                                  .replace('{ORDER_NUMBER}', order.order_number?.replace(/^0+/, '') || order.id.slice(0, 8))
-                                  .replace('{PICKUP_LOCATION}', location?.name || '')
-                                  .replace('{CODE}', location?.cabinet_code || '')
-                                  .replace('{PICKUP_TIME}', '');
-                                await supabase.from('notifications').insert({
-                                  customer_id: order.customer_id,
-                                  type: 'pickup_ready',
-                                  channel: 'both',
-                                  sent_at: new Date().toISOString(),
-                                  delivered: true,
+                                const res = await fetch('/api/send-pickup-notification', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ order_id: order.id }),
                                 });
-                                // Mark as fulfilled
-                                await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order.id);
-                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
+                                const data = await res.json();
+                                if (data.success) {
+                                  setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
+                                }
                                 setSending(prev => ({ ...prev, [order.id]: false }));
                               }
                             }}
