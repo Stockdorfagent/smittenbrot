@@ -155,6 +155,28 @@ export default function SubscriptionsPage() {
               Mit dem Abo-Service erhältst du jede Woche frisches Brot und Gebäck – genau auf deine Bedürfnisse abgestimmt.
             </p>
           </section>
+
+          <section className="mt-8 bg-smitten-cream rounded-xl p-6">
+            <h3 className="font-display text-lg font-bold text-smitten-text mb-3">So funktioniert dein Abo</h3>
+            <ul className="space-y-3 text-sm text-smitten-text/70">
+              <li className="flex gap-3">
+                <span className="text-smitten-primary font-bold shrink-0">📧</span>
+                <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (und Push-Benachrichtigung, wenn du die App nutzt).</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="text-smitten-primary font-bold shrink-0">🔄</span>
+                <span>Wenn mit deiner Bestellung alles in Ordnung ist, <strong>musst du nichts tun</strong>. Die Bestellung wird automatisch um <strong>20:00 Uhr</strong> aufgegeben und der Betrag abgebucht.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="text-smitten-primary font-bold shrink-0">✏️</span>
+                <span>Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du <strong>bis 20:00 Uhr</strong> ganz einfach in deinem Konto erledigen.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="text-smitten-primary font-bold shrink-0">⏰</span>
+                <span>Nach 20:00 Uhr hast du noch bis <strong>22:00 Uhr</strong> Zeit, die Bestellung zu stornieren – danach wird für dich gebacken.</span>
+              </li>
+            </ul>
+          </section>
           <button onClick={() => router.push('/login?redirect=/subscriptions')}
             className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Für Abo anmelden
