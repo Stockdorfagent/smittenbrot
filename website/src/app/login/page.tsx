@@ -153,6 +153,13 @@ export default function LoginPage() {
         </form>
       ) : (<>
 
+      <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+        <p className="font-medium">Willkommen beim neuen Smittenbrot!</p>
+        <p className="mt-1">
+          Ich habe meine Website umgestellt. Wenn du bereits ein Konto bei mir hattest, kannst du dich mit deiner E-Mail-Adresse anmelden. Klicke auf <strong>„Passwort vergessen?"</strong>, um ein neues Passwort zu wählen. Deine bisherigen Bestellungen sind bereits in deinem Konto hinterlegt.
+        </p>
+      </div>
+
       <div className="mt-6 flex gap-2 justify-center">
         <button
           onClick={() => { setMode('login'); setError(''); }}
