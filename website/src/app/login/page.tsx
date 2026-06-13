@@ -80,7 +80,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.message === 'Invalid login credentials') {
-        setError('Dein Konto wurde migriert. Bitte klicke auf „Passwort vergessen?", um ein neues Passwort zu wählen.');
+        setError('Schön, dass du wieder da bist! Ich habe meine Website erneuert – bitte wähle ein neues Passwort.');
       } else {
         setError(error.message);
       }
