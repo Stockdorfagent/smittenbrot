@@ -30,6 +30,8 @@ export default function AdminSettingsPage() {
   const [savingCapacity, setSavingCapacity] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
+  const [receiptDateFrom, setReceiptDateFrom] = useState('');
+  const [receiptDateTo, setReceiptDateTo] = useState('');
 
   // Seller info state
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null);
@@ -240,6 +242,66 @@ export default function AdminSettingsPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function exportDatevCsv() {
+    setExportMsg('');
+    if (!receiptDateFrom) {
+      setExportMsg('Bitte wähle ein Startdatum.');
+      setTimeout(() => setExportMsg(''), 4000);
+      return;
+    }
+
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('*')
+      .gte('fulfillment_date', receiptDateFrom)
+      .lte('fulfillment_date', receiptDateTo || '2099-12-31')
+      .order('fulfillment_date', { ascending: true });
+
+    if (!orders || orders.length === 0) {
+      setExportMsg('Keine Bestellungen im gewählten Zeitraum.');
+      setTimeout(() => setExportMsg(''), 3000);
+      return;
+    }
+
+    const lines = [
+      'Konto;Gegenkonto;BU-Schlüssel;Datum;Umsatz;Soll/Haben;Belegdatum;Belegfeld1;Buchungstext',
+    ];
+
+    for (const order of orders) {
+      const date = order.fulfillment_date ? order.fulfillment_date.replace(/-/g, '') : '';
+      const grossCents = order.total_cents;
+      const netCents = Math.round(grossCents / 1.07);
+      const vatCents = grossCents - netCents;
+      const netFmt = (netCents / 100).toFixed(2).replace('.', ',');
+      const vatFmt = (vatCents / 100).toFixed(2).replace('.', ',');
+      const invoiceNum = order.invoice_number || order.id.substring(0, 8).toUpperCase();
+      const customerName = (order.customer_name || 'Gast').replace(/"/g, '""');
+
+      // Revenue line (net → Erlöskonto 8400, SKR 04)
+      lines.push([
+        '8400', '', '1', date, netFmt, 'S', date, invoiceNum,
+        `Smittenbrot ${invoiceNum} ${customerName}`,
+      ].join(';'));
+
+      // VAT line (7% USt → Konto 1776, SKR 04)
+      lines.push([
+        '1776', '', '2', date, vatFmt, 'H', date, invoiceNum,
+        `UST 7% ${invoiceNum}`,
+      ].join(';'));
+    }
+
+    const csvContent = '\uFEFF' + lines.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `datev-${receiptDateFrom}-${receiptDateTo || 'bis'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportMsg(`${orders.length} Rechnungen als DATEV-Buchungsstapel exportiert.`);
+    setTimeout(() => setExportMsg(''), 5000);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -394,6 +456,34 @@ export default function AdminSettingsPage() {
           {exportMsg && (
             <p className="mt-3 text-sm text-smitten-text/60">{exportMsg}</p>
           )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Rechnungen für DATEV
+          </h2>
+          <p className="text-sm text-smitten-text/60 mt-2">
+            Wähle einen Zeitraum und exportiere die Rechnungen als DATEV-kompatiblen Buchungsstapel (CSV). Dieser kann direkt in DATEV Unternehmen Online importiert werden.
+          </p>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
+              <input type="date" value={receiptDateFrom} onChange={e => setReceiptDateFrom(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
+              <input type="date" value={receiptDateTo} onChange={e => setReceiptDateTo(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <button onClick={exportDatevCsv}
+              className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
+              DATEV-Buchungsstapel exportieren
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-smitten-text/40">
+            Kontonummern: Erlöse 7% → 8400 (SKR04) | Umsatzsteuer 7% → 1776. Bitte vor dem Import mit deinem Steuerberater abstimmen.
+          </p>
         </div>
       </div>
 
