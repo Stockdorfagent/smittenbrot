@@ -11,53 +11,53 @@ export default function AppPage() {
 
       <div className="mt-8 bg-smitten-cream rounded-xl p-6 border border-smitten-cream">
         <h2 className="text-xl font-display font-bold text-smitten-text">
-          Android App herunterladen
+          App herunterladen
         </h2>
         <p className="mt-2 text-sm text-smitten-text/60">
-          Lade dir die <span className="text-smitten-primary italic">Smittenbrot</span> App als APK herunter und installiere sie direkt auf deinem Android-Handy.
+          Lade dir die <span className="text-smitten-primary italic">Smittenbrot</span> App direkt herunter und installiere sie auf deinem Android-Handy.
           Kein Google Play Store nötig.
         </p>
 
         <a
           href="/smittenbrot.apk"
           download
-          className="mt-5 inline-flex items-center gap-2 bg-smitten-primary text-white px-6 py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors"
+          className="mt-5 inline-flex items-center gap-2 bg-smitten-primary text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors text-base"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          APK herunterladen
+          App herunterladen
         </a>
       </div>
 
       <div className="mt-8 space-y-6">
         <div className="bg-white rounded-xl border border-smitten-cream p-6">
           <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-            APK herunterladen
+            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
+            App herunterladen
           </h2>
           <p className="mt-2 text-sm text-smitten-text/60 ml-9">
-            Tippe auf den Download-Button oben. Dein Browser lädt die <code className="text-smitten-primary bg-smitten-cream px-1 rounded">.apk</code>-Datei herunter.
+            Tippe auf den Download-Button oben. Dein Android-Handy lädt die App herunter.
           </p>
         </div>
 
         <div className="bg-white rounded-xl border border-smitten-cream p-6">
           <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
             Installation erlauben
           </h2>
           <p className="mt-2 text-sm text-smitten-text/60 ml-9">
-            Beim ersten Öffnen der APK erscheint ein Hinweis. Erlaube die Installation
-            von unbekannten Apps – das ist nötig, weil die App nicht über den Google Play Store
-            vertrieben wird. Tippe auf <strong>„Einstellungen"</strong> und aktiviere
-            <strong> „Installation unbekannter Apps erlauben"</strong> (oder ähnlich).
+            Beim Öffnen der heruntergeladenen App erscheint eine Sicherheitsfrage.
+            Erlaube die Installation – das ist nötig, weil die App nicht aus dem
+            Google Play Store kommt. Tippe auf <strong>„Einstellungen"</strong> und
+            schalte <strong>„Installation unbekannter Apps erlauben"</strong> ein.
           </p>
         </div>
 
         <div className="bg-white rounded-xl border border-smitten-cream p-6">
           <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-            Installieren & Loslegen
+            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
+            Fertig!
           </h2>
           <p className="mt-2 text-sm text-smitten-text/60 ml-9">
             Nach der Installation findest du <span className="text-smitten-primary italic">Smittenbrot</span> auf deinem Startbildschirm.
@@ -67,9 +67,9 @@ export default function AppPage() {
       </div>
 
       <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <strong>Hinweis:</strong> Die App wird regelmäßig aktualisiert. Lade bei neuen
-        Funktionen einfach die aktuelle APK herunter und installiere sie neu – deine
-        Daten und Einstellungen bleiben erhalten.
+        <strong>Hinweis:</strong> Die App wird regelmäßig aktualisiert. Wenn ich neue
+        Funktionen veröffentliche, lade einfach die aktuelle Version herunter und
+        installiere sie neu – deine Daten und Einstellungen bleiben erhalten.
       </div>
     </div>
   );
