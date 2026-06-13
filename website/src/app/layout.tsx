@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/Providers';
 import NavBar from '@/components/NavBar';
+import ClosureBanner from '@/components/ClosureBanner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <NavBar />
+          <ClosureBanner />
           <main>{children}</main>
           <footer className="border-t border-smitten-cream bg-white mt-20">
             <div className="max-w-5xl mx-auto px-4 py-8 flex items-center justify-between">

@@ -11,6 +11,16 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(req: NextRequest) {
   try {
+    // Check for active closure
+    const closureRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closure-handler/active`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+    });
+    const closureData = await closureRes.json();
+    if (closureData.active) {
+      return NextResponse.json({ error: closureData.closure?.banner_text_de || 'Aktuell findet keine Produktion statt.' }, { status: 503 });
+    }
+
     const body = await req.json();
     const { items, customer_id, customer_email, customer_name, fulfillment_date, pickup_location_id, discount_code, billing_country } = body;
 

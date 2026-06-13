@@ -44,15 +44,12 @@ export default function AdminClosuresPage() {
 
   async function addClosure() {
     if (!addForm.start_date || !addForm.end_date) return;
-    const { error } = await supabase.from('closures').insert({
-      start_date: addForm.start_date,
-      end_date: addForm.end_date,
-      reason: addForm.reason,
-      banner_text_de:
-        addForm.banner_text_de ||
-        'Während unseres Urlaubs findet keine Produktion statt.',
+    const res = await fetch('/api/closures', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', start_date: addForm.start_date, end_date: addForm.end_date, reason: addForm.reason, banner_text_de: addForm.banner_text_de }),
     });
-    if (!error) {
+    if (res.ok) {
       setShowAdd(false);
       setAddForm({ start_date: '', end_date: '', reason: '', banner_text_de: '' });
       loadData();
@@ -62,8 +59,12 @@ export default function AdminClosuresPage() {
   async function deleteClosure(closure: Closure) {
     const msg = `Diese Schließzeit betrifft ${subCount} aktive Abonnements, die pausiert werden. Wirklich löschen?`;
     if (!confirm(msg)) return;
-    const { error } = await supabase.from('closures').delete().eq('id', closure.id);
-    if (!error) loadData();
+    await fetch('/api/closures', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', closure_id: closure.id }),
+    });
+    loadData();
   }
 
   function isActive(closure: Closure): boolean {
