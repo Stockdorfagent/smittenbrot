@@ -40,6 +40,7 @@ export interface Order {
   notes: string | null;
   customer_email: string | null;
   customer_name: string | null;
+  invoice_number: string | null;
   created_at: string;
 }
 

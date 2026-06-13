@@ -207,7 +207,7 @@ export default function AdminOrdersPage() {
                         {order.customer_name || order.customer_email || 'Gast'}
                       </p>
                       <p className="text-xs text-smitten-text/40 mt-0.5">
-                        #{order.id.slice(0, 8)} · {new Date(order.fulfillment_date).toLocaleDateString('de-DE')} · {order.location_name}
+                        <strong className="text-smitten-text/60">{order.invoice_number}</strong> · {new Date(order.fulfillment_date).toLocaleDateString('de-DE')} · {order.location_name}
                       </p>
                     </div>
                     <div className="text-right ml-4 flex items-center gap-3">
