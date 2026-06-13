@@ -304,6 +304,12 @@ export default function OrderDetailPage() {
               <span>MwSt. 7%</span>
               <span>{formatPrice(vatTotal)}</span>
             </div>
+            {(order as any).discount_code && (
+            <div className="flex justify-between text-green-600 text-sm">
+              <span>Rabatt ({(order as any).discount_code})</span>
+              <span>-{formatPrice((order as any).discount_cents || 0)}</span>
+            </div>
+            )}
             <div className="flex justify-between font-bold text-base text-smitten-text pt-2 border-t border-gray-200">
               <span>Gesamtsumme (brutto)</span>
               <span className="text-smitten-accent">{formatPrice(order.total_cents)}</span>

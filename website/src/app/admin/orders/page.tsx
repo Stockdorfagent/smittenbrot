@@ -313,6 +313,11 @@ export default function AdminOrdersPage() {
                       </tbody>
                     </table>
                     <div className="mt-3 flex items-center gap-2">
+                      {(order as any).discount_code && (
+                        <p className="text-xs text-green-600">
+                          Rabattcode {(order as any).discount_code}: -{formatPrice((order as any).discount_cents || 0)}
+                        </p>
+                      )}
                       {order.status !== 'fulfilled' && order.status !== 'cancelled' && (
                         <>
                           <button
