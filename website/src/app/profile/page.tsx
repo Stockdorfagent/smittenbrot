@@ -104,6 +104,7 @@ export default function ProfilePage() {
           <p className="font-medium text-smitten-text">Meine Bestellungen</p>
           <p className="text-sm text-smitten-text/60">Bestellverlauf und Rechnungen</p>
         </Link>
+        {user?.email === 'sophia@smittenbrot.de' && (<>
         <Link href="/admin/discounts"
           className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Rabattcodes</p>
@@ -114,6 +115,7 @@ export default function ProfilePage() {
           <p className="font-medium text-smitten-text">Admin Bereich</p>
           <p className="text-sm text-smitten-text/60">Dashboard und Einstellungen</p>
         </Link>
+        </>)}
         <button onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
           className="w-full text-left bg-white rounded-xl border border-red-100 p-4 hover:border-red-200 transition-colors">
           <p className="font-medium text-red-600">Abmelden</p>
