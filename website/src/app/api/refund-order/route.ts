@@ -73,6 +73,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Status-Update fehlgeschlagen' }, { status: 500 });
     }
 
+    // Generate Storno-Rechnung if original invoice exists (GoBD §14 UStG)
+    if (order.invoice_number) {
+      try {
+        const netCents = Math.round(order.total_cents / 1.07);
+        const vatCents = order.total_cents - netCents;
+        await supabase.from('credit_notes').insert({
+          order_id: order.id,
+          original_invoice_number: order.invoice_number,
+          total_gross_cents: order.total_cents,
+          total_net_cents: netCents,
+          total_vat_cents: vatCents,
+          vat_rate: 0.07,
+          reason: 'Stornierung der Rechnung ' + order.invoice_number,
+        });
+      } catch (cnErr) {
+        console.error('[refund-order] Failed to create credit note:', cnErr);
+        // Non-critical — refund already processed
+      }
+    }
+
     // Send admin notification
     try {
       const brevoKey = process.env.BREVO_API_KEY;

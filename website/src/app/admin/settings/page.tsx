@@ -46,6 +46,10 @@ export default function AdminSettingsPage() {
   } | null>(null);
   const [stripeFeeError, setStripeFeeError] = useState('');
 
+  // Credit notes state
+  const [creditNotes, setCreditNotes] = useState<any[]>([]);
+  const [creditNotesLoading, setCreditNotesLoading] = useState(false);
+
   // Seller info state
   const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null);
   const [sellerForm, setSellerForm] = useState({
@@ -320,6 +324,35 @@ export default function AdminSettingsPage() {
     ];
 
     for (const order of orders) {
+      // Skip cancelled orders that have a credit note — the Storno handles the reversal
+      const { data: creditNote } = await supabase
+        .from('credit_notes')
+        .select('*')
+        .eq('order_id', order.id)
+        .maybeSingle();
+
+      if (creditNote) {
+        // Storno reversal entry (negative booking)
+        const date = (creditNote.created_at ? creditNote.created_at.substring(0, 10) : order.fulfillment_date).replace(/-/g, '');
+        const netFmt = (creditNote.total_net_cents / 100).toFixed(2).replace('.', ',');
+        const vatFmt = (creditNote.total_vat_cents / 100).toFixed(2).replace('.', ',');
+        const invoiceNum = creditNote.credit_note_number;
+        const customerName = (order.customer_name || 'Gast').replace(/\"/g, '""');
+
+        // Reversal: revenue (8400) on Haben / VAT (1776) on Soll (opposite of original)
+        lines.push([
+          '8400', '', '1', date, netFmt, 'H', date, invoiceNum,
+          `Storno ${invoiceNum} zu ${creditNote.original_invoice_number} ${customerName}`,
+        ].join(';'));
+        lines.push([
+          '1776', '', '2', date, vatFmt, 'S', date, invoiceNum,
+          `UST Storno 7% ${invoiceNum}`,
+        ].join(';'));
+        continue; // Skip the original invoice entry — the Storno replaces it
+      }
+
+      // Skip other cancelled orders (no credit note = cancelled before invoicing)
+      if (order.status === 'cancelled' || order.status === 'refunded') continue;
       const date = order.fulfillment_date ? order.fulfillment_date.replace(/-/g, '') : '';
       const grossCents = order.total_cents;
       const netCents = Math.round(grossCents / 1.07);
@@ -578,6 +611,67 @@ export default function AdminSettingsPage() {
             <p className="mt-3 text-sm text-red-500">{stripeFeeError}</p>
           )}
         </div>
+      </div>
+
+      {/* CREDIT NOTES / STORNO-RECHNUNGEN */}
+      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Storno-Rechnungen (Gutschriften)
+          </h2>
+          <button
+            onClick={async () => {
+              setCreditNotesLoading(true);
+              const { data } = await supabase
+                .from('credit_notes')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(100);
+              if (data) setCreditNotes(data);
+              setCreditNotesLoading(false);
+            }}
+            disabled={creditNotesLoading}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {creditNotesLoading ? 'Lade...' : 'Stornos laden'}
+          </button>
+        </div>
+        <p className="text-sm text-smitten-text/60 mt-2">
+          Übersicht aller ausgestellten Storno-Rechnungen. Wird automatisch erstellt, wenn eine bereits in Rechnung gestellte Bestellung storniert wird (§14 UStG).
+        </p>
+        {creditNotes.length > 0 && (
+          <div className="mt-4 border border-smitten-cream rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-red-50 border-b border-smitten-cream">
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Storno-Nr.</th>
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Original-Rechnung</th>
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Datum</th>
+                  <th className="text-right px-4 py-3 font-medium text-smitten-text">Betrag (brutto)</th>
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Grund</th>
+                </tr>
+              </thead>
+              <tbody>
+                {creditNotes.map((cn: any) => (
+                  <tr key={cn.id} className="border-b border-smitten-cream last:border-0 hover:bg-red-50/50">
+                    <td className="px-4 py-3 font-mono text-sm text-red-600">{cn.credit_note_number}</td>
+                    <td className="px-4 py-3 font-mono text-sm text-smitten-text">{cn.original_invoice_number}</td>
+                    <td className="px-4 py-3 text-sm text-smitten-text">
+                      {new Date(cn.created_at).toLocaleDateString('de-DE')}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-red-600">
+                      −{(cn.total_gross_cents / 100).toFixed(2).replace('.', ',')} €
+                    </td>
+                    <td className="px-4 py-3 text-sm text-smitten-text/70">{cn.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {creditNotes.length === 0 && !creditNotesLoading && (
+          <p className="mt-3 text-sm text-smitten-text/40 italic">Bisher keine Storno-Rechnungen ausgestellt.</p>
+        )}
       </div>
 
       <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
