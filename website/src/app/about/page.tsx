@@ -26,6 +26,12 @@ export default function AboutPage() {
         <strong>Klein, lokal und mit viel Herz.</strong>
       </p>
 
+      <p className="mb-4" style={{ whiteSpace: 'pre-wrap' }}>
+        <span className="text-smitten-primary italic">Smittenbrot</span>
+        {' '}ist für mich die Verbindung von Leidenschaft und Handwerk. Jedes Brot, das aus meinem Ofen kommt, erzählt ein Stück davon und landet{' '}
+        <strong>frisch und unkompliziert bei dir auf dem Tisch.</strong>
+      </p>
+
       <div className="mt-10 text-center">
         <Link href="/contact" className="inline-block text-smitten-primary hover:underline text-sm">
           Kontakt &amp; Feedback →
