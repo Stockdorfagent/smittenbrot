@@ -94,7 +94,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signUp({
+    const { error, data } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: name } },
@@ -106,11 +106,10 @@ export default function LoginPage() {
       return;
     }
 
-    // Create customer record
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
+    // Create customer record — use user from signUp response directly
+    if (data?.user) {
       await supabase.from('customers').upsert({
-        id: session.user.id,
+        id: data.user.id,
         email,
         name,
       }, { onConflict: 'id' });
