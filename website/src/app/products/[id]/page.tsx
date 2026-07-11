@@ -162,8 +162,8 @@ export default function ProductDetailPage() {
           </p>
 
           <div className="mt-4">
-            <p className="text-smitten-text leading-relaxed">
-              <strong>{pickup.label}</strong> – {pickup.cutoffLabel}
+            <p className="text-sm text-smitten-text/50">
+              Jetzt bestellen für <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
             </p>
           </div>
 

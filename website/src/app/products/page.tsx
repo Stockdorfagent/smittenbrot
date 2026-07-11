@@ -136,8 +136,8 @@ export default function ProductsPage() {
       <h1 className="text-3xl font-display font-bold text-smitten-text">
         Sortiment
       </h1>
-      <p className="mt-2 text-smitten-text/60">
-        Nächste Abholung: <strong>{pickup.label}</strong> ({pickup.cutoffLabel})
+      <p className="mt-2 text-sm text-smitten-text/50">
+        Jetzt bestellen für <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
       </p>
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
