@@ -53,6 +53,7 @@ export default function ProductDetailPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [weekCycle, setWeekCycle] = useState<'A' | 'B'>('A');
   const [adding, setAdding] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const pickup = getNextPickup();
 
@@ -63,7 +64,10 @@ export default function ProductDetailPage() {
         .select('*')
         .eq('id', id)
         .single();
-      if (productData) setProduct(productData);
+      if (productData) {
+        setProduct(productData);
+        setSelectedImage(productData.cover_image_url || (productData.images?.[0] ?? null));
+      }
 
       const { data: cycleData } = await supabase
         .from('week_cycle')
@@ -115,9 +119,9 @@ export default function ProductDetailPage() {
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
           <div className="w-full aspect-square bg-smitten-cream rounded-xl overflow-hidden">
-            {product.cover_image_url ? (
+            {selectedImage ? (
               <img
-                src={product.cover_image_url}
+                src={selectedImage}
                 alt={product.alt_text || product.name}
                 className="w-full h-full object-cover"
               />
@@ -136,7 +140,12 @@ export default function ProductDetailPage() {
                   key={i}
                   src={imgUrl}
                   alt={`${product.alt_text || product.name} – Ansicht ${i + 1}`}
-                  className="w-24 h-24 rounded-lg object-cover border-2 border-transparent hover:border-smitten-primary transition-colors cursor-pointer flex-shrink-0"
+                  onClick={() => setSelectedImage(imgUrl)}
+                  className={`w-24 h-24 rounded-lg object-cover border-2 cursor-pointer flex-shrink-0 transition-colors ${
+                    selectedImage === imgUrl
+                      ? 'border-smitten-primary'
+                      : 'border-transparent hover:border-smitten-primary/50'
+                  }`}
                   loading="lazy"
                 />
               ))}
