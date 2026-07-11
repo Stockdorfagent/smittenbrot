@@ -45,7 +45,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  NEW.credit_note_number := 'GN-' || TO_CHAR(NOW(), 'YYYY-MM-DD') || '-' || LPAD(nextval('public.credit_note_seq')::TEXT, 5, '0');
+  NEW.credit_note_number := 'ST-' || TO_CHAR(NOW(), 'YYYY-MM-DD') || '-' || LPAD(nextval('public.credit_note_seq')::TEXT, 5, '0');
   RETURN NEW;
 END;
 $$;
