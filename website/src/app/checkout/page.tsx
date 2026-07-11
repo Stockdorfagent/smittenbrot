@@ -107,6 +107,12 @@ function CheckoutForm() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+
+      // For logged-in users: check email is confirmed
+      if (session?.user && !session.user.email_confirmed_at) {
+        throw new Error('Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Bestätigungslink gesendet.');
+      }
+
       const response = await fetch('/api/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

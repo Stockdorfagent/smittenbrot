@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -98,7 +97,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, phone } },
+      options: { data: { full_name: name } },
     });
 
     if (error) {
@@ -118,7 +117,7 @@ export default function LoginPage() {
     }
 
     setMode('login');
-    setError('Registrierung erfolgreich! Bitte bestätige deine E-Mail.');
+    setError('Registrierung erfolgreich! Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte klicke auf den Link, um dein Konto zu aktivieren.');
     setLoading(false);
   };
 
@@ -204,17 +203,6 @@ export default function LoginPage() {
             className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
           />
         </div>
-        {mode === 'register' && (
-          <div>
-            <label className="block text-sm font-medium text-smitten-text/70">Telefon (optional)</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
-            />
-          </div>
-        )}
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Passwort</label>
           <input

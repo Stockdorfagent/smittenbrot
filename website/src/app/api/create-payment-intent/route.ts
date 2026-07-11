@@ -28,6 +28,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
     }
 
+    // For logged-in users: check email is confirmed
+    if (customer_id) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: user } = await supabase.auth.admin.getUserById(customer_id);
+      if (user?.user && !user.user.email_confirmed_at) {
+        return NextResponse.json({
+          error: 'Bitte bestätige zuerst deine E-Mail-Adresse, bevor du bestellen kannst.',
+        }, { status: 403 });
+      }
+    }
+
     // ── Country check ──
     const allowedCountries = ['DE', 'AT', 'CH'];
     if (billing_country && !allowedCountries.includes(billing_country)) {
