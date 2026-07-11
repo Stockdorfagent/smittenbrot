@@ -10,7 +10,7 @@ export default function AboutPage() {
       <p className="mb-4" style={{ whiteSpace: 'pre-wrap' }}>
         Hallo, ich bin{' '}
         <strong>Sophia Smittenberg</strong>
-        {' '}– und ja, genau daher kommt auch der Name{' '}
+        . Und ja, genau daher kommt auch der Name{' '}
         <span className="text-smitten-primary italic">Smittenbrot</span>
         . Ich komme ursprünglich aus den Niederlanden, und habe viele Jahre in Frankreich, Großbritannien und Italien studiert und gearbeitet, bevor ich schließlich in Stockdorf gelandet bin.
       </p>
@@ -22,15 +22,8 @@ export default function AboutPage() {
       </p>
 
       <p className="mb-4" style={{ whiteSpace: 'pre-wrap' }}>
-        Um mein Können zu vertiefen, habe ich in 2024 die Boulangerie-Ausbildung am Bakery Institute in Zaandam (NL) absolviert. Mit der Ausnahmebewilligung der Handwerkskammer München und Oberbayern in der Tasche backe ich nun für meine Nachbarschaft in Stockdorf –{' '}
-        <strong>klein, lokal und mit viel Herz</strong>
-        .
-      </p>
-
-      <p className="mb-4" style={{ whiteSpace: 'pre-wrap' }}>
-        <span className="text-smitten-primary italic">Smittenbrot</span>
-        {' '}ist für mich die Verbindung von Leidenschaft und Handwerk. Jedes Brot, das aus meinem Ofen kommt, erzählt ein Stück davon – und landet{' '}
-        <strong>frisch und unkompliziert bei dir auf dem Tisch.</strong>
+        Um mein Können zu vertiefen, habe ich in 2024 die Boulangerie-Ausbildung am Bakery Institute in Zaandam (NL) absolviert. Mit der Ausnahmebewilligung der Handwerkskammer München und Oberbayern in der Tasche backe ich nun für meine Nachbarschaft in Stockdorf.{' '}
+        <strong>Klein, lokal und mit viel Herz.</strong>
       </p>
 
       <div className="mt-10 text-center">
