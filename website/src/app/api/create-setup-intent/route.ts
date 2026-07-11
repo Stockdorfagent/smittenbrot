@@ -2,21 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-05-27.dahlia',
-});
+function getStripeClient() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2026-05-27.dahlia',
+  });
+}
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
     if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const supabase = getSupabaseAdmin();
 
     // Find or create Stripe customer
     let stripeCustomerId: string | null = null;
@@ -32,11 +36,11 @@ export async function POST(req: NextRequest) {
       stripeCustomerId = customer.stripe_customer_id;
     } else {
       // Look up by email in Stripe
-      const existing = await stripe.customers.list({ email, limit: 1 });
+      const existing = await getStripeClient().customers.list({ email, limit: 1 });
       if (existing.data.length > 0) {
         stripeCustomerId = existing.data[0].id;
       } else {
-        const newCustomer = await stripe.customers.create({ email });
+        const newCustomer = await getStripeClient().customers.create({ email });
         stripeCustomerId = newCustomer.id;
       }
       // Save to DB
@@ -47,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create SetupIntent
-    const setupIntent = await stripe.setupIntents.create({
+    const setupIntent = await getStripeClient().setupIntents.create({
       customer: stripeCustomerId ?? undefined,
       payment_method_types: ['card', 'sepa_debit'],
     });

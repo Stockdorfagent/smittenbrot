@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-05-27.dahlia',
-});
+function getStripeClient() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2026-05-27.dahlia',
+  });
+}
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     // For logged-in users: check email is confirmed
     if (customer_id) {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const { data: user } = await supabase.auth.admin.getUserById(customer_id);
@@ -54,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Backend capacity check ──
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -174,11 +180,11 @@ export async function POST(req: NextRequest) {
     let stripeCustomerId: string | undefined;
     if (customer_id) {
       // Check if customer exists in Stripe
-      const existingCustomers = await stripe.customers.list({ email: customer_email, limit: 1 });
+      const existingCustomers = await getStripeClient().customers.list({ email: customer_email, limit: 1 });
       if (existingCustomers.data.length > 0) {
         stripeCustomerId = existingCustomers.data[0].id;
       } else {
-        const newCustomer = await stripe.customers.create({
+        const newCustomer = await getStripeClient().customers.create({
           email: customer_email,
           name: customer_name || undefined,
           metadata: { supabase_id: customer_id || '' },
@@ -204,7 +210,7 @@ export async function POST(req: NextRequest) {
       metadata.discount_cents = String(finalDiscountCents);
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await getStripeClient().paymentIntents.create({
       amount: finalAmount, // cents
       currency: 'eur',
       customer: stripeCustomerId,

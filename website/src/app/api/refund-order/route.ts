@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-05-27.dahlia',
-});
+function getStripeClient() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2026-05-27.dahlia',
+  });
+}
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
 
 export async function POST(req: NextRequest) {
@@ -17,9 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'orderId required' }, { status: 400 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const supabase = getSupabaseAdmin();
 
     // Get the order
     const { data: order, error: orderError } = await supabase
@@ -48,7 +53,7 @@ export async function POST(req: NextRequest) {
     // Refund via Stripe
     if (order.stripe_payment_intent_id) {
       try {
-        await stripe.refunds.create({
+        await getStripeClient().refunds.create({
           payment_intent: order.stripe_payment_intent_id,
         });
       } catch (stripeError: unknown) {
