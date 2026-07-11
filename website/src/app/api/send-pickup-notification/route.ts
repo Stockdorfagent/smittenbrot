@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 const BREVO_API_KEY = process.env.BREVO_API_KEY!;
 
 export async function POST(req: NextRequest) {
@@ -13,6 +15,7 @@ export async function POST(req: NextRequest) {
     if (!order_id) return NextResponse.json({ error: 'missing order_id' }, { status: 400 });
 
     // Fetch order with pickup location
+    const supabase = getSupabaseAdmin();
     const { data: order } = await supabase
       .from('orders')
       .select('*, pickup_locations!inner(name, address, notification_template, cabinet_code)')
