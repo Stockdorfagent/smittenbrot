@@ -35,24 +35,33 @@ function PaymentForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements) {
+      setError('Zahlungssystem wird noch geladen. Bitte versuche es erneut.');
+      setProcessing(false);
+      return;
+    }
 
     setProcessing(true);
     setError('');
 
-    const { error: submitError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: window.location.origin + '/checkout/success',
-      },
-      redirect: 'if_required',
-    });
+    try {
+      const { error: submitError } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: window.location.origin + '/checkout/success',
+        },
+        redirect: 'if_required',
+      });
 
-    if (submitError) {
-      setError(submitError.message || 'Zahlung fehlgeschlagen.');
+      if (submitError) {
+        setError(submitError.message || 'Zahlung fehlgeschlagen.');
+        setProcessing(false);
+      } else {
+        onSuccess();
+      }
+    } catch (err) {
+      setError('Zahlung konnte nicht verarbeitet werden. Bitte versuche es erneut.');
       setProcessing(false);
-    } else {
-      onSuccess();
     }
   }
 
