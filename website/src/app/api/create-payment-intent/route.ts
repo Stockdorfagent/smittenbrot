@@ -17,14 +17,21 @@ function getSupabaseAdmin() {
 
 export async function POST(req: NextRequest) {
   try {
-    // Check for active closure
-    const closureRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closure-handler/active`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
-    });
-    const closureData = await closureRes.json();
-    if (closureData.active) {
-      return NextResponse.json({ error: closureData.closure?.banner_text_de || 'Aktuell findet keine Produktion statt.' }, { status: 503 });
+    // Check for active closure (optional — Edge Function may not exist)
+    try {
+      const closureRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closure-handler/active`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (closureRes.ok) {
+        const closureData = await closureRes.json();
+        if (closureData.active === true) {
+          return NextResponse.json({ error: closureData.closure?.banner_text_de || 'Aktuell findet keine Produktion statt.' }, { status: 503 });
+        }
+      }
+    } catch {
+      // closure handler not deployed on this Supabase project — proceed
     }
 
     const body = await req.json();
