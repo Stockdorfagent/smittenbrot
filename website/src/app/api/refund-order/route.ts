@@ -3,9 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
 function getStripeClient() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2026-05-27.dahlia',
-  });
+  return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
 function getSupabaseAdmin() {
