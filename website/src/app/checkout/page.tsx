@@ -65,7 +65,7 @@ function PaymentForm({
         onSuccess();
       }
     } catch (err) {
-      setError('Fehler: ' + (err instanceof Error ? err.message : 'Unbekannter Fehler'));
+      setError('Zahlung konnte nicht verarbeitet werden. Bitte versuche es erneut.');
       setProcessing(false);
     }
   }
