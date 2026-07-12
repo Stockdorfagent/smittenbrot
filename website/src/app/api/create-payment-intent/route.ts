@@ -238,8 +238,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('Stripe payment intent error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create payment intent' },
+      { error: `Failed to create payment intent: ${errorMessage}` },
       { status: 500 }
     );
   }
