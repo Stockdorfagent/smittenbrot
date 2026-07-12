@@ -60,7 +60,7 @@ function PaymentForm({
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
       <div className="bg-white rounded-xl border border-smitten-cream p-4">
         <h3 className="text-sm font-medium text-smitten-text mb-3">Zahlungsdaten</h3>
-        <PaymentElement />
+        <PaymentElement options={{ paymentMethodOrder: ['card'] }} />
       </div>
 
       {error && (
