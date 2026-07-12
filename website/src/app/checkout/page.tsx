@@ -5,13 +5,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import Link from 'next/link';
 
-declare global {
-  interface Window {
-    Stripe?: unknown;
-  }
-}
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface DiscountInfo {
   id: string;
@@ -21,15 +19,88 @@ interface DiscountInfo {
   value: number;
 }
 
+function PaymentForm({
+  clientSecret,
+  onSuccess,
+  onBack,
+}: {
+  clientSecret: string;
+  onSuccess: () => void;
+  onBack: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [error, setError] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setProcessing(true);
+    setError('');
+
+    const { error: submitError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: window.location.origin + '/checkout/success',
+      },
+      redirect: 'if_required',
+    });
+
+    if (submitError) {
+      setError(submitError.message || 'Zahlung fehlgeschlagen.');
+      setProcessing(false);
+    } else {
+      onSuccess();
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <div className="bg-white rounded-xl border border-smitten-cream p-4">
+        <h3 className="text-sm font-medium text-smitten-text mb-3">Zahlungsdaten</h3>
+        <PaymentElement />
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={processing}
+          className="flex-1 border border-smitten-cream text-smitten-text py-3 rounded-full font-medium hover:bg-smitten-cream transition-colors disabled:opacity-50"
+        >
+          Zurück
+        </button>
+        <button
+          type="submit"
+          disabled={!stripe || processing}
+          className="flex-1 bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+        >
+          {processing ? 'Wird verarbeitet...' : 'Bezahlen'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function CheckoutForm() {
-  const { state, totalCents } = useCart();
+  const { state, totalCents, clearCart } = useCart();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [name, setName] = useState(searchParams.get('name') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
+  const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [clientSecret, setClientSecret] = useState('');
+  const [orderNumber, setOrderNumber] = useState('');
 
   // Discount state
   const [discountCode, setDiscountCode] = useState('');
@@ -99,7 +170,7 @@ function CheckoutForm() {
     setDiscountError('');
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleStartPayment(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -133,16 +204,26 @@ function CheckoutForm() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Payment failed');
 
-      setSuccess(true);
-      setTimeout(() => router.push(`/orders/${data.orderId}`), 1500);
+      setClientSecret(data.clientSecret);
+      setStep('payment');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  if (state.items.length === 0 && !success) {
+  function handlePaymentSuccess() {
+    clearCart();
+    setStep('success');
+  }
+
+  function handleBack() {
+    setStep('form');
+    setError('');
+  }
+
+  if (state.items.length === 0 && step !== 'success') {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-display font-bold text-smitten-text">Kasse</h1>
@@ -154,14 +235,75 @@ function CheckoutForm() {
     );
   }
 
-  if (success) {
+  if (step === 'success') {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-2xl text-green-600">
           ✓
         </div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Bestellung erfolgreich!</h1>
-        <p className="mt-2 text-smitten-text/60">Du wirst weitergeleitet...</p>
+        <p className="mt-2 text-smitten-text/60">
+          Vielen Dank für deine Bestellung! Du bekommst eine Bestätigung per E-Mail.
+        </p>
+        {orderNumber && (
+          <p className="mt-4 text-sm text-smitten-accent font-medium">
+            Bestellnummer: {orderNumber}
+          </p>
+        )}
+        <Link
+          href="/products"
+          className="mt-8 inline-block bg-smitten-primary text-white px-6 py-2 rounded-full text-sm"
+        >
+          Weiter einkaufen
+        </Link>
+      </div>
+    );
+  }
+
+  if (step === 'payment' && clientSecret) {
+    const options: StripeElementsOptions = {
+      clientSecret,
+      appearance: {
+        theme: 'stripe',
+        variables: {
+          colorPrimary: '#f8120e',
+          colorBackground: '#ffffff',
+          colorText: '#1A1A1A',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          borderRadius: '8px',
+        },
+      },
+    };
+
+    return (
+      <div className="max-w-xl mx-auto px-4 py-10">
+        <h1 className="text-2xl font-display font-bold text-smitten-text">Kasse</h1>
+
+        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-4">
+          <h2 className="font-medium text-smitten-text">Bestellübersicht</h2>
+          <div className="mt-3 space-y-2">
+            {state.items.map(item => (
+              <div key={item.productId} className="flex justify-between text-sm">
+                <span>{item.quantity}× {item.name}</span>
+                <span className="text-smitten-accent">{formatPrice(item.priceCents * item.quantity)}</span>
+              </div>
+            ))}
+          </div>
+          {discountCents > 0 && (
+            <div className="mt-2 flex justify-between text-sm text-green-600">
+              <span>Rabatt ({discountInfo?.code})</span>
+              <span>-{formatPrice(discountCents)}</span>
+            </div>
+          )}
+          <div className="mt-2 pt-3 border-t border-smitten-cream flex justify-between font-bold">
+            <span className="text-smitten-text">Gesamtsumme</span>
+            <span className="text-smitten-accent">{formatPrice(totalAfterDiscount)}</span>
+          </div>
+        </div>
+
+        <Elements stripe={stripePromise} options={options}>
+          <PaymentForm clientSecret={clientSecret} onSuccess={handlePaymentSuccess} onBack={handleBack} />
+        </Elements>
       </div>
     );
   }
@@ -197,7 +339,6 @@ function CheckoutForm() {
           );
         })()}
 
-        {/* Discount line */}
         {discountCents > 0 && (
           <div className="mt-2 flex justify-between text-sm text-green-600">
             <span>Rabatt ({discountInfo?.code})</span>
@@ -260,7 +401,7 @@ function CheckoutForm() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <form onSubmit={handleStartPayment} className="mt-6 space-y-4">
         {!searchParams.get('name') && (
           <>
             <div>
