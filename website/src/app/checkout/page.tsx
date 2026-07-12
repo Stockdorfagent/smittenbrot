@@ -116,7 +116,11 @@ function CheckoutForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: state.items,
+          items: state.items.map(item => ({
+            product_id: item.productId,
+            price_cents: item.priceCents,
+            quantity: item.quantity,
+          })),
           pickup_location_id: state.pickupLocationId,
           fulfillment_date: state.pickupDay,
           customer_email: session?.user?.email || email,
