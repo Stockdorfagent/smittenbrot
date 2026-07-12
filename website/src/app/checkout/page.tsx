@@ -49,6 +49,11 @@ function PaymentForm({
         elements,
         confirmParams: {
           return_url: window.location.origin + '/checkout/success',
+          payment_method_data: {
+            billing_details: {
+              address: { country: 'DE' },
+            },
+          },
         },
         redirect: 'if_required',
       });
