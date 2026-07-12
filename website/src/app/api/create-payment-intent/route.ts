@@ -213,9 +213,6 @@ export async function POST(req: NextRequest) {
       customer: stripeCustomerId,
       setup_future_usage: customer_id ? 'off_session' : undefined,
       metadata,
-      automatic_payment_methods: {
-        enabled: true,
-      },
       payment_method_types: ['card'],
     });
 
