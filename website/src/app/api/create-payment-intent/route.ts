@@ -216,9 +216,51 @@ export async function POST(req: NextRequest) {
       payment_method_types: ['card'],
     });
 
+    // ── Create order in database ──
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        stripe_payment_intent_id: paymentIntent.id,
+        customer_id: customer_id || null,
+        customer_email: customer_email || '',
+        customer_name: customer_name || '',
+        total_cents: finalAmount,
+        fulfillment_date,
+        pickup_location_id: pickup_location_id || null,
+        status: 'pending',
+        payment_status: 'pending',
+        order_type: 'one_time',
+        discount_id: discountId,
+        discount_cents: finalDiscountCents,
+        idempotency_key: idempotencyKey,
+      })
+      .select('id')
+      .single();
+
+    if (orderError) {
+      console.error('[create-payment-intent] Failed to create order:', orderError);
+      // Order creation failure is critical — refund the payment intent
+      await getStripeClient().paymentIntents.cancel(paymentIntent.id).catch(() => {});
+      return NextResponse.json({ error: 'Bestellung konnte nicht angelegt werden.' }, { status: 500 });
+    }
+
+    // ── Create order items ──
+    const orderItems = items.map((item: { product_id: string; price_cents: number; quantity: number }) => ({
+      order_id: order.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price_cents: item.price_cents,
+    }));
+    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+    if (itemsError) {
+      console.error('[create-payment-intent] Failed to create order items:', itemsError);
+      // Non-critical — order already exists
+    }
+
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      orderId: order.id,
       idempotencyKey,
       discountId,
       discountCents: finalDiscountCents,
