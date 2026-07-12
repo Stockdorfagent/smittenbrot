@@ -27,7 +27,6 @@ function CheckoutForm() {
   const router = useRouter();
   const [name, setName] = useState(searchParams.get('name') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
-  const [country, setCountry] = useState('DE');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -118,14 +117,12 @@ function CheckoutForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: state.items,
-          pickupLocationId: state.pickupLocationId,
-          pickupDay: state.pickupDay,
-          customerEmail: session?.user?.email || email,
-          customerName: session?.user?.user_metadata?.full_name || name,
-          userId: session?.user?.id || null,
-          isGuest: !session,
+          pickup_location_id: state.pickupLocationId,
+          fulfillment_date: state.pickupDay,
+          customer_email: session?.user?.email || email,
+          customer_name: session?.user?.user_metadata?.full_name || name,
+          customer_id: session?.user?.id || null,
           discount_code: discountInfo?.code || null,
-          billing_country: country,
         }),
       });
 
@@ -260,19 +257,6 @@ function CheckoutForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        {/* Country / billing address */}
-        <div>
-          <label className="block text-sm font-medium text-smitten-text/70">Rechnungsland</label>
-          <select value={country} onChange={e => setCountry(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
-            <option value="DE">Deutschland</option>
-            <option value="AT">Österreich</option>
-            <option value="CH">Schweiz</option>
-          </select>
-          <p className="mt-1 text-xs text-smitten-text/40">
-            Bestellungen sind nur aus Deutschland, Österreich und der Schweiz möglich (Abholung in Stockdorf).
-          </p>
-        </div>
         {!searchParams.get('name') && (
           <>
             <div>

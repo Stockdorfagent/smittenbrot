@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items, customer_id, customer_email, customer_name, fulfillment_date, pickup_location_id, discount_code, billing_country } = body;
+    const { items, customer_id, customer_email, customer_name, fulfillment_date, pickup_location_id, discount_code } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
@@ -50,14 +50,6 @@ export async function POST(req: NextRequest) {
           error: 'Bitte bestätige zuerst deine E-Mail-Adresse, bevor du bestellen kannst.',
         }, { status: 403 });
       }
-    }
-
-    // ── Country check ──
-    const allowedCountries = ['DE', 'AT', 'CH'];
-    if (billing_country && !allowedCountries.includes(billing_country)) {
-      return NextResponse.json({
-        error: 'Bestellungen sind nur aus Deutschland, Österreich und der Schweiz möglich.',
-      }, { status: 403 });
     }
 
     if (!fulfillment_date) {
