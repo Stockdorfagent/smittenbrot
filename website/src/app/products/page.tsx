@@ -95,9 +95,6 @@ export default function ProductsPage() {
 
   useEffect(() => {
     async function fetchProducts() {
-      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-      console.log('Pickup day:', pickup.day);
-      
       let query = supabase
         .from('products')
         .select('*')
@@ -109,8 +106,7 @@ export default function ProductsPage() {
         query = query.eq('available_sat', true);
       }
 
-      const { data, error } = await query.order('sort_order', { ascending: true });
-      console.log('Query result:', data?.length, 'products, error:', error);
+      const { data } = await query.order('sort_order', { ascending: true });
       if (data) {
         const filtered = data.filter(p => {
           if (p.cycle === 'permanent') return true;
