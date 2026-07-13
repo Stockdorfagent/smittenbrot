@@ -144,7 +144,7 @@ export default function ProductsPage() {
         {products.map(product => (
           <div
             key={product.id}
-            className="bg-white rounded-xl p-5 border border-smitten-cream"
+            className="bg-white rounded-xl p-5 border border-smitten-cream transition-all duration-200 hover:shadow-md hover:border-smitten-accent/30 hover:scale-[1.02]"
           >
             <Link href={`/products/${product.id}`}>
               <div className="w-full h-40 bg-smitten-cream rounded-lg flex items-center justify-center overflow-hidden">
