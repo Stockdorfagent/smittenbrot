@@ -144,7 +144,7 @@ export default function ProductsPage() {
         {products.map(product => (
           <div
             key={product.id}
-            className="bg-white rounded-xl p-5 border border-smitten-cream transition-all duration-200 hover:shadow-md hover:border-smitten-accent/30 hover:scale-[1.02]"
+            className="group bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border border-smitten-cream"
           >
             <Link href={`/products/${product.id}`}>
               <div className="w-full h-40 bg-smitten-cream rounded-lg flex items-center justify-center overflow-hidden">
@@ -152,11 +152,11 @@ export default function ProductsPage() {
                   <img
                     src={product.cover_image_url}
                     alt={product.alt_text || product.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                   />
                 ) : (
-                  <span className="text-4xl font-display text-smitten-secondary">{product.name.charAt(0)}</span>
+                  <span className="text-4xl font-display text-smitten-secondary group-hover:scale-105 transition-transform duration-300">{product.name.charAt(0)}</span>
                 )}
               </div>
             </Link>
