@@ -99,22 +99,26 @@ function SubscriptionCreateForm() {
   async function handleCreateAccount() {
     setLoading(true);
     setError('');
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { error: signUpError, data } = await supabase.auth.signUp({
       email, password,
       options: { data: { full_name: name } },
     });
     if (signUpError) { setError(signUpError.message); setLoading(false); return; }
 
-    // Create customer record
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await supabase.from('customers').insert({
-        id: session.user.id,
+    // Create customer record — use user from signUp response directly
+    if (data?.user) {
+      await supabase.from('customers').upsert({
+        id: data.user.id,
         email,
         name,
         preferred_pickup_location_id: selectedLocation,
-      });
-      setUser(session.user);
+      }, { onConflict: 'id' });
+      setUser(data.user);
+    } else {
+      // Email confirmation enabled — user needs to confirm first
+      setError('Registrierung erfolgreich! Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte bestätige deine E-Mail, um fortzufahren.');
+      setLoading(false);
+      return;
     }
     setLoading(false);
   }
@@ -134,6 +138,14 @@ function SubscriptionCreateForm() {
     setStripeError('');
     try {
       const email = (user as User).email;
+      
+      // Save subscription data in case of 3D Secure redirect
+      sessionStorage.setItem('pending_subscription', JSON.stringify({
+        items,
+        pickupLocationId: selectedLocation,
+        pickupDay,
+      }));
+      
       const res = await fetch('/api/create-setup-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

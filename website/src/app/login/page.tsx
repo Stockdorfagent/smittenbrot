@@ -258,6 +258,7 @@ export default function LoginPage() {
         )}
       </div>
 
+      {/* TODO: OAuth (Google/Apple) — configure in Supabase Auth dashboard before uncommenting
       <div className="mt-6 relative">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-smitten-cream" />
@@ -281,6 +282,7 @@ export default function LoginPage() {
           Mit Apple anmelden
         </button>
       </div>
+      -->
 
       {mode === 'login' && (
         <>

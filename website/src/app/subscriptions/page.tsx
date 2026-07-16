@@ -5,6 +5,9 @@ import { supabase } from '@/lib/supabase';
 import { formatPrice } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface SubItem {
   id: string;
@@ -76,6 +79,12 @@ export default function SubscriptionsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for return from Stripe setup (3D Secure redirect)
+    const params = new URLSearchParams(window.location.search);
+    const setupSecret = params.get('setup_intent_client_secret');
+    if (setupSecret) {
+      handleStripeReturn(setupSecret);
+    }
     loadSubscriptions();
   }, []);
 
@@ -93,6 +102,45 @@ export default function SubscriptionsPage() {
       if (data) setSubscriptions(data as unknown as Subscription[]);
     }
     setLoading(false);
+  }
+
+  async function handleStripeReturn(setupSecret: string) {
+    // Clean URL params to prevent re-trigger on reload
+    window.history.replaceState({}, '', '/subscriptions');
+    
+    const stored = sessionStorage.getItem('pending_subscription');
+    if (!stored) return;
+    sessionStorage.removeItem('pending_subscription');
+
+    const stripe = await stripePromise;
+    if (!stripe) return;
+
+    const { setupIntent } = await stripe.retrieveSetupIntent(setupSecret);
+    if (setupIntent?.status !== 'succeeded') return;
+
+    // Stripe setup succeeded — create the subscription
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    const pending = JSON.parse(stored);
+    const { data: sub } = await supabase.from('subscriptions').insert({
+      customer_id: session.user.id,
+      pickup_location_id: pending.pickupLocationId,
+      status: 'active',
+      stripe_setup_intent_id: setupIntent.id,
+    }).select().single();
+
+    if (sub) {
+      for (const item of pending.items) {
+        await supabase.from('subscription_items').insert({
+          subscription_id: sub.id,
+          product_id: item.productId,
+          quantity: item.quantity,
+        });
+      }
+      // Reload to show the new subscription
+      loadSubscriptions();
+    }
   }
 
   async function handlePause(subId: string) {
