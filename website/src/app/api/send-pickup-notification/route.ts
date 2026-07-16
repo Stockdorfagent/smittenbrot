@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const recipientEmail = order.customer_email;
     if (!recipientEmail) return NextResponse.json({ error: 'no customer email' }, { status: 400 });
 
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,10 +56,16 @@ export async function POST(req: NextRequest) {
       }),
     });
 
+    if (!brevoRes.ok) {
+      const brevoBody = await brevoRes.json().catch(() => ({}));
+      console.error('[pickup-notification] Brevo API error:', brevoRes.status, JSON.stringify(brevoBody));
+      return NextResponse.json({ error: 'E-Mail konnte nicht gesendet werden. Brevo Fehler: ' + brevoRes.status }, { status: 502 });
+    }
+
     // Mark as fulfilled
     await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order_id);
 
-    // Log notification
+    // Log notification as delivered
     await supabase.from('notifications').insert({
       customer_id: order.customer_id,
       type: 'pickup_ready',
