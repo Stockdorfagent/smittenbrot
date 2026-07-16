@@ -375,7 +375,17 @@ async function handlePaymentIntentSucceeded(
   );
 
   // Send receipt email for one-time orders (non-blocking)
-  await sendReceiptEmail(order);
+  // Re-fetch order to get updated fields (invoice_number assigned by trigger)
+  const { data: updatedOrder } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("id", order.id)
+    .single();
+  if (updatedOrder) {
+    await sendReceiptEmail(updatedOrder);
+  } else {
+    await sendReceiptEmail(order);
+  }
 }
 
 /**

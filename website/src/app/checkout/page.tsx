@@ -121,7 +121,7 @@ function PaymentForm({
 }
 
 function CheckoutForm() {
-  const { state, totalCents, clearCart } = useCart();
+  const { state, totalCents, clearCart, addItem: cartAddItem, removeItem, updateQuantity } = useCart();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [name, setName] = useState(searchParams.get('name') || '');
@@ -235,6 +235,7 @@ function CheckoutForm() {
       if (!response.ok) throw new Error(data.error || 'Payment failed');
 
       setClientSecret(data.clientSecret);
+      setOrderNumber(data.orderId || '');
       setStep('payment');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
@@ -276,9 +277,15 @@ function CheckoutForm() {
           Vielen Dank für deine Bestellung! Du bekommst eine Bestätigung per E-Mail.
         </p>
         {orderNumber && (
-          <p className="mt-4 text-sm text-smitten-accent font-medium">
-            Bestellnummer: {orderNumber}
-          </p>
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
+            <p className="text-xs text-amber-700 font-medium uppercase tracking-wider">Wichtige Information</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Deine Bestellnummer lautet: <strong className="font-mono">{orderNumber}</strong>
+            </p>
+            <p className="mt-1 text-xs text-amber-700/70">
+              Bitte notiere sie dir — du brauchst sie zur Abholung. Die Rechnung erhältst du per E-Mail.
+            </p>
+          </div>
         )}
         <Link
           href="/products"
@@ -346,9 +353,42 @@ function CheckoutForm() {
         <h2 className="font-medium text-smitten-text">Bestellübersicht</h2>
         <div className="mt-3 space-y-2">
           {state.items.map(item => (
-            <div key={item.productId} className="flex justify-between text-sm">
-              <span>{item.quantity}× {item.name}</span>
-              <span className="text-smitten-accent">{formatPrice(item.priceCents * item.quantity)}</span>
+            <div key={item.productId} className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (item.quantity <= 1) {
+                      removeItem(item.productId);
+                    } else {
+                      updateQuantity(item.productId, item.quantity - 1);
+                    }
+                  }}
+                  className="w-6 h-6 rounded-full border border-smitten-cream flex items-center justify-center text-smitten-text/50 hover:border-smitten-text/30 transition-colors text-xs"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center font-medium">{item.quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                  className="w-6 h-6 rounded-full border border-smitten-cream flex items-center justify-center text-smitten-text/50 hover:border-smitten-text/30 transition-colors text-xs"
+                >
+                  +
+                </button>
+                <span className="ml-1">{item.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-smitten-accent">{formatPrice(item.priceCents * item.quantity)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.productId)}
+                  className="text-xs text-smitten-text/30 hover:text-red-500 transition-colors"
+                  title="Entfernen"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>

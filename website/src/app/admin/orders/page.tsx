@@ -104,31 +104,6 @@ export default function AdminOrdersPage() {
     }
   }
 
-  async function sendPickupNotification(orderId: string) {
-    setSending((prev) => ({ ...prev, [orderId]: true }));
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) return;
-
-    const location = locations.find((l) => l.id === order.pickup_location_id);
-    const template = location?.notification_template || 'Ihre Bestellung {ORDER_NUMBER} ist abholbereit bei {PICKUP_LOCATION}.';
-    const message = template
-      .replace('{ORDER_NUMBER}', order.id.slice(0, 8))
-      .replace('{PICKUP_LOCATION}', location?.name || '')
-      .replace('{CODE}', '')
-      .replace('{PICKUP_TIME}', '');
-
-    await supabase.from('notifications').insert({
-      customer_id: order.customer_id,
-      type: 'pickup_ready',
-      channel: 'both',
-      sent_at: new Date().toISOString(),
-      delivered: true,
-    });
-
-    console.log('Notification would be sent:', message, 'to customer', order.customer_name || order.customer_email);
-    setSending((prev) => ({ ...prev, [orderId]: false }));
-  }
-
   async function downloadInvoices() {
     if (!invoiceFrom) return;
     const to = invoiceTo || '2099-12-31';

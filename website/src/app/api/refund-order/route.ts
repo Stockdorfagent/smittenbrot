@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'api-key': brevoKey },
           body: JSON.stringify({
-            sender: { email: 'kontakt@smittenbrot.de', name: 'Smittenbrot' },
+            sender: { email: 'info@smittenbrot.de', name: 'Smittenbrot' },
             to: [{ email: adminEmail }],
             subject: `Stornierung: Bestellung ${orderId.substring(0, 8)}`,
             htmlContent: `<p>Eine Bestellung wurde storniert und der Betrag zurückerstattet.</p>

@@ -120,6 +120,22 @@ export default function LoginPage() {
     setLoading(false);
   };
 
+  async function handleResendConfirmation() {
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (error) {
+      setError(error.message);
+    } else {
+      setError('Bestätigungs-E-Mail wurde erneut gesendet. Prüfe dein Postfach.');
+    }
+    setLoading(false);
+  }
+
   const handleMagicLink = async () => {
     if (!email) return;
     setLoading(true);
@@ -281,6 +297,15 @@ export default function LoginPage() {
               className="text-sm text-smitten-secondary hover:underline disabled:opacity-50"
             >
               Passwort vergessen?
+            </button>
+          </div>
+          <div className="mt-2 text-center">
+            <button
+              onClick={handleResendConfirmation}
+              disabled={!email || loading}
+              className="text-sm text-smitten-secondary hover:underline disabled:opacity-50"
+            >
+              Bestätigungs-E-Mail erneut senden
             </button>
           </div>
           <p className="mt-6 text-center text-sm text-smitten-text/60">
