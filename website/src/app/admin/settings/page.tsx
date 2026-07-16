@@ -65,16 +65,21 @@ export default function AdminSettingsPage() {
   const [savingSeller, setSavingSeller] = useState(false);
   const [sellerSaved, setSellerSaved] = useState(false);
 
+  // Invoice mode state
+  const [invoiceMode, setInvoiceMode] = useState<'production' | 'test'>('production');
+  const [togglingMode, setTogglingMode] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
 
   async function loadData() {
     setLoading(true);
-    const [weekRes, prodRes, sellerRes] = await Promise.all([
+    const [weekRes, prodRes, sellerRes, settingsRes] = await Promise.all([
       supabase.from('week_cycle').select('*').limit(1).single(),
       supabase.from('products').select('*').order('sort_order', { ascending: true }),
       supabase.from('seller_info').select('*').limit(1).single(),
+      supabase.from('system_settings').select('invoice_mode').limit(1).single(),
     ]);
     if (weekRes.data) setWeekCycle(weekRes.data);
     if (prodRes.data) {
@@ -96,7 +101,23 @@ export default function AdminSettingsPage() {
         email: sellerRes.data.email || '',
       });
     }
+    if (settingsRes.data) {
+      setInvoiceMode(settingsRes.data.invoice_mode);
+    }
     setLoading(false);
+  }
+
+  async function toggleInvoiceMode() {
+    setTogglingMode(true);
+    const newMode = invoiceMode === 'production' ? 'test' : 'production';
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ invoice_mode: newMode, updated_at: new Date().toISOString() })
+      .eq('id', 1);
+    if (!error) {
+      setInvoiceMode(newMode);
+    }
+    setTogglingMode(false);
   }
 
   async function saveSellerInfo() {
@@ -489,6 +510,53 @@ export default function AdminSettingsPage() {
               className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
             />
           </div>
+        </div>
+      </div>
+
+      {/* INVOICE MODE TOGGLE */}
+      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Rechnungsmodus
+          </h2>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-bold ${
+              invoiceMode === 'production'
+                ? 'bg-green-100 text-green-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}
+          >
+            {invoiceMode === 'production' ? 'Produktion' : 'Test'}
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-smitten-text/60">
+          {invoiceMode === 'production'
+            ? 'Bestellungen erhalten Produktions-Rechnungsnummern (RE-00124 ff.)'
+            : 'Bestellungen erhalten Test-Rechnungsnummern (TEST-RE-00001 ff.) — keine Auswirkung auf Produktionsnummern'}
+        </p>
+        {invoiceMode === 'test' && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 font-medium">
+              ⚠️ Testmodus aktiv — alle neuen Bestellungen bekommen TEST-Rechnungsnummern. Vor Produktionswechsel sicherstellen, dass alle Testbestellungen storniert wurden.
+            </p>
+          </div>
+        )}
+        <div className="mt-4">
+          <button
+            onClick={toggleInvoiceMode}
+            disabled={togglingMode}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+              invoiceMode === 'production'
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {togglingMode
+              ? 'Wechsle...'
+              : invoiceMode === 'production'
+              ? 'Zu Testmodus wechseln'
+              : 'Zu Produktionsmodus wechseln'}
+          </button>
         </div>
       </div>
 
