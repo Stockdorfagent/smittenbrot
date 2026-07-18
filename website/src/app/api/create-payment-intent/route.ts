@@ -62,15 +62,27 @@ export async function POST(req: NextRequest) {
     });
 
     const capacityErrors: string[] = [];
+    const priceMap: Record<string, { price_cents: number; name: string }> = {};
+    let subtotalCents = 0;
     for (const item of items) {
-      // Get current orders for this product on this fulfillment date
+      const requested = Number(item.quantity);
+      if (!Number.isInteger(requested) || requested < 1) {
+        return NextResponse.json({ error: 'Ungültige Menge.' }, { status: 400 });
+      }
+
+      // Load the authoritative product record (price + capacity) from the DB —
+      // never trust a price sent by the client.
       const { data: product } = await supabase
         .from('products')
-        .select('id, name, capacity')
+        .select('id, name, capacity, price_cents')
         .eq('id', item.product_id)
         .single();
 
-      if (!product) continue;
+      if (!product) {
+        return NextResponse.json({ error: 'Ein Produkt ist nicht (mehr) verfügbar.' }, { status: 400 });
+      }
+      priceMap[product.id] = { price_cents: product.price_cents, name: product.name };
+      subtotalCents += product.price_cents * requested;
 
       const { count: reservedCount } = await supabase
         .from('order_items')
@@ -85,7 +97,6 @@ export async function POST(req: NextRequest) {
         ).data?.map(o => o.id) ?? []);
 
       const reserved = reservedCount ?? 0;
-      const requested = item.quantity ?? 1;
       const available = product.capacity;
 
       if (reserved + requested > available) {
@@ -108,12 +119,9 @@ export async function POST(req: NextRequest) {
       }, { status: 409 });
     }
 
-    // Calculate total from server-side to prevent price manipulation
-    const amount = items.reduce(
-      (sum: number, item: { price_cents: number; quantity: number }) =>
-        sum + item.price_cents * item.quantity,
-      0
-    );
+    // Total is computed from authoritative DB prices in the loop above —
+    // the client-supplied price is never used.
+    const amount = subtotalCents;
 
     // ── Discount calculation ──
     let finalAmount = amount;
@@ -245,11 +253,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Create order items ──
-    const orderItems = items.map((item: { product_id: string; price_cents: number; quantity: number }) => ({
+    const orderItems = items.map((item: { product_id: string; quantity: number }) => ({
       order_id: order.id,
       product_id: item.product_id,
       quantity: item.quantity,
-      unit_price_cents: item.price_cents,
+      unit_price_cents: priceMap[item.product_id]!.price_cents,
     }));
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     if (itemsError) {
