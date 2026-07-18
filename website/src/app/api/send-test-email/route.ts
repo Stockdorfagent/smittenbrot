@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const adminEmail = process.env.ADMIN_EMAIL || 'info@smittenbrot.de';
+const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // --- Optional custom recipient; defaults to the admin address ---
     const body = await req.json().catch(() => ({} as { to?: string }));
     const requested = typeof body?.to === 'string' ? body.to.trim() : '';
-    const recipient = requested.includes('@') ? requested : adminEmail;
+    const recipient = requested.includes('@') ? requested : 'info@smittenbrot.de';
 
     const brevoKey = process.env.BREVO_API_KEY;
     if (!brevoKey) {

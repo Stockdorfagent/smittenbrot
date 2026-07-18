@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "info@smittenbrot.de";
+const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "sophia@smittenbrot.de";
 
 // ── Clients ──────────────────────────────────────────────────
 

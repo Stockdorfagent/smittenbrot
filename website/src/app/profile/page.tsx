@@ -137,7 +137,7 @@ export default function ProfilePage() {
           <p className="font-medium text-smitten-text">Meine Bestellungen</p>
           <p className="text-sm text-smitten-text/60">Bestellverlauf und Rechnungen</p>
         </Link>
-        {user?.email === 'info@smittenbrot.de' && (<>
+        {user?.email === 'sophia@smittenbrot.de' && (<>
         <Link href="/admin/discounts"
           className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Rabattcodes</p>
