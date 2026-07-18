@@ -247,7 +247,7 @@ async function sendReceiptEmail(
 
         <div style="text-align: center; color: #999; font-size: 12px;">
           <p style="margin: 4px 0;">Smittenbrot – Handgemachtes Brot aus Stockdorf</p>
-          <p style="margin: 4px 0;">hello@smittenbrot.de</p>
+          <p style="margin: 4px 0;">info@smittenbrot.de</p>
         </div>
       </div>
     `.trim();

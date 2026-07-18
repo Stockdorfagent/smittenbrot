@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
+const adminEmail = process.env.ADMIN_EMAIL || 'info@smittenbrot.de';
 
 export async function POST(req: NextRequest) {
   try {

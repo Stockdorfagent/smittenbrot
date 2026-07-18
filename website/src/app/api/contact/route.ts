@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
         'api-key': apiKey,
       },
       body: JSON.stringify({
-        sender: { email: 'kontakt@smittenbrot.de', name: 'Smittenbrot Kontaktformular' },
-        to: [{ email: 'sophia@smittenbrot.de', name: 'Sophia' }],
+        sender: { email: 'info@smittenbrot.de', name: 'Smittenbrot Kontaktformular' },
+        to: [{ email: 'info@smittenbrot.de', name: 'Sophia' }],
         replyTo: { email, name },
         subject: subject ? `Kontaktformular: ${subject}` : `Kontaktformular von ${name}`,
         htmlContent: `

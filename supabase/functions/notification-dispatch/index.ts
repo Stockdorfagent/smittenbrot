@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "hello@smittenbrot.de";
+const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "info@smittenbrot.de";
 
 // ── Clients ──────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const EXPO_PUSH_API_URL = "https://exp.host/--/api/v2/push/send";
-const SENDER_EMAIL = "hello@smittenbrot.de";
+const SENDER_EMAIL = "info@smittenbrot.de";
 
 // ── Logging Helper ───────────────────────────────────────────
 
@@ -753,7 +753,7 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
 
       <p style="font-size: 11px; color: #999; text-align: center;">
         Smittenbrot · ${seller.address_line1 ?? ""} · ${seller.postal_code ?? ""} ${seller.city ?? ""}<br>
-        ${taxId ? `Steuer-Nr.: ${taxId} · ` : ""}E-Mail: ${seller.email ?? "hello@smittenbrot.de"}<br>
+        ${taxId ? `Steuer-Nr.: ${taxId} · ` : ""}E-Mail: ${seller.email ?? "info@smittenbrot.de"}<br>
         Zahlung erfolgt über Stripe
       </p>
     </div>

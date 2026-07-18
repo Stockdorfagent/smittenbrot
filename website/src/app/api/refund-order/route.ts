@@ -13,7 +13,7 @@ function getSupabaseAdmin() {
   );
 }
 
-const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
+const adminEmail = process.env.ADMIN_EMAIL || 'info@smittenbrot.de';
 
 export async function POST(req: NextRequest) {
   try {

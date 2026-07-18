@@ -228,7 +228,7 @@ function buildReceiptHtml(
 
       <p style="font-size: 11px; color: #999; text-align: center;">
         Smittenbrot · Stockdorf bei München<br>
-        E-Mail: hello@smittenbrot.de<br>
+        E-Mail: info@smittenbrot.de<br>
         Zahlung erfolgt über Stripe<br>
         Es gilt die 7% ermäßigte Mehrwertsteuer auf Lebensmittel.
       </p>
@@ -889,7 +889,7 @@ async function process10pmLock(): Promise<{
               
               // Send via Brevo API directly
               const brevoPayload = {
-                sender: { email: "hello@smittenbrot.de", name: "Smittenbrot" },
+                sender: { email: "info@smittenbrot.de", name: "Smittenbrot" },
                 to: [{ email: customerEmail }],
                 subject: `Deine Smittenbrot Rechnung ${invoiceNumber}`,
                 htmlContent: htmlReceipt,

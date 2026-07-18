@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     if (capacityErrors.length > 0) {
       // Send admin alert about oversell attempt
-      const adminEmail = process.env.ADMIN_EMAIL ?? 'sophia@smittenbrot.de';
+      const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smittenbrot.de';
       // Log the attempt
       console.warn(`[capacity-warning] Oversell attempt: ${capacityErrors.join('; ')}`);
 

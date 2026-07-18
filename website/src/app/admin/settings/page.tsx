@@ -140,7 +140,10 @@ export default function AdminSettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
-        setTestEmailResult({ ok: false, msg: data.error || `Fehler (HTTP ${res.status}).` });
+        setTestEmailResult({
+          ok: false,
+          msg: (data.error || `Fehler (HTTP ${res.status}).`) + (data.detail ? ` — Brevo: ${data.detail}` : ''),
+        });
       } else {
         setTestEmailResult({
           ok: true,

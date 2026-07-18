@@ -16,6 +16,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [reminderWed, setReminderWed] = useState(false);
+  const [reminderSat, setReminderSat] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -26,11 +28,13 @@ export default function ProfilePage() {
 
       const { data: customer } = await supabase
         .from('customers')
-        .select('name, preferred_pickup_location_id')
+        .select('name, preferred_pickup_location_id, reminder_wednesday, reminder_saturday')
         .eq('id', session.user.id)
         .single();
       if (customer?.name) setName(customer.name);
       if (customer?.preferred_pickup_location_id) setPreferredLocation(customer.preferred_pickup_location_id);
+      if (customer?.reminder_wednesday != null) setReminderWed(customer.reminder_wednesday);
+      if (customer?.reminder_saturday != null) setReminderSat(customer.reminder_saturday);
 
       const { data: locs } = await supabase
         .from('pickup_locations')
@@ -52,6 +56,8 @@ export default function ProfilePage() {
       email,
       name,
       preferred_pickup_location_id: preferredLocation || null,
+      reminder_wednesday: reminderWed,
+      reminder_saturday: reminderSat,
     });
     setSaving(false);
     setSaved(true);
@@ -87,6 +93,33 @@ export default function ProfilePage() {
             ))}
           </select>
         </div>
+
+        {/* ── Reminder preferences ── */}
+        <div className="pt-4 border-t border-smitten-cream">
+          <p className="text-sm font-medium text-smitten-text/70 mb-3">Bestell-Erinnerungen per E-Mail</p>
+          <label className="flex items-start gap-3 mb-3 cursor-pointer">
+            <input type="checkbox" checked={reminderWed}
+              onChange={e => setReminderWed(e.target.checked)}
+              className="mt-0.5 accent-smitten-accent" />
+            <div>
+              <p className="text-sm font-medium text-smitten-text">Ja, erinnere mich an die Montags-Bestellung</p>
+              <p className="text-xs text-smitten-text/60">für Mittwoch-Abholung · E-Mail am Montag um 12:00</p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={reminderSat}
+              onChange={e => setReminderSat(e.target.checked)}
+              className="mt-0.5 accent-smitten-accent" />
+            <div>
+              <p className="text-sm font-medium text-smitten-text">Ja, erinnere mich an die Donnerstags-Bestellung</p>
+              <p className="text-xs text-smitten-text/60">für Samstag-Abholung · E-Mail am Donnerstag um 12:00</p>
+            </div>
+          </label>
+          {!reminderWed && !reminderSat && (
+            <p className="text-xs text-smitten-secondary mt-2">Du erhältst keine Bestell-Erinnerungen.</p>
+          )}
+        </div>
+
         <button onClick={handleSave} disabled={saving}
           className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
           {saving ? 'Wird gespeichert...' : saved ? '✓ Gespeichert' : 'Speichern'}
@@ -104,7 +137,7 @@ export default function ProfilePage() {
           <p className="font-medium text-smitten-text">Meine Bestellungen</p>
           <p className="text-sm text-smitten-text/60">Bestellverlauf und Rechnungen</p>
         </Link>
-        {user?.email === 'sophia@smittenbrot.de' && (<>
+        {user?.email === 'info@smittenbrot.de' && (<>
         <Link href="/admin/discounts"
           className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Rabattcodes</p>
