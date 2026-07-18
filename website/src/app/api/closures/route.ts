@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/apiAuth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,13 @@ const EDGE_FN_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closur
 export async function POST(req: NextRequest) {
   try {
     const { action, closure_id, start_date, end_date, reason, banner_text_de } = await req.json();
+
+    // 'active' is a public read (used by the site-wide closure banner).
+    // 'create' and 'delete' mutate state and require admin.
+    if (action === 'create' || action === 'delete') {
+      const auth = await requireAdmin(req);
+      if ('response' in auth) return auth.response;
+    }
 
     if (action === 'create') {
       // 1. Insert the closure

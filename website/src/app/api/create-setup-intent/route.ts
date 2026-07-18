@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { requireUser } from '@/lib/apiAuth';
 
 function getStripeClient() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -15,7 +16,11 @@ function getSupabaseAdmin() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email } = await req.json();
+    const auth = await requireUser(req);
+    if ('response' in auth) return auth.response;
+
+    // Use the authenticated user's own email — never trust a client-supplied one.
+    const email = auth.user.email;
     if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
     const supabase = getSupabaseAdmin();

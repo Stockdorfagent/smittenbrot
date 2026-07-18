@@ -44,9 +44,10 @@ export default function AdminClosuresPage() {
 
   async function addClosure() {
     if (!addForm.start_date || !addForm.end_date) return;
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch('/api/closures', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
       body: JSON.stringify({ action: 'create', start_date: addForm.start_date, end_date: addForm.end_date, reason: addForm.reason, banner_text_de: addForm.banner_text_de }),
     });
     if (res.ok) {
@@ -59,9 +60,10 @@ export default function AdminClosuresPage() {
   async function deleteClosure(closure: Closure) {
     const msg = `Diese Schließzeit betrifft ${subCount} aktive Abonnements, die pausiert werden. Wirklich löschen?`;
     if (!confirm(msg)) return;
+    const { data: { session } } = await supabase.auth.getSession();
     await fetch('/api/closures', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
       body: JSON.stringify({ action: 'delete', closure_id: closure.id }),
     });
     loadData();

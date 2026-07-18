@@ -217,7 +217,12 @@ export default function AdminProductsPage() {
     formData.append('file', file);
     formData.append('productId', productId);
     try {
-      const res = await fetch('/api/upload-product-photo', { method: 'POST', body: formData });
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/upload-product-photo', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: formData,
+      });
       const data = await res.json();
       if (data.url) {
         await supabase.from('products').update({ cover_image_url: data.url }).eq('id', productId);

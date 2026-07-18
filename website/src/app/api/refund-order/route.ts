@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { requireUser, isAdminEmail } from '@/lib/apiAuth';
 
 function getStripeClient() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -17,6 +18,9 @@ const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser(req);
+    if ('response' in auth) return auth.response;
+
     const { orderId } = await req.json();
     if (!orderId) {
       return NextResponse.json({ error: 'orderId required' }, { status: 400 });
@@ -33,6 +37,14 @@ export async function POST(req: NextRequest) {
 
     if (orderError || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    // Only the order's owner (or the admin) may refund/cancel it.
+    const ownerEmail =
+      (order as { customer_email?: string }).customer_email ||
+      (order as { customers?: { email?: string } }).customers?.email;
+    if (ownerEmail !== auth.user.email && !isAdminEmail(auth.user.email)) {
+      return NextResponse.json({ error: 'Nicht autorisiert.' }, { status: 403 });
     }
 
     // Check if order can be cancelled (not already cancelled/refunded)

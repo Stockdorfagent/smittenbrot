@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/apiAuth';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -11,6 +12,9 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY!;
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin(req);
+    if ('response' in auth) return auth.response;
+
     const { order_id } = await req.json();
     if (!order_id) return NextResponse.json({ error: 'missing order_id' }, { status: 400 });
 

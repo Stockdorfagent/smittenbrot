@@ -299,9 +299,10 @@ export default function AdminOrdersPage() {
                             onClick={async () => {
                               if (confirm('Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' senden und Bestellung als abgeholt markieren?')) {
                                 setSending(prev => ({ ...prev, [order.id]: true }));
+                                const { data: { session } } = await supabase.auth.getSession();
                                 const res = await fetch('/api/send-pickup-notification', {
                                   method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
                                   body: JSON.stringify({ order_id: order.id }),
                                 });
                                 const data = await res.json();
