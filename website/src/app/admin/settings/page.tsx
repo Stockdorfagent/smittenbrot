@@ -69,6 +69,11 @@ export default function AdminSettingsPage() {
   const [invoiceMode, setInvoiceMode] = useState<'production' | 'test'>('production');
   const [togglingMode, setTogglingMode] = useState(false);
 
+  // Test email state
+  const [testEmailTo, setTestEmailTo] = useState('');
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -118,6 +123,36 @@ export default function AdminSettingsPage() {
       setInvoiceMode(newMode);
     }
     setTogglingMode(false);
+  }
+
+  async function sendTestEmail() {
+    setTestEmailSending(true);
+    setTestEmailResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/send-test-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify(testEmailTo.trim() ? { to: testEmailTo.trim() } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setTestEmailResult({ ok: false, msg: data.error || `Fehler (HTTP ${res.status}).` });
+      } else {
+        setTestEmailResult({
+          ok: true,
+          msg: `Test-E-Mail an ${data.sentTo} gesendet. Prüfe den Posteingang (ggf. Spam-Ordner).`,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Netzwerkfehler.';
+      setTestEmailResult({ ok: false, msg });
+    } finally {
+      setTestEmailSending(false);
+    }
   }
 
   async function saveSellerInfo() {
@@ -558,6 +593,38 @@ export default function AdminSettingsPage() {
               : 'Zu Produktionsmodus wechseln'}
           </button>
         </div>
+      </div>
+
+      {/* EMAIL TEST */}
+      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+        <h2 className="font-display font-bold text-smitten-text text-lg">E-Mail-Test</h2>
+        <p className="mt-2 text-sm text-smitten-text/60">
+          Sende eine Test-E-Mail über Brevo, um den E-Mail-Versand zu prüfen — ohne eine echte Bestellung auszulösen. Ohne Empfänger wird an die Admin-Adresse gesendet.
+        </p>
+        <div className="mt-4 flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">Empfänger (optional)</label>
+            <input
+              type="email"
+              value={testEmailTo}
+              onChange={(e) => setTestEmailTo(e.target.value)}
+              placeholder="name@beispiel.de"
+              className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white w-64 max-w-full"
+            />
+          </div>
+          <button
+            onClick={sendTestEmail}
+            disabled={testEmailSending}
+            className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50"
+          >
+            {testEmailSending ? 'Sende...' : 'Test-E-Mail senden'}
+          </button>
+        </div>
+        {testEmailResult && (
+          <p className={`mt-3 text-sm ${testEmailResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+            {testEmailResult.msg}
+          </p>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
