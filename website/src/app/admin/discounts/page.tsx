@@ -48,8 +48,10 @@ export default function AdminDiscountsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDiscounts();
@@ -88,11 +90,35 @@ export default function AdminDiscountsPage() {
 
   function resetForm() {
     setForm({ ...emptyForm });
+    setEditingId(null);
     setShowForm(false);
     setError('');
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  function openCreate() {
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setError('');
+    setShowForm(true);
+  }
+
+  function openEdit(d: Discount) {
+    setForm({
+      code: d.code,
+      description: d.description ?? '',
+      type: d.type,
+      value: d.value,
+      max_uses: d.max_uses ?? '',
+      max_uses_per_customer: d.max_uses_per_customer ?? '',
+      expires_at: d.expires_at ? d.expires_at.substring(0, 10) : '',
+      active: d.active,
+    });
+    setEditingId(d.id);
+    setError('');
+    setShowForm(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError('');
@@ -105,27 +131,29 @@ export default function AdminDiscountsPage() {
         return;
       }
 
+      const payload = {
+        code: form.code,
+        description: form.description || undefined,
+        type: form.type,
+        value: form.value,
+        max_uses: form.max_uses !== '' ? Number(form.max_uses) : null,
+        max_uses_per_customer: form.max_uses_per_customer !== '' ? Number(form.max_uses_per_customer) : null,
+        expires_at: form.expires_at || null,
+        active: form.active,
+      };
+
       const res = await fetch('/api/admin/discounts', {
-        method: 'POST',
+        method: editingId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          code: form.code,
-          description: form.description || undefined,
-          type: form.type,
-          value: form.value,
-          max_uses: form.max_uses !== '' ? Number(form.max_uses) : null,
-          max_uses_per_customer: form.max_uses_per_customer !== '' ? Number(form.max_uses_per_customer) : null,
-          expires_at: form.expires_at || null,
-          active: form.active,
-        }),
+        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Fehler beim Erstellen');
+        throw new Error(data.error || (editingId ? 'Fehler beim Speichern' : 'Fehler beim Erstellen'));
       }
 
       resetForm();
@@ -134,6 +162,30 @@ export default function AdminDiscountsPage() {
       setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(d: Discount) {
+    if (!confirm(`Rabattcode "${d.code}" wirklich löschen?`)) return;
+    setDeletingId(d.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/admin/discounts?id=${encodeURIComponent(d.id)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Fehler beim Löschen');
+        return;
+      }
+      loadDiscounts();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -150,7 +202,7 @@ export default function AdminDiscountsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold text-smitten-text">Rabattcodes</h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openCreate}
           className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-full hover:bg-smitten-primary/90 transition-colors"
         >
           + Neuen Rabattcode
@@ -161,9 +213,11 @@ export default function AdminDiscountsPage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-20">
           <div className="bg-white rounded-xl border border-smitten-cream w-full max-w-lg p-6 mx-4 shadow-lg">
-            <h2 className="text-lg font-display font-bold text-smitten-text">Neuen Rabattcode erstellen</h2>
+            <h2 className="text-lg font-display font-bold text-smitten-text">
+              {editingId ? 'Rabattcode bearbeiten' : 'Neuen Rabattcode erstellen'}
+            </h2>
 
-            <form onSubmit={handleCreate} className="mt-4 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Code *</label>
@@ -273,7 +327,7 @@ export default function AdminDiscountsPage() {
                   disabled={saving}
                   className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Wird erstellt...' : 'Erstellen'}
+                  {saving ? 'Wird gespeichert...' : editingId ? 'Speichern' : 'Erstellen'}
                 </button>
                 <button
                   type="button"
@@ -306,6 +360,7 @@ export default function AdminDiscountsPage() {
                 <th className="text-center px-4 py-3 font-medium text-smitten-text">Max.</th>
                 <th className="text-left px-4 py-3 font-medium text-smitten-text">Gültig bis</th>
                 <th className="text-center px-4 py-3 font-medium text-smitten-text">Status</th>
+                <th className="text-right px-4 py-3 font-medium text-smitten-text">Aktionen</th>
               </tr>
             </thead>
             <tbody>
@@ -340,6 +395,21 @@ export default function AdminDiscountsPage() {
                       }`}>
                         {!d.active ? 'Inaktiv' : isExpired ? 'Abgelaufen' : 'Aktiv'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => openEdit(d)}
+                        className="text-smitten-primary hover:underline text-sm"
+                      >
+                        Bearbeiten
+                      </button>
+                      <button
+                        onClick={() => handleDelete(d)}
+                        disabled={deletingId === d.id}
+                        className="ml-3 text-red-600 hover:underline text-sm disabled:opacity-50"
+                      >
+                        {deletingId === d.id ? 'Löscht…' : 'Löschen'}
+                      </button>
                     </td>
                   </tr>
                 );

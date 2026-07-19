@@ -1,8 +1,10 @@
 node_modules/
 .next/
 .env.local
+.env.local.*
 .env
 *.env
+*.bak
 dist/
 build/
 .DS_Store

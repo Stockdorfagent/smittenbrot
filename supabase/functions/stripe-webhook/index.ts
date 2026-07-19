@@ -25,7 +25,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 // ── Clients ──────────────────────────────────────────────────
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2025-03-31.basil",
+  apiVersion: "2025-08-27.basil",
   httpClient: Stripe.createFetchHttpClient(),
 });
 
@@ -124,6 +124,8 @@ async function sendReceiptEmail(
     const customerName = (order.customer_name as string) ?? "Kunde";
     const totalCents = order.total_cents as number;
     const totalEur = (totalCents / 100).toFixed(2);
+    const discountCents = (order.discount_cents as number | null) ?? 0;
+    const discountCode = (order.discount_code as string | null) ?? null;
 
     // Fetch order items with product names
     const { data: items, error: itemsError } = await supabase
@@ -218,6 +220,15 @@ async function sendReceiptEmail(
             ${itemsHtml}
           </tbody>
           <tfoot>
+            ${discountCents > 0 ? `
+            <tr>
+              <td style="padding: 4px 0; font-size: 14px;">Zwischensumme</td>
+              <td style="padding: 4px 0; text-align: right; font-size: 14px;">${(subtotalCents / 100).toFixed(2)}€</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; font-size: 14px; color: #16a34a;">Rabatt${discountCode ? ` (${discountCode})` : ""}</td>
+              <td style="padding: 4px 0; text-align: right; font-size: 14px; color: #16a34a;">-${(discountCents / 100).toFixed(2)}€</td>
+            </tr>` : ""}
             <tr>
               <td style="padding: 12px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td>
               <td style="padding: 12px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f7140f;">${totalEur}€</td>
@@ -312,6 +323,189 @@ async function findOrderByPaymentIntent(
   return data ?? null;
 }
 
+/**
+ * Create a one-time order from a succeeded PaymentIntent's metadata.
+ *
+ * Called only when NO order exists yet for the PI — i.e. an app/website
+ * one-time checkout. Per the bakery's model, the order comes into
+ * existence ONLY on payment success (a failed payment leaves nothing).
+ *
+ * The order is inserted as payment_status='pending' then updated to
+ * 'paid' so the `trg_assign_order_numbers` trigger assigns the
+ * order_number (#00124…) and invoice_number (RE-00124…). Idempotent via
+ * the metadata idempotency_key + the orders.idempotency_key UNIQUE index.
+ */
+async function createOrderFromPaymentIntent(
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> {
+  const md = (paymentIntent.metadata ?? {}) as Record<string, string>;
+  // Items may be split across items, items_1, items_2, … to stay under Stripe's
+  // 500-char-per-value metadata cap. Reassemble the chunks in order.
+  let itemsRaw = md.items ?? "";
+  for (let i = 1; md[`items_${i}`] !== undefined; i++) {
+    itemsRaw += md[`items_${i}`];
+  }
+
+  // No items metadata ⇒ not a one-time checkout PI (e.g. a subscription
+  // off-session charge whose order simply isn't linked yet). Skip safely.
+  if (!itemsRaw) {
+    console.warn(
+      `[stripe-webhook] PI ${paymentIntent.id} has no order and no items metadata — skipping.`,
+    );
+    return;
+  }
+
+  const idempotencyKey = md.idempotency_key || null;
+
+  // Idempotency: skip if this order was already created (event redelivery).
+  if (idempotencyKey) {
+    const { data: existing } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      console.log(
+        `[stripe-webhook] Order for idempotency_key ${idempotencyKey} already exists — skipping.`,
+      );
+      return;
+    }
+  }
+
+  let lineItems: Array<{ p: string; q: number; u: number }>;
+  try {
+    lineItems = JSON.parse(itemsRaw);
+  } catch {
+    console.error(`[stripe-webhook] PI ${paymentIntent.id}: invalid items metadata.`);
+    return;
+  }
+  if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    console.error(`[stripe-webhook] PI ${paymentIntent.id}: empty items metadata.`);
+    return;
+  }
+
+  // The authoritative amount actually charged (already discount-adjusted).
+  // Equals sum(u*q) for the app (no discounts); for website orders with a
+  // discount code it is the reduced total.
+  const totalCents = paymentIntent.amount;
+
+  // Optional discount metadata (website checkout only; absent for the app).
+  const discountId = md.discount_id || null;
+  const discountCents = Number(md.discount_cents) || 0;
+  const discountCode = md.discount_code || null;
+
+  // 1. Insert the order as pending (numbering trigger fires on the paid transition).
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .insert({
+      stripe_payment_intent_id: paymentIntent.id,
+      customer_id: md.customer_id || null,
+      customer_email: md.customer_email || null,
+      customer_name: md.customer_name || null,
+      total_cents: totalCents,
+      fulfillment_date: md.fulfillment_date,
+      pickup_location_id: md.pickup_location_id || null,
+      status: "scheduled",
+      payment_status: "pending",
+      order_type: "one_time",
+      discount_id: discountId,
+      discount_cents: discountCents,
+      discount_code: discountCode,
+      idempotency_key: idempotencyKey,
+    })
+    .select("id")
+    .single();
+
+  if (orderErr || !order) {
+    console.error(
+      `[stripe-webhook] Failed to create order for PI ${paymentIntent.id}:`,
+      orderErr,
+    );
+    return;
+  }
+
+  // 2. Order items.
+  const orderItems = lineItems.map((li) => ({
+    order_id: order.id,
+    product_id: li.p,
+    quantity: li.q,
+    unit_price_cents: li.u,
+  }));
+  const { error: oiErr } = await supabase.from("order_items").insert(orderItems);
+  if (oiErr) {
+    console.error(
+      `[stripe-webhook] Failed to insert order_items for order ${order.id}:`,
+      oiErr,
+    );
+  }
+
+  // 3. Flip to paid → assigns order_number + invoice_number via trigger.
+  //
+  // NOTE: inserting the order_items above fired trg_update_order_totals, which
+  // recomputes net/vat/total_cents from the GROSS line items — i.e. the
+  // UNDISCOUNTED subtotal. When a discount applies we must override those with
+  // the amount actually charged (paymentIntent.amount), so the stored order and
+  // the invoice match the charge. All products are 7% VAT, so net = gross/1.07.
+  const paidUpdate: Record<string, unknown> = {
+    payment_status: "paid",
+    updated_at: new Date().toISOString(),
+  };
+  if (discountCents > 0) {
+    const netCents = Math.round(totalCents / 1.07);
+    paidUpdate.total_cents = totalCents;
+    paidUpdate.net_total_cents = netCents;
+    paidUpdate.vat_total_cents = totalCents - netCents;
+  }
+  const { error: paidErr } = await supabase
+    .from("orders")
+    .update(paidUpdate)
+    .eq("id", order.id);
+  if (paidErr) {
+    console.error(
+      `[stripe-webhook] Failed to mark created order ${order.id} paid:`,
+      paidErr,
+    );
+    return;
+  }
+
+  await logAudit("payment_intent.succeeded", "order", order.id as string, null, {
+    created: true,
+    payment_status: "paid",
+    total_cents: totalCents,
+  });
+
+  // 3b. Record discount usage so max_uses / per-customer limits actually
+  // enforce on future orders (validation reads this table).
+  if (discountId) {
+    const { error: duErr } = await supabase.from("discount_usage").insert({
+      discount_id: discountId,
+      customer_id: md.customer_id || null,
+      order_id: order.id,
+      email: md.customer_email || null,
+    });
+    if (duErr) {
+      console.error(
+        `[stripe-webhook] Failed to record discount_usage for order ${order.id}:`,
+        duErr,
+      );
+    }
+  }
+
+  // 4. Receipt (re-fetch to include the assigned numbers).
+  const { data: full } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("id", order.id)
+    .single();
+  if (full) {
+    await sendReceiptEmail(full);
+  }
+
+  console.log(
+    `[stripe-webhook] Created + paid one-time order ${order.id} from PI ${paymentIntent.id}.`,
+  );
+}
+
 // ── Event Handlers ───────────────────────────────────────────
 
 /**
@@ -328,9 +522,9 @@ async function handlePaymentIntentSucceeded(
 
   const order = await findOrderByPaymentIntent(piId);
   if (!order) {
-    console.warn(
-      `[stripe-webhook] No order found for PaymentIntent ${piId}. Skipping.`,
-    );
+    // No pre-existing order ⇒ one-time checkout. Per the bakery's model,
+    // the order is created ONLY now that payment has succeeded.
+    await createOrderFromPaymentIntent(paymentIntent);
     return;
   }
 

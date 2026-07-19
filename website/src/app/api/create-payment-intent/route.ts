@@ -200,75 +200,65 @@ export async function POST(req: NextRequest) {
 
     const idempotencyKey = `order_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
+    // Encode the order compactly for the PaymentIntent metadata. The shared
+    // stripe-webhook creates the order on payment success from this metadata
+    // (order-on-success model — a failed/abandoned payment leaves no order and
+    // no invoice number). Items use the {p,q,u} shape with the authoritative DB
+    // unit price, matching the mobile app's create-payment-intent edge function.
+    const itemsMeta = JSON.stringify(
+      (items as { product_id: string; quantity: number }[]).map(i => ({
+        p: i.product_id,
+        q: Number(i.quantity),
+        u: priceMap[i.product_id]!.price_cents,
+      }))
+    );
     const metadata: Record<string, string> = {
-      items: JSON.stringify(items.map((i: { product_id: string; quantity: number }) => ({
-        product_id: i.product_id,
-        quantity: i.quantity,
-      }))),
-      fulfillment_date: fulfillment_date || '',
+      fulfillment_date: fulfillment_date,
       pickup_location_id: pickup_location_id || '',
+      customer_id: customer_id || '',
+      customer_email: customer_email || '',
+      customer_name: customer_name || '',
       idempotency_key: idempotencyKey,
     };
 
-    if (appliedDiscountCode) {
-      metadata.discount_code = appliedDiscountCode;
+    // Stripe caps each metadata value at 500 chars; split the item list across
+    // items, items_1, items_2, … so large orders aren't rejected. The webhook
+    // reassembles the chunks. (Stripe also caps total keys at 50.)
+    const CHUNK = 450;
+    if (Math.ceil(itemsMeta.length / CHUNK) > 40) {
+      return NextResponse.json(
+        { error: 'Bestellung zu groß. Bitte teile sie in kleinere Bestellungen auf.' },
+        { status: 400 }
+      );
+    }
+    for (let i = 0; i * CHUNK < itemsMeta.length; i++) {
+      metadata[i === 0 ? 'items' : `items_${i}`] = itemsMeta.slice(i * CHUNK, (i + 1) * CHUNK);
+    }
+
+    if (discountId) {
+      metadata.discount_id = discountId;
       metadata.discount_cents = String(finalDiscountCents);
+      metadata.discount_code = appliedDiscountCode || '';
     }
 
-    const paymentIntent = await getStripeClient().paymentIntents.create({
-      amount: finalAmount, // cents
-      currency: 'eur',
-      customer: stripeCustomerId,
-      setup_future_usage: customer_id ? 'off_session' : undefined,
-      metadata,
-      payment_method_types: ['card'],
-    });
+    const paymentIntent = await getStripeClient().paymentIntents.create(
+      {
+        amount: finalAmount, // cents (already discounted)
+        currency: 'eur',
+        customer: stripeCustomerId,
+        setup_future_usage: customer_id ? 'off_session' : undefined,
+        metadata,
+        payment_method_types: ['card'],
+      },
+      { idempotencyKey }
+    );
 
-    // ── Create order in database ──
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        stripe_payment_intent_id: paymentIntent.id,
-        customer_id: customer_id || null,
-        customer_email: customer_email || '',
-        customer_name: customer_name || '',
-        total_cents: finalAmount,
-        fulfillment_date,
-        pickup_location_id: pickup_location_id || null,
-        status: 'pending',
-        payment_status: 'pending',
-        order_type: 'one_time',
-        discount_id: discountId,
-        discount_cents: finalDiscountCents,
-        idempotency_key: idempotencyKey,
-      })
-      .select('id')
-      .single();
-
-    if (orderError) {
-      console.error('[create-payment-intent] Failed to create order:', orderError);
-      // Order creation failure is critical — refund the payment intent
-      await getStripeClient().paymentIntents.cancel(paymentIntent.id).catch(() => {});
-      return NextResponse.json({ error: 'Bestellung konnte nicht angelegt werden.' }, { status: 500 });
-    }
-
-    // ── Create order items ──
-    const orderItems = items.map((item: { product_id: string; quantity: number }) => ({
-      order_id: order.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price_cents: priceMap[item.product_id]!.price_cents,
-    }));
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-    if (itemsError) {
-      console.error('[create-payment-intent] Failed to create order items:', itemsError);
-      // Non-critical — order already exists
-    }
+    // NOTE: the order is intentionally NOT created here. The stripe-webhook
+    // creates it from the metadata above once payment_intent.succeeded arrives.
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
-      orderId: order.id,
       idempotencyKey,
       discountId,
       discountCents: finalDiscountCents,

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
+import { getNextPickup } from '@/lib/pickup';
 import { supabase } from '@/lib/supabase';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -130,7 +131,9 @@ function CheckoutForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
+  // Pickup day/date is derived from the order cutoff (not chosen by the customer).
+  // Computed on the client after mount to avoid an SSR/hydration timezone mismatch.
+  const [pickupLabel, setPickupLabel] = useState('');
 
   // Discount state
   const [discountCode, setDiscountCode] = useState('');
@@ -153,6 +156,10 @@ function CheckoutForm() {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    setPickupLabel(getNextPickup().label);
+  }, []);
+
   const totalAfterDiscount = Math.max(0, totalCents - discountCents);
 
   async function handleApplyDiscount() {
@@ -173,7 +180,7 @@ function CheckoutForm() {
             price_cents: item.priceCents,
             quantity: item.quantity,
           })),
-          fulfillment_date: state.pickupDay || undefined,
+          fulfillment_date: getNextPickup().date,
         }),
       });
 
@@ -223,7 +230,7 @@ function CheckoutForm() {
             quantity: item.quantity,
           })),
           pickup_location_id: state.pickupLocationId,
-          fulfillment_date: state.pickupDay,
+          fulfillment_date: getNextPickup().date,
           customer_email: session?.user?.email || email,
           customer_name: session?.user?.user_metadata?.full_name || name,
           customer_id: session?.user?.id || null,
@@ -235,7 +242,6 @@ function CheckoutForm() {
       if (!response.ok) throw new Error(data.error || 'Payment failed');
 
       setClientSecret(data.clientSecret);
-      setOrderNumber(data.orderId || '');
       setStep('payment');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
@@ -274,19 +280,17 @@ function CheckoutForm() {
         </div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Bestellung erfolgreich!</h1>
         <p className="mt-2 text-smitten-text/60">
-          Vielen Dank für deine Bestellung! Du bekommst eine Bestätigung per E-Mail.
+          Vielen Dank für deine Bestellung! Deine Zahlung ist eingegangen.
         </p>
-        {orderNumber && (
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
-            <p className="text-xs text-amber-700 font-medium uppercase tracking-wider">Wichtige Information</p>
-            <p className="mt-1 text-sm text-amber-800">
-              Deine Bestellnummer lautet: <strong className="font-mono">{orderNumber}</strong>
-            </p>
-            <p className="mt-1 text-xs text-amber-700/70">
-              Bitte notiere sie dir — du brauchst sie zur Abholung. Die Rechnung erhältst du per E-Mail.
-            </p>
-          </div>
-        )}
+        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
+          <p className="text-xs text-amber-700 font-medium uppercase tracking-wider">Wichtige Information</p>
+          <p className="mt-1 text-sm text-amber-800">
+            Deine Bestellnummer und die Rechnung erhältst du in Kürze per E-Mail.
+          </p>
+          <p className="mt-1 text-xs text-amber-700/70">
+            Bitte nenne deinen Namen und die Bestellnummer bei der Abholung.
+          </p>
+        </div>
         <Link
           href="/products"
           className="mt-8 inline-block bg-smitten-primary text-white px-6 py-2 rounded-full text-sm"
@@ -326,6 +330,9 @@ function CheckoutForm() {
               </div>
             ))}
           </div>
+          {pickupLabel && (
+            <p className="mt-3 text-sm text-smitten-text/70">Abholung: <strong className="text-smitten-text">{pickupLabel}</strong></p>
+          )}
           {discountCents > 0 && (
             <div className="mt-2 flex justify-between text-sm text-green-600">
               <span>Rabatt ({discountInfo?.code})</span>
@@ -392,6 +399,9 @@ function CheckoutForm() {
             </div>
           ))}
         </div>
+        {pickupLabel && (
+          <p className="mt-3 text-sm text-smitten-text/70">Abholung: <strong className="text-smitten-text">{pickupLabel}</strong></p>
+        )}
         {(() => {
           const netTotal = Math.round(totalCents / 1.07);
           const vatTotal = totalCents - netTotal;
