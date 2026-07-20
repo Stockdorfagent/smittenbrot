@@ -4,7 +4,7 @@ export default function AppPage() {
       <h1 className="text-3xl font-display font-bold text-smitten-text">
         Smittenbrot App
       </h1>
-      <p className="mt-4 text-smitten-text/70 leading-relaxed">
+      <p className="mt-4 text-smitten-text leading-relaxed">
         Bestelle dein Brot und Gebäck direkt von deinem Smartphone – schneller,
         bequemer und immer auf dem neuesten Stand.
       </p>
@@ -13,14 +13,13 @@ export default function AppPage() {
         <h2 className="text-xl font-display font-bold text-smitten-text">
           App herunterladen
         </h2>
-        <p className="mt-2 text-sm text-smitten-text/60">
+        <p className="mt-2 text-sm text-smitten-text">
           Lade dir die <span className="text-smitten-primary italic">Smittenbrot</span> App direkt herunter und installiere sie auf deinem Android-Handy.
           Kein Google Play Store nötig.
         </p>
 
         <a
-          href="/smittenbrot.apk"
-          download
+          href="https://expo.dev/artifacts/eas/hCLXyWo54m-Bxf_k85gU7SYmXmItSVpGhbs2uDt9gRQ.apk"
           className="mt-5 inline-flex items-center gap-2 bg-smitten-primary text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors text-base"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -36,7 +35,7 @@ export default function AppPage() {
             <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
             App herunterladen
           </h2>
-          <p className="mt-2 text-sm text-smitten-text/60 ml-9">
+          <p className="mt-2 text-sm text-smitten-text ml-9">
             Tippe auf den Download-Button oben. Dein Android-Handy lädt die App herunter.
           </p>
         </div>
@@ -46,7 +45,7 @@ export default function AppPage() {
             <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
             Installation erlauben
           </h2>
-          <p className="mt-2 text-sm text-smitten-text/60 ml-9">
+          <p className="mt-2 text-sm text-smitten-text ml-9">
             Beim Öffnen der heruntergeladenen App erscheint eine Sicherheitsfrage.
             Erlaube die Installation – das ist nötig, weil die App nicht aus dem
             Google Play Store kommt. Tippe auf <strong>„Einstellungen"</strong> und
@@ -59,7 +58,7 @@ export default function AppPage() {
             <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
             Fertig!
           </h2>
-          <p className="mt-2 text-sm text-smitten-text/60 ml-9">
+          <p className="mt-2 text-sm text-smitten-text ml-9">
             Nach der Installation findest du <span className="text-smitten-primary italic">Smittenbrot</span> auf deinem Startbildschirm.
             Melde dich an oder erstelle ein Konto und bestelle dein Brot – jederzeit und überall.
           </p>
