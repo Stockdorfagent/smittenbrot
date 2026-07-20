@@ -32,9 +32,9 @@ export default function RootLayout({
           <footer className="border-t border-smitten-cream bg-white mt-20">
             <div className="max-w-5xl mx-auto px-4 py-12">
               <div className="flex flex-col items-center gap-8 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col items-center gap-2 md:items-start">
-                  <img src="/small-logo.png" alt="Smittenbrot" className="h-20 md:h-24 w-auto" />
-                  <p className="text-sm text-smitten-secondary">Sauerteig aus Stockdorf</p>
+                <div className="flex flex-col items-center md:items-start">
+                  <img src="/logo.svg" alt="Smittenbrot" className="h-28 md:h-32 w-auto" />
+                  <p className="-mt-3 text-sm text-smitten-secondary">Sauerteig aus Stockdorf</p>
                 </div>
                 <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-smitten-secondary">
                   <a href="/impressum" className="hover:text-smitten-primary transition-colors">Impressum</a>
