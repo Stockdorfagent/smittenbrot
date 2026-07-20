@@ -201,7 +201,7 @@ export default function SubscriptionsPage() {
           <section className="mt-8">
             <h2 className="text-xl font-display font-bold text-smitten-text">Nie wieder Brot verpassen</h2>
             <p className="mt-3 text-smitten-text leading-relaxed">
-              Mit dem Abo-Service erhältst du jede Woche frisches Brot und Gebäck – genau auf deine Bedürfnisse abgestimmt.
+              Weniger To-do für dich, mehr Zeit für gutes Brot. Mit dem Brot-Abo musst du nie wieder daran denken, rechtzeitig zu bestellen!
             </p>
           </section>
 
@@ -210,7 +210,7 @@ export default function SubscriptionsPage() {
             <ul className="space-y-3 text-sm text-smitten-text">
               <li className="flex gap-3">
                 <span className="text-smitten-primary font-bold shrink-0">📧</span>
-                <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (und Push-Benachrichtigung, wenn du die App nutzt).</span>
+                <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (oder Push-Benachrichtigung, wenn du die App nutzt).</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-smitten-primary font-bold shrink-0">🔄</span>
@@ -222,13 +222,13 @@ export default function SubscriptionsPage() {
               </li>
               <li className="flex gap-3">
                 <span className="text-smitten-primary font-bold shrink-0">⏰</span>
-                <span>Nach 20:00 Uhr hast du noch bis <strong>22:00 Uhr</strong> Zeit, die Bestellung zu stornieren – danach wird für dich gebacken.</span>
+                <span>Nach 20:00 Uhr hast du noch bis <strong>22:00 Uhr</strong> Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.</span>
               </li>
             </ul>
           </section>
           <button onClick={() => router.push('/login?redirect=/subscriptions')}
             className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-            Für Abo anmelden
+            Abo einrichten
           </button>
         </>
       ) : subscriptions.length === 0 ? (
