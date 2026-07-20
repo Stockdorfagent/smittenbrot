@@ -36,7 +36,7 @@ export default function HomePage() {
           <img
             src="/logo.svg"
             alt="Smittenbrot"
-            className="mx-auto h-24 md:h-32 w-auto"
+            className="mx-auto h-40 md:h-56 w-auto"
           />
           <h1 className="sr-only">Smittenbrot — Sauerteig aus Stockdorf</h1>
           <p className="mt-6 text-xs md:text-sm font-semibold uppercase tracking-[0.22em] text-smitten-primary">
@@ -62,7 +62,7 @@ export default function HomePage() {
           </div>
           {pickupLabel && (
             <p className="mt-6 text-sm text-smitten-secondary">
-              Nächste Abholung: <strong className="text-smitten-text font-semibold">{pickupLabel}</strong>
+              Nächste mögliche Abholung: <strong className="text-smitten-text font-semibold">{pickupLabel}</strong>
             </p>
           )}
         </div>
@@ -76,7 +76,7 @@ export default function HomePage() {
               Diese Woche im Sortiment
             </h2>
             <p className="mt-1 text-sm text-smitten-secondary">
-              Frisch gebacken, in Handarbeit.
+              Jede Woche frisch von Hand gebacken.
             </p>
           </div>
           <Link
@@ -142,8 +142,8 @@ export default function HomePage() {
               { step: '2', title: 'Vorbestellen', desc: 'Ich backe nach dem „No Waste"-Prinzip: bestelle vorab online. Bestellschluss ist Montag- bzw. Donnerstagabend um 22:00. Bezahle bequem per Karte, Apple Pay oder Google Pay.' },
               { step: '3', title: 'Abholen', desc: 'Du bekommst eine E-Mail, sobald dein Brot bereitliegt – spätestens um 14:00 Uhr. Abholung an der Waldstraße 1 in Stockdorf, 5 Min. vom S-Bahnhof.' },
             ].map(item => (
-              <div key={item.step} className="bg-white rounded-2xl p-7 border border-smitten-cream text-left">
-                <div className="w-11 h-11 rounded-full bg-smitten-primary/10 text-smitten-primary flex items-center justify-center text-lg font-bold">
+              <div key={item.step} className="bg-white rounded-2xl p-7 border border-smitten-cream text-center">
+                <div className="w-11 h-11 rounded-full bg-smitten-primary text-white flex items-center justify-center text-lg font-bold mx-auto">
                   {item.step}
                 </div>
                 <h3 className="mt-5 text-lg font-bold text-smitten-text">{item.title}</h3>
