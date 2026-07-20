@@ -224,14 +224,22 @@ function buildReceiptHtml(
   const customerName = customer.name ?? "Kunde";
   const customerEmail = customer.email ?? "";
 
+  const formatIsoDe = (iso: string): string => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : (iso ?? "");
+  };
+  const todayDe = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin",
+  }).format(new Date());
+
   return `
-    <div style="font-family: 'Helvetica', 'Arial', sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #333;">
-      <div style="border-bottom: 3px solid #f7140f; padding-bottom: 10px; margin-bottom: 20px;">
-        <h1 style="color: #f7140f; font-size: 24px; margin: 0;">Smittenbrot</h1>
-        <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Handgemachtes Sauerteigbrot aus Stockdorf</p>
+    <div style="font-family: 'Helvetica', 'Arial', sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #1A1A1A;">
+      <div style="border-bottom: 3px solid #f8120e; padding-bottom: 10px; margin-bottom: 20px;">
+        <h1 style="color: #f8120e; font-size: 24px; margin: 0;">Smittenbrot</h1>
+        <p style="margin: 4px 0 0; color: #6B7280; font-size: 13px;">Sauerteig aus Stockdorf</p>
       </div>
 
-      <h2 style="font-size: 18px; color: #f7140f;">Rechnung ${invoiceNumber}</h2>
+      <h2 style="font-size: 18px; color: #1A1A1A;">Rechnung ${invoiceNumber}</h2>
 
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr>
@@ -249,15 +257,15 @@ function buildReceiptHtml(
 
       <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px;">
         <tr>
-          <td style="padding: 2px 0; color: #666;">Rechnungsdatum:</td>
-          <td style="padding: 2px 0; text-align: right;">${new Date().toLocaleDateString("de-DE")}</td>
+          <td style="padding: 2px 0; color: #6B7280;">Rechnungsdatum:</td>
+          <td style="padding: 2px 0; text-align: right;">${todayDe}</td>
         </tr>
         <tr>
-          <td style="padding: 2px 0; color: #666;">Leistungsdatum (Abholung):</td>
-          <td style="padding: 2px 0; text-align: right;">${new Date(fulfillmentDate + "T12:00:00").toLocaleDateString("de-DE")}</td>
+          <td style="padding: 2px 0; color: #6B7280;">Leistungsdatum (Abholung):</td>
+          <td style="padding: 2px 0; text-align: right;">${formatIsoDe(fulfillmentDate)}</td>
         </tr>
         <tr>
-          <td style="padding: 2px 0; color: #666;">Bestellnummer:</td>
+          <td style="padding: 2px 0; color: #6B7280;">Bestellnummer:</td>
           <td style="padding: 2px 0; text-align: right;">${invoiceNumber}</td>
         </tr>
       </table>

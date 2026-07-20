@@ -447,7 +447,7 @@ export async function send_pickup_ready(
       // 5. Build a user-friendly HTML email
       const htmlBody = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>🍞 Abholbereit!</h2>
+          <h2>Abholbereit</h2>
           <p>${renderedBody.replace(/\n/g, "<br>")}</p>
           <hr>
           <p style="color: #666; font-size: 0.9em;">
@@ -459,7 +459,7 @@ export async function send_pickup_ready(
         </div>
       `.trim();
 
-      const pushTitle = "🍞 Abholbereit!";
+      const pushTitle = "Abholbereit";
 
       // 6. Look up customer for push token
       const { data: customer } = await supabase
@@ -561,7 +561,7 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
   const subject = "[Smittenbrot Admin Alert]";
   const htmlBody = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>🔔 Admin Alert</h2>
+      <h2>Admin Alert</h2>
       <p style="font-size: 1.1em; background: #fff3cd; padding: 12px; border-radius: 4px;">
         ${message.replace(/\n/g, "<br>")}
       </p>
@@ -677,12 +677,12 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
 
   const htmlBody = `
     <div style="font-family: 'Helvetica', 'Arial', sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #333;">
-      <div style="border-bottom: 3px solid #5C3A1E; padding-bottom: 10px; margin-bottom: 20px;">
-        <h1 style="color: #5C3A1E; font-size: 24px; margin: 0;">Smittenbrot</h1>
+      <div style="border-bottom: 3px solid #1A1A1A; padding-bottom: 10px; margin-bottom: 20px;">
+        <h1 style="color: #1A1A1A; font-size: 24px; margin: 0;">Smittenbrot</h1>
         <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Handgemachtes Sauerteigbrot aus Stockdorf</p>
       </div>
 
-      <h2 style="font-size: 18px; color: #5C3A1E;">Rechnung ${invoiceNumber}</h2>
+      <h2 style="font-size: 18px; color: #1A1A1A;">Rechnung ${invoiceNumber}</h2>
 
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr>
@@ -728,7 +728,7 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
 
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px;">
         <thead>
-          <tr style="background: #5C3A1E; color: white;">
+          <tr style="background: #1A1A1A; color: white;">
             <th style="padding: 8px 4px; text-align: center;">Pos.</th>
             <th style="padding: 8px 4px; text-align: left;">Produkt</th>
             <th style="padding: 8px 4px; text-align: center;">Menge</th>
@@ -744,10 +744,10 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
         </tbody>
       </table>
 
-      <div style="border-top: 2px solid #5C3A1E; padding-top: 10px; margin-top: 5px; text-align: right; font-size: 13px;">
+      <div style="border-top: 2px solid #1A1A1A; padding-top: 10px; margin-top: 5px; text-align: right; font-size: 13px;">
         <p style="margin: 2px 0;">Nettobetrag: <strong>€${((ord.total_net as number ?? 0) / 100).toFixed(2)}</strong></p>
         <p style="margin: 2px 0;">Enthaltene MwSt. 7%: <strong>€${((ord.total_vat as number ?? 0) / 100).toFixed(2)}</strong></p>
-        <p style="margin: 2px 0; font-size: 16px; color: #5C3A1E;">Rechnungsbetrag (brutto): <strong>€${((ord.total_gross as number ?? 0) / 100).toFixed(2)}</strong></p>
+        <p style="margin: 2px 0; font-size: 16px; color: #1A1A1A;">Rechnungsbetrag (brutto): <strong>€${((ord.total_gross as number ?? 0) / 100).toFixed(2)}</strong></p>
       </div>
 
       <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">

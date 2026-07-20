@@ -174,40 +174,52 @@ async function sendReceiptEmail(
       }
     }
 
-    const subject = `Deine Smittenbrot Rechnung ${orderPrefix}`;
+    // Numeric dates always dd.mm.yyyy.
+    const formatIsoDe = (iso: string): string => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
+      return m ? `${m[3]}.${m[2]}.${m[1]}` : (iso ?? "");
+    };
+    const orderDateDe = new Intl.DateTimeFormat("de-DE", {
+      day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin",
+    }).format(new Date());
+    const fulfillmentDe = formatIsoDe(fulfillmentDate);
+    const netCents = (order.net_total_cents as number) || Math.round(totalCents / 1.07);
+    const vatCents = (order.vat_total_cents as number) || (totalCents - netCents);
+
+    const subject = `Deine Smittenbrot Bestellbestätigung ${orderPrefix}`;
 
     const htmlContent = `
-      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1A1A1A;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #f7140f; font-size: 24px; margin: 0;">🍞 Smittenbrot</h1>
-          <p style="color: #999; font-size: 14px;">Handgemachtes Brot aus Stockdorf</p>
+          <h1 style="color: #f8120e; font-size: 24px; margin: 0;">Smittenbrot</h1>
+          <p style="color: #6B7280; font-size: 14px; margin: 4px 0 0;">Sauerteig aus Stockdorf</p>
         </div>
 
-        <h2 style="color: #f7140f; font-size: 20px;">Vielen Dank für deine Bestellung! 🎉</h2>
+        <h2 style="color: #1A1A1A; font-size: 20px;">Vielen Dank für deine Bestellung</h2>
 
-        <p>Hallo ${customerName},</p>
-        <p>vielen Dank für deine Bestellung bei Smittenbrot. Deine Zahlung ist erfolgreich eingegangen.</p>
+        <p style="color: #1A1A1A;">Hallo ${customerName},</p>
+        <p style="color: #1A1A1A;">deine Zahlung ist erfolgreich eingegangen. Hier ist deine Bestellbestätigung.</p>
 
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
           <tr>
-            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Bestellnummer:</strong></td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Bestellnummer:</strong></td>
             <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderPrefix}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Datum:</strong></td>
-            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${new Date().toLocaleDateString("de-DE")}</td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Datum:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderDateDe}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Abholung am:</strong></td>
-            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${fulfillmentDate}</td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Abholung am:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${fulfillmentDe}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Abholort:</strong></td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Abholort:</strong></td>
             <td style="padding: 4px 0; text-align: right; font-size: 14px;">${pickupName}</td>
           </tr>
         </table>
 
-        <h3 style="color: #f7140f; font-size: 16px; border-bottom: 2px solid #f7140f; padding-bottom: 6px;">Bestellübersicht</h3>
+        <h3 style="color: #1A1A1A; font-size: 16px; border-bottom: 2px solid #f8120e; padding-bottom: 6px;">Bestellübersicht</h3>
 
         <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
           <thead>
@@ -222,42 +234,40 @@ async function sendReceiptEmail(
           <tfoot>
             ${discountCents > 0 ? `
             <tr>
-              <td style="padding: 4px 0; font-size: 14px;">Zwischensumme</td>
-              <td style="padding: 4px 0; text-align: right; font-size: 14px;">${(subtotalCents / 100).toFixed(2)}€</td>
+              <td style="padding: 6px 0 2px; font-size: 14px;">Zwischensumme</td>
+              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px;">${(subtotalCents / 100).toFixed(2)}€</td>
             </tr>
             <tr>
-              <td style="padding: 4px 0; font-size: 14px; color: #16a34a;">Rabatt${discountCode ? ` (${discountCode})` : ""}</td>
-              <td style="padding: 4px 0; text-align: right; font-size: 14px; color: #16a34a;">-${(discountCents / 100).toFixed(2)}€</td>
+              <td style="padding: 2px 0; font-size: 14px;">Rabatt${discountCode ? ` (${discountCode})` : ""}</td>
+              <td style="padding: 2px 0; text-align: right; font-size: 14px;">-${(discountCents / 100).toFixed(2)}€</td>
             </tr>` : ""}
             <tr>
-              <td style="padding: 12px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td>
-              <td style="padding: 12px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f7140f;">${totalEur}€</td>
+              <td style="padding: 6px 0 2px; font-size: 14px; color: #6B7280;">Nettobetrag</td>
+              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${(netCents / 100).toFixed(2)}€</td>
+            </tr>
+            <tr>
+              <td style="padding: 2px 0; font-size: 14px; color: #6B7280;">MwSt. (7 %)</td>
+              <td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${(vatCents / 100).toFixed(2)}€</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td>
+              <td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${totalEur}€</td>
             </tr>
           </tfoot>
         </table>
 
-        <div style="background: #F3F4F6; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #666;">
-          <p style="margin: 0 0 8px;"><strong>Hinweis zur Mehrwertsteuer:</strong></p>
-          <p style="margin: 0;">Auf alle Produkte wird die reduzierte Mehrwertsteuer von <strong>7%</strong> erhoben. Die ausgewiesenen Preise sind Bruttopreise inklusive der gesetzlichen Mehrwertsteuer.</p>
-        </div>
-
-        <div style="background: #f0f7f0; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #555;">
-          <p style="margin: 0 0 8px;"><strong>📅 Abholinformation:</strong></p>
+        <div style="background: #F3F4F6; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #1A1A1A;">
+          <p style="margin: 0 0 8px;"><strong>Abholinformation</strong></p>
           <p style="margin: 0;">
-            Deine Bestellung ist ab dem <strong>${fulfillmentDate}</strong> zur Abholung bereit.<br>
+            Deine Bestellung ist ab dem <strong>${fulfillmentDe}</strong> zur Abholung bereit.<br>
             Bitte bringe deine Bestellnummer (${orderPrefix}) mit oder nenne sie beim Abholen.
           </p>
         </div>
 
-        <p style="font-size: 14px; margin-top: 20px;">
-          Nochmals vielen Dank für deine Unterstützung!<br>
-          Wir freuen uns, dich bald wieder bei Smittenbrot begrüßen zu dürfen.
-        </p>
-
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0 20px;">
 
-        <div style="text-align: center; color: #999; font-size: 12px;">
-          <p style="margin: 4px 0;">Smittenbrot – Handgemachtes Brot aus Stockdorf</p>
+        <div style="text-align: center; color: #6B7280; font-size: 12px;">
+          <p style="margin: 4px 0;">Smittenbrot – Sauerteig aus Stockdorf</p>
           <p style="margin: 4px 0;">info@smittenbrot.de</p>
         </div>
       </div>
