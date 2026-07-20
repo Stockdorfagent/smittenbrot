@@ -220,7 +220,7 @@ function SubscriptionCreateForm() {
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-2xl text-green-600">✓</div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Abo eingerichtet!</h1>
-        <p className="mt-2 text-smitten-text/60">
+        <p className="mt-2 text-smitten-text">
           Dein Abo ist aktiv. Du bekommst vor jedem Bestelltag eine Erinnerung.
         </p>
         <Link href="/subscriptions" className="mt-6 inline-block bg-smitten-accent text-white px-6 py-2 rounded-full text-sm">
@@ -238,7 +238,7 @@ function SubscriptionCreateForm() {
           <div key={s} className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
               step === s ? 'bg-smitten-primary text-white' : 
-              ['products', 'overview', 'account'].indexOf(step) >= i ? 'bg-smitten-primary/20 text-smitten-primary' : 'bg-smitten-cream text-smitten-text/40'
+              ['products', 'overview', 'account'].indexOf(step) >= i ? 'bg-smitten-primary text-white' : 'bg-smitten-cream text-smitten-text/40'
             }`}>
               {i + 1}
             </div>
@@ -254,7 +254,7 @@ function SubscriptionCreateForm() {
         {step === 'products' ? 'Abo zusammenstellen' : step === 'overview' ? 'Übersicht' : 'Konto für dein Abo'}
       </h1>
       {step === 'products' && (
-        <p className="text-center text-smitten-text/60 mb-8">
+        <p className="text-center text-smitten-text mb-8">
           Wähle die Produkte aus, die du regelmäßig erhalten möchtest.
         </p>
       )}
@@ -262,7 +262,7 @@ function SubscriptionCreateForm() {
       {/* Step 1: Product selection */}
       {step === 'products' && (
         <>
-          <div className="mb-4 text-sm text-smitten-text/60">
+          <div className="mb-4 text-sm text-smitten-text">
             Nächste Abholung: <strong>{pickup.label}</strong> ({pickup.cutoffLabel})
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -270,7 +270,7 @@ function SubscriptionCreateForm() {
               const selected = items.find(i => i.productId === product.id);
               return (
                 <div key={product.id} className={`bg-white rounded-xl p-4 border-2 cursor-pointer transition-all ${
-                  selected ? 'border-smitten-primary' : 'border-smitten-cream hover:border-smitten-primary/30'
+                  selected ? 'border-smitten-primary' : 'border-smitten-cream hover:border-smitten-text/30'
                 }`}
                 onClick={() => toggleItem(product)}>
                   {product.cover_image_url ? (
@@ -330,7 +330,7 @@ function SubscriptionCreateForm() {
 
           <div className="mt-6 bg-smitten-cream rounded-xl p-6">
             <h3 className="font-display font-bold text-smitten-text mb-3">So funktioniert dein Abo</h3>
-            <ul className="space-y-3 text-sm text-smitten-text/70">
+            <ul className="space-y-3 text-sm text-smitten-text">
               <li className="flex gap-3">
                 <span className="text-smitten-primary font-bold shrink-0">📧</span>
                 <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (und Push-Benachrichtigung, wenn du die App nutzt).</span>
@@ -352,7 +352,7 @@ function SubscriptionCreateForm() {
 
           <div className="mt-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70 mb-2">Abholtag</label>
+              <label className="block text-sm font-medium text-smitten-text mb-2">Abholtag</label>
               <div className="flex gap-2">
                 {(['wednesday', 'saturday'] as const).map(d => (
                   <button key={d}
@@ -360,7 +360,7 @@ function SubscriptionCreateForm() {
                     className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${
                       pickupDay === d
                         ? 'bg-smitten-primary text-white'
-                        : 'bg-smitten-cream text-smitten-text/70 hover:bg-smitten-primary/10'
+                        : 'bg-smitten-cream text-smitten-text hover:bg-smitten-text/5'
                     }`}>
                     {d === 'wednesday' ? 'Mittwoch' : 'Samstag'}
                   </button>
@@ -368,7 +368,7 @@ function SubscriptionCreateForm() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70 mb-2">Abholort</label>
+              <label className="block text-sm font-medium text-smitten-text mb-2">Abholort</label>
             <select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
               className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
               {locations.map(loc => (
@@ -391,22 +391,22 @@ function SubscriptionCreateForm() {
       {/* Step 3: Account / Confirmation */}
       {step === 'account' && !user && (
         <div className="max-w-md mx-auto">
-          <p className="text-center text-smitten-text/60 mb-6">
+          <p className="text-center text-smitten-text mb-6">
             Für ein Abo benötigst du ein Konto. So kannst du jederzeit Pausen einlegen, Produkte ändern oder kündigen.
           </p>
           <div className="bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">Name</label>
+              <label className="block text-sm font-medium text-smitten-text">Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">E-Mail</label>
+              <label className="block text-sm font-medium text-smitten-text">E-Mail</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">Passwort</label>
+              <label className="block text-sm font-medium text-smitten-text">Passwort</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
             </div>
@@ -416,7 +416,7 @@ function SubscriptionCreateForm() {
               {loading ? 'Wird erstellt...' : 'Konto erstellen & Abo starten'}
             </button>
           </div>
-          <p className="mt-4 text-center text-sm text-smitten-text/60">
+          <p className="mt-4 text-center text-sm text-smitten-text">
             Bereits Kunde?{' '}
             <button onClick={() => {/* switch to login */ document.getElementById('login-form')?.scrollIntoView()}} className="text-smitten-primary hover:underline">
               Hier anmelden
@@ -425,17 +425,17 @@ function SubscriptionCreateForm() {
           <div id="login-form" className="mt-6 bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
             <h3 className="font-medium text-smitten-text">Anmelden</h3>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">E-Mail</label>
+              <label className="block text-sm font-medium text-smitten-text">E-Mail</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">Passwort</label>
+              <label className="block text-sm font-medium text-smitten-text">Passwort</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
             </div>
             <button onClick={handleLogin} disabled={loading}
-              className="w-full border border-smitten-primary text-smitten-primary py-3 rounded-full font-medium hover:bg-smitten-primary/5 disabled:opacity-50">
+              className="w-full border border-smitten-primary text-smitten-primary py-3 rounded-full font-medium hover:bg-smitten-cream disabled:opacity-50">
               {loading ? 'Wird verarbeitet...' : 'Anmelden'}
             </button>
           </div>
@@ -446,11 +446,11 @@ function SubscriptionCreateForm() {
       {step === 'account' && user && !showStripe && (
         <div className="max-w-md mx-auto text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-2xl text-green-600">✓</div>
-          <p className="mt-4 text-smitten-text/70 mb-6">
+          <p className="mt-4 text-smitten-text mb-6">
             Du bist angemeldet. Dein Abo wird eingerichtet, sobald du ein Zahlungsmittel hinterlegt hast.
           </p>
           <div className="bg-white rounded-xl border border-smitten-cream p-6">
-            <p className="text-sm text-smitten-text/60 mb-4">
+            <p className="text-sm text-smitten-text mb-4">
               Hinterlege jetzt deine Zahlungsdaten für die wöchentliche Abbuchung.
             </p>
             <button onClick={handleSetupPayment}

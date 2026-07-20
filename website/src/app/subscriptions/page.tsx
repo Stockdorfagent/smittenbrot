@@ -200,14 +200,14 @@ export default function SubscriptionsPage() {
         <>
           <section className="mt-8">
             <h2 className="text-xl font-display font-bold text-smitten-text">Nie wieder Brot verpassen</h2>
-            <p className="mt-3 text-smitten-text/70 leading-relaxed">
+            <p className="mt-3 text-smitten-text leading-relaxed">
               Mit dem Abo-Service erhältst du jede Woche frisches Brot und Gebäck – genau auf deine Bedürfnisse abgestimmt.
             </p>
           </section>
 
           <section className="mt-8 bg-smitten-cream rounded-xl p-6">
             <h3 className="font-display text-lg font-bold text-smitten-text mb-3">So funktioniert dein Abo</h3>
-            <ul className="space-y-3 text-sm text-smitten-text/70">
+            <ul className="space-y-3 text-sm text-smitten-text">
               <li className="flex gap-3">
                 <span className="text-smitten-primary font-bold shrink-0">📧</span>
                 <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (und Push-Benachrichtigung, wenn du die App nutzt).</span>
@@ -234,7 +234,7 @@ export default function SubscriptionsPage() {
       ) : subscriptions.length === 0 ? (
         /* Logged in but no subscriptions */
         <>
-          <p className="mt-6 text-smitten-text/60">Du hast noch kein Abo eingerichtet.</p>
+          <p className="mt-6 text-smitten-text">Du hast noch kein Abo eingerichtet.</p>
           <Link href="/subscriptions/create"
             className="mt-4 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Abo einrichten
@@ -276,7 +276,7 @@ export default function SubscriptionsPage() {
                       <span className="text-smitten-text">
                         {item.quantity}× {item.products?.name || 'Unbekannt'}
                       </span>
-                      <span className="text-smitten-text/60">
+                      <span className="text-smitten-text">
                         {formatPrice((item.products?.price_cents || 0) * item.quantity)}
                       </span>
                     </div>
@@ -311,7 +311,7 @@ export default function SubscriptionsPage() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {(sub.status === 'active' || isPauseExpired) && (
                     <button onClick={() => { setPausingId(sub.id); setPauseFrom(''); setPauseUntil(''); }}
-                      className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text/60 hover:border-smitten-text/30 transition-colors">
+                      className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                       Pausieren
                     </button>
                   )}
@@ -338,13 +338,13 @@ export default function SubscriptionsPage() {
                     <p className="text-sm font-medium text-smitten-text">Abo pausieren</p>
                     <div className="flex gap-3">
                       <div className="flex-1">
-                        <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
+                        <label className="block text-xs text-smitten-text mb-1">Von</label>
                         <input type="date" value={pauseFrom} onChange={e => setPauseFrom(e.target.value)}
                           min={new Date().toISOString().split('T')[0]}
                           className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-xs text-smitten-text/60 mb-1">Bis</label>
+                        <label className="block text-xs text-smitten-text mb-1">Bis</label>
                         <input type="date" value={pauseUntil} onChange={e => setPauseUntil(e.target.value)}
                           min={pauseFrom || new Date().toISOString().split('T')[0]}
                           className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
@@ -353,7 +353,7 @@ export default function SubscriptionsPage() {
                     {pauseError && <p className="text-xs text-red-500">{pauseError}</p>}
                     <div className="flex gap-2">
                       <button onClick={() => setPausingId(null)}
-                        className="px-4 py-1.5 text-xs border border-smitten-cream rounded-full text-smitten-text/60 hover:border-smitten-text/30 transition-colors">
+                        className="px-4 py-1.5 text-xs border border-smitten-cream rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                         Abbrechen
                       </button>
                       <button onClick={() => handlePause(sub.id)} disabled={!pauseFrom || !pauseUntil}

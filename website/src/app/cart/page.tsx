@@ -66,7 +66,7 @@ export default function CartPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-display font-bold text-smitten-text">Warenkorb</h1>
-        <p className="mt-4 text-smitten-text/60">Dein Warenkorb ist leer.</p>
+        <p className="mt-4 text-smitten-text">Dein Warenkorb ist leer.</p>
         <Link
           href="/products"
           className="mt-6 inline-block bg-smitten-primary text-white px-6 py-2 rounded-full text-sm"
@@ -135,14 +135,14 @@ export default function CartPage() {
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm font-medium text-smitten-text/70">Abholung</label>
-        <p className="mt-1 text-sm text-smitten-text">
-          <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
+        <label className="block text-sm font-medium text-smitten-text">Abholung</label>
+        <p className="mt-1 text-sm text-smitten-secondary">
+          <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
         </p>
       </div>
 
       <div className="mt-4">
-        <label className="block text-sm font-medium text-smitten-text/70">Abholort</label>
+        <label className="block text-sm font-medium text-smitten-text">Abholort</label>
         <select
           value={state.pickupLocationId || ''}
           onChange={e => setPickupLocation(e.target.value)}
@@ -156,13 +156,13 @@ export default function CartPage() {
 
       {isGuest && (
       <div className="mt-6 p-4 bg-smitten-cream rounded-xl">
-        <p className="text-sm text-smitten-text/60">
+        <p className="text-sm text-smitten-text">
           Mit einem Konto bestellst du schneller und kannst Abos verwalten.
         </p>
         <div className="mt-2 flex gap-2">
           <button
             onClick={() => { setIsGuest(false); router.push('/login'); }}
-            className="px-4 py-1.5 rounded-full text-sm border border-smitten-primary text-smitten-text hover:bg-smitten-primary/5"
+            className="px-4 py-1.5 rounded-full text-sm border border-smitten-primary text-smitten-text hover:bg-smitten-cream"
           >
             Anmelden
           </button>
@@ -200,7 +200,7 @@ export default function CartPage() {
           const netTotal = Math.round(totalCents / 1.07);
           const vatTotal = totalCents - netTotal;
           return (
-            <div className="space-y-1 text-sm text-smitten-text/70">
+            <div className="space-y-1 text-sm text-smitten-text">
               <div className="flex justify-between">
                 <span>Zwischensumme (netto)</span>
                 <span>{formatPrice(netTotal)}</span>

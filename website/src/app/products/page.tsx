@@ -68,64 +68,62 @@ export default function ProductsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-display font-bold text-smitten-text">
+      <h1 className="text-3xl font-bold text-smitten-text">
         Sortiment
       </h1>
-      <p className="mt-2 text-sm text-smitten-text/50">
-        Jetzt bestellen für <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
+      <p className="mt-2 text-sm text-smitten-secondary">
+        Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
       </p>
-      <p className="mt-1 text-xs text-smitten-text/40">Alle Preise inkl. 7 % MwSt.</p>
+      <p className="mt-1 text-xs text-smitten-secondary/70">Alle Preise inkl. 7 % MwSt.</p>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {products.map(product => (
           <div
             key={product.id}
-            className="group bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border border-smitten-cream"
+            className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
           >
             <Link href={`/products/${product.id}`}>
-              <div className="w-full h-40 bg-smitten-cream rounded-lg flex items-center justify-center overflow-hidden">
+              <div className="aspect-[4/3] bg-smitten-cream overflow-hidden">
                 {product.cover_image_url ? (
                   <img
                     src={product.cover_image_url}
                     alt={product.alt_text || product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
                   />
                 ) : (
-                  <span className="text-4xl font-display text-smitten-secondary group-hover:scale-105 transition-transform duration-300">{product.name.charAt(0)}</span>
+                  <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-smitten-secondary/50">{product.name.charAt(0)}</div>
                 )}
               </div>
             </Link>
-            <div className="mt-4">
-              <div className="flex items-start justify-between">
+            <div className="flex flex-col flex-1 p-4">
+              <div className="flex items-baseline justify-between gap-2">
                 <Link href={`/products/${product.id}`}>
-                  <h3 className="font-display text-lg text-smitten-text font-bold hover:underline">
+                  <h3 className="font-bold text-smitten-text hover:underline">
                     {product.name}
                   </h3>
                 </Link>
-                <span className="text-smitten-accent font-bold">{formatPrice(product.price_cents)}</span>
+                <span className="shrink-0 font-semibold text-smitten-text">{formatPrice(product.price_cents)}</span>
               </div>
-              <p className="mt-1 text-sm text-smitten-text/60 line-clamp-2">
+              <p className="mt-1 text-sm text-smitten-text line-clamp-2">
                 {product.description}
               </p>
-              <div className="mt-3 flex items-center justify-between">
-                <button
-                  onClick={() => handleAdd(product)}
-                  disabled={addingId === product.id}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    addingId === product.id
-                      ? 'bg-green-500 text-white scale-95'
-                      : 'bg-smitten-accent text-white hover:bg-smitten-accent/90'
-                  }`}
-                >
-                  {addingId === product.id ? '✓ Hinzugefügt' : 'In den Warenkorb'}
-                </button>
-              </div>
+              <button
+                onClick={() => handleAdd(product)}
+                disabled={addingId === product.id}
+                className={`mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  addingId === product.id
+                    ? 'bg-smitten-text text-white scale-[0.98]'
+                    : 'bg-smitten-accent text-white hover:bg-smitten-accent/90'
+                }`}
+              >
+                {addingId === product.id ? '✓ Hinzugefügt' : 'In den Warenkorb'}
+              </button>
             </div>
           </div>
         ))}
         {products.length === 0 && (
-          <p className="col-span-full text-center text-smitten-text/40 py-10">
+          <p className="col-span-full text-center text-smitten-secondary py-10">
             Für diesen Tag sind keine Produkte verfügbar.
           </p>
         )}

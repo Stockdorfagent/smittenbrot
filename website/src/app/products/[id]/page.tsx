@@ -109,7 +109,7 @@ export default function ProductDetailPage() {
                   className={`w-24 h-24 rounded-lg object-cover border-2 cursor-pointer flex-shrink-0 transition-colors ${
                     selectedImage === imgUrl
                       ? 'border-smitten-primary'
-                      : 'border-transparent hover:border-smitten-primary/50'
+                      : 'border-transparent hover:border-smitten-text/30'
                   }`}
                   loading="lazy"
                 />
@@ -128,8 +128,8 @@ export default function ProductDetailPage() {
           <p className="text-xs text-smitten-text/40">inkl. 7 % MwSt.</p>
 
           <div className="mt-4">
-            <p className="text-sm text-smitten-text/50">
-              Jetzt bestellen für <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
+            <p className="text-sm text-smitten-secondary">
+              Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
             </p>
           </div>
 
@@ -192,7 +192,7 @@ export default function ProductDetailPage() {
                   <p className="text-smitten-text leading-relaxed mb-4">{mainDesc}</p>
                 )}
                 {infoSection && (
-                  <div className="text-smitten-text/70 leading-relaxed whitespace-pre-line">
+                  <div className="text-smitten-text leading-relaxed whitespace-pre-line">
                     {infoSection.split('\n').map((line, i) => {
                       if (line.startsWith('Gewicht:') || line.startsWith('Zutaten:') || line.startsWith('Allergene:')) {
                         const [label, ...rest] = line.split(':');

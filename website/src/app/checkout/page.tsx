@@ -265,7 +265,7 @@ function CheckoutForm() {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-display font-bold text-smitten-text">Kasse</h1>
-        <p className="mt-4 text-smitten-text/60">Dein Warenkorb ist leer.</p>
+        <p className="mt-4 text-smitten-text">Dein Warenkorb ist leer.</p>
         <Link href="/products" className="mt-6 inline-block bg-smitten-primary text-white px-6 py-2 rounded-full text-sm">
           Zum Sortiment
         </Link>
@@ -280,7 +280,7 @@ function CheckoutForm() {
           ✓
         </div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Bestellung erfolgreich!</h1>
-        <p className="mt-2 text-smitten-text/60">
+        <p className="mt-2 text-smitten-text">
           Vielen Dank für deine Bestellung! Deine Zahlung ist eingegangen.
         </p>
         <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left">
@@ -332,7 +332,7 @@ function CheckoutForm() {
             ))}
           </div>
           {pickupLine && (
-            <p className="mt-3 text-sm text-smitten-text/70">{pickupLine}</p>
+            <p className="mt-3 text-sm text-smitten-secondary">{pickupLine}</p>
           )}
           {discountCents > 0 && (
             <div className="mt-2 flex justify-between text-sm text-green-600">
@@ -401,13 +401,13 @@ function CheckoutForm() {
           ))}
         </div>
         {pickupLine && (
-          <p className="mt-3 text-sm text-smitten-text/70">{pickupLine}</p>
+          <p className="mt-3 text-sm text-smitten-secondary">{pickupLine}</p>
         )}
         {(() => {
           const netTotal = Math.round(totalCents / 1.07);
           const vatTotal = totalCents - netTotal;
           return (
-            <div className="mt-1 space-y-1 text-xs text-smitten-text/60">
+            <div className="mt-1 space-y-1 text-xs text-smitten-text">
               <div className="flex justify-between">
                 <span>Zwischensumme (netto)</span>
                 <span>{formatPrice(netTotal)}</span>
@@ -444,7 +444,7 @@ function CheckoutForm() {
               <span className="text-sm font-medium text-green-700">
                 Code angewendet: {discountInfo.code}
               </span>
-              <span className="text-xs text-smitten-text/60 ml-2">
+              <span className="text-xs text-smitten-text ml-2">
                 {discountInfo.type === 'percentage'
                   ? `${discountInfo.value}% Rabatt`
                   : `${formatPrice(discountInfo.value)} Rabatt`}
@@ -486,7 +486,7 @@ function CheckoutForm() {
         {!searchParams.get('name') && (
           <>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">Name</label>
+              <label className="block text-sm font-medium text-smitten-text">Name</label>
               <input
                 type="text"
                 value={name}
@@ -496,7 +496,7 @@ function CheckoutForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-smitten-text/70">E-Mail</label>
+              <label className="block text-sm font-medium text-smitten-text">E-Mail</label>
               <input
                 type="email"
                 value={email}
@@ -532,7 +532,7 @@ function CheckoutForm() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={<div className="max-w-lg mx-auto px-4 py-12 text-center text-smitten-text/60">Lädt...</div>}>
+    <Suspense fallback={<div className="max-w-lg mx-auto px-4 py-12 text-center text-smitten-text">Lädt...</div>}>
       <CheckoutForm />
     </Suspense>
   );
