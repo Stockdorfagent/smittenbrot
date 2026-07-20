@@ -28,6 +28,7 @@ export default function AdminProductsPage() {
     active: false,
   });
   const [uploading, setUploading] = useState(false);
+  const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [warningAction, setWarningAction] = useState<(() => void) | null>(null);
 
@@ -186,8 +187,21 @@ export default function AdminProductsPage() {
     await handleDisable(product.id, true);
   }
 
+  async function uploadPhoto(file: File, productId: string): Promise<string | null> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('productId', productId);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/upload-product-photo', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: formData,
+    });
+    const data = await res.json();
+    return data.url ?? null;
+  }
+
   async function handleCreateProduct() {
-    const slug = newForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -202,9 +216,19 @@ export default function AdminProductsPage() {
       })
       .select()
       .single();
-    if (!error) {
+    if (!error && data) {
+      // If a photo was chosen, upload it now that we have the product id.
+      if (newPhoto) {
+        try {
+          const url = await uploadPhoto(newPhoto, data.id);
+          if (url) await supabase.from('products').update({ cover_image_url: url }).eq('id', data.id);
+        } catch (err) {
+          console.error('Photo upload failed:', err);
+        }
+      }
       setCreating(false);
       setNewForm({ name: '', description: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, active: false });
+      setNewPhoto(null);
       loadProducts();
     }
   }
@@ -213,19 +237,10 @@ export default function AdminProductsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('productId', productId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/upload-product-photo', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.url) {
-        await supabase.from('products').update({ cover_image_url: data.url }).eq('id', productId);
+      const url = await uploadPhoto(file, productId);
+      if (url) {
+        await supabase.from('products').update({ cover_image_url: url }).eq('id', productId);
         loadProducts();
       }
     } catch (err) {
@@ -284,6 +299,12 @@ export default function AdminProductsPage() {
             <label className="block text-xs text-smitten-text/60 mb-1">Beschreibung</label>
             <textarea value={newForm.description} onChange={e => setNewForm({...newForm, description: e.target.value})} rows={3}
               className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">Foto</label>
+            <input type="file" accept="image/*" onChange={e => setNewPhoto(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-smitten-text/70" />
+            {newPhoto && <p className="text-xs text-smitten-text/60 mt-1">Ausgewählt: {newPhoto.name}</p>}
           </div>
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
