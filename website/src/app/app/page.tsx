@@ -19,7 +19,7 @@ export default function AppPage() {
         </p>
 
         <a
-          href="https://expo.dev/artifacts/eas/hCLXyWo54m-Bxf_k85gU7SYmXmItSVpGhbs2uDt9gRQ.apk"
+          href="https://expo.dev/artifacts/eas/Pqp-wTL_ZUT7_xjKkDQUee_QEJvi95SSjJ-bHzc6wME.apk"
           className="mt-5 inline-flex items-center gap-2 bg-smitten-primary text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors text-base"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
