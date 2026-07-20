@@ -218,11 +218,15 @@ async function getFulfillmentDateFromOrder(orderId: string): Promise<string> {
 function buildReceiptHtml(
   order: Record<string, unknown>,
   customer: { name: string; email: string },
+  items: Array<{ quantity: number; unit_price_cents: number; name: string }>,
   invoiceNumber: string,
   fulfillmentDate: string,
 ): string {
   const customerName = customer.name ?? "Kunde";
-  const customerEmail = customer.email ?? "";
+  const orderNumber = (order.order_number as string) || invoiceNumber;
+  const totalCents = (order.total_cents as number) ?? 0;
+  const netCents = (order.net_total_cents as number) || Math.round(totalCents / 1.07);
+  const vatCents = (order.vat_total_cents as number) || (totalCents - netCents);
 
   const formatIsoDe = (iso: string): string => {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
@@ -232,6 +236,12 @@ function buildReceiptHtml(
     day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin",
   }).format(new Date());
 
+  const itemsHtml = items.map((it) => `
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">${it.quantity}× ${it.name}</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">${((it.unit_price_cents * it.quantity) / 100).toFixed(2)}€</td>
+          </tr>`).join("");
+
   return `
     <div style="font-family: 'Helvetica', 'Arial', sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #1A1A1A;">
       <div style="border-bottom: 3px solid #f8120e; padding-bottom: 10px; margin-bottom: 20px;">
@@ -239,46 +249,43 @@ function buildReceiptHtml(
         <p style="margin: 4px 0 0; color: #6B7280; font-size: 13px;">Sauerteig aus Stockdorf</p>
       </div>
 
-      <h2 style="font-size: 18px; color: #1A1A1A;">Rechnung ${invoiceNumber}</h2>
+      <h2 style="font-size: 18px; color: #1A1A1A;">Bestellbestätigung &amp; Rechnung</h2>
+      <p style="color: #1A1A1A; font-size: 14px;">Hallo ${customerName}, deine Abo-Bestellung wurde aufgegeben und bezahlt. Diese Bestätigung gilt zugleich als deine Rechnung.</p>
 
-      <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-        <tr>
-          <td style="width: 50%; vertical-align: top; padding-right: 10px;">
-            <div style="background: #F3F4F6; padding: 10px; border-radius: 6px;">
-              <strong style="font-size: 12px; color: #666;">Kunde</strong>
-              <p style="margin: 4px 0; font-size: 13px;">
-                ${customerName}<br>
-                ${customerEmail}
-              </p>
-            </div>
-          </td>
-        </tr>
+      <div style="font-size: 13px; color: #6B7280; line-height: 1.6; margin: 16px 0;">
+        <strong style="color: #1A1A1A;">Smittenbrot</strong> · Sophia Smittenberg<br>
+        Waldstr. 1, 82131 Stockdorf<br>
+        USt-IdNr: DE453765806 · info@smittenbrot.de
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px;">
+        <tr><td style="padding: 2px 0; color: #6B7280;">Rechnungsnummer:</td><td style="padding: 2px 0; text-align: right;">${invoiceNumber}</td></tr>
+        <tr><td style="padding: 2px 0; color: #6B7280;">Bestellnummer:</td><td style="padding: 2px 0; text-align: right;">${orderNumber}</td></tr>
+        <tr><td style="padding: 2px 0; color: #6B7280;">Rechnungsdatum:</td><td style="padding: 2px 0; text-align: right;">${todayDe}</td></tr>
+        <tr><td style="padding: 2px 0; color: #6B7280;">Leistungsdatum (Abholung):</td><td style="padding: 2px 0; text-align: right;">${formatIsoDe(fulfillmentDate)}</td></tr>
+        <tr><td style="padding: 2px 0; color: #6B7280;">Kunde:</td><td style="padding: 2px 0; text-align: right;">${customerName}</td></tr>
       </table>
 
-      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px;">
-        <tr>
-          <td style="padding: 2px 0; color: #6B7280;">Rechnungsdatum:</td>
-          <td style="padding: 2px 0; text-align: right;">${todayDe}</td>
-        </tr>
-        <tr>
-          <td style="padding: 2px 0; color: #6B7280;">Leistungsdatum (Abholung):</td>
-          <td style="padding: 2px 0; text-align: right;">${formatIsoDe(fulfillmentDate)}</td>
-        </tr>
-        <tr>
-          <td style="padding: 2px 0; color: #6B7280;">Bestellnummer:</td>
-          <td style="padding: 2px 0; text-align: right;">${invoiceNumber}</td>
-        </tr>
+      <h3 style="color: #1A1A1A; font-size: 16px; border-bottom: 2px solid #f8120e; padding-bottom: 6px;">Bestellübersicht</h3>
+      <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+        <thead>
+          <tr style="background: #F3F4F6;">
+            <th style="padding: 10px; text-align: left; font-size: 14px;">Produkt</th>
+            <th style="padding: 10px; text-align: right; font-size: 14px;">Preis</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+        <tfoot>
+          <tr><td style="padding: 6px 0 2px; font-size: 14px; color: #6B7280;">Nettobetrag</td><td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${(netCents / 100).toFixed(2)}€</td></tr>
+          <tr><td style="padding: 2px 0; font-size: 14px; color: #6B7280;">MwSt. (7 %)</td><td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${(vatCents / 100).toFixed(2)}€</td></tr>
+          <tr><td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td><td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${(totalCents / 100).toFixed(2)}€</td></tr>
+        </tfoot>
       </table>
 
-      <p style="font-size: 12px; color: #666;">Vielen Dank für deine Bestellung bei Smittenbrot. Die Zahlung wurde erfolgreich verarbeitet.</p>
-
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-
-      <p style="font-size: 11px; color: #999; text-align: center;">
-        Smittenbrot · Stockdorf bei München<br>
-        E-Mail: info@smittenbrot.de<br>
-        Zahlung erfolgt über Stripe<br>
-        Es gilt die 7% ermäßigte Mehrwertsteuer auf Lebensmittel.
+      <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+      <p style="font-size: 11px; color: #6B7280; text-align: center;">
+        Smittenbrot · Sauerteig aus Stockdorf · info@smittenbrot.de<br>
+        Es gilt die ermäßigte Mehrwertsteuer von 7 % auf Lebensmittel.
       </p>
     </div>
   `.trim();
@@ -982,16 +989,35 @@ async function process10pmLock(): Promise<{
               // Call notification-dispatch via direct function import pattern
               // Since we can't import from other functions, build and send receipt here
               const customerEmail = customer.email;
-              const invoiceNumber = order.id.substring(0, 8).toUpperCase();
+              // Re-fetch the order so we get the invoice_number, order_number and
+              // net/vat/total assigned by the numbering + tax triggers on the
+              // paid transition (the in-loop `order` predates them).
+              const { data: paidOrder } = await supabase
+                .from("orders")
+                .select("*")
+                .eq("id", order.id)
+                .single();
+              const fullOrder = paidOrder ?? order;
+              const invoiceNumber = (fullOrder.invoice_number as string) ||
+                order.id.substring(0, 8).toUpperCase();
+              const { data: receiptItems } = await supabase
+                .from("order_items")
+                .select("quantity, unit_price_cents, product:product_id(name)")
+                .eq("order_id", order.id);
+              const items = (receiptItems ?? []).map((it: Record<string, unknown>) => ({
+                quantity: it.quantity as number,
+                unit_price_cents: it.unit_price_cents as number,
+                name: ((it.product as { name?: string } | null)?.name) ?? "Produkt",
+              }));
               const fulfillmentDate = await getFulfillmentDateFromOrder(order.id);
-              
-              const htmlReceipt = buildReceiptHtml(order, customer, invoiceNumber, fulfillmentDate);
-              
+
+              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate);
+
               // Send via Brevo API directly
               const brevoPayload = {
                 sender: { email: "info@smittenbrot.de", name: "Smittenbrot" },
                 to: [{ email: customerEmail }],
-                subject: `Deine Smittenbrot Rechnung ${invoiceNumber}`,
+                subject: `Deine Smittenbrot Bestellbestätigung ${(fullOrder.order_number as string) || invoiceNumber}`,
                 htmlContent: htmlReceipt,
               };
               

@@ -185,8 +185,10 @@ async function sendReceiptEmail(
     const fulfillmentDe = formatIsoDe(fulfillmentDate);
     const netCents = (order.net_total_cents as number) || Math.round(totalCents / 1.07);
     const vatCents = (order.vat_total_cents as number) || (totalCents - netCents);
+    const orderNumber = (order.order_number as string) || orderPrefix;
+    const invoiceNumber = (order.invoice_number as string) || orderPrefix;
 
-    const subject = `Deine Smittenbrot Bestellbestätigung ${orderPrefix}`;
+    const subject = `Deine Smittenbrot Bestellbestätigung ${orderNumber}`;
 
     const htmlContent = `
       <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1A1A1A;">
@@ -198,24 +200,38 @@ async function sendReceiptEmail(
         <h2 style="color: #1A1A1A; font-size: 20px;">Vielen Dank für deine Bestellung</h2>
 
         <p style="color: #1A1A1A;">Hallo ${customerName},</p>
-        <p style="color: #1A1A1A;">deine Zahlung ist erfolgreich eingegangen. Hier ist deine Bestellbestätigung.</p>
+        <p style="color: #1A1A1A;">deine Zahlung ist erfolgreich eingegangen. Diese Bestellbestätigung gilt zugleich als deine Rechnung.</p>
+
+        <div style="font-size: 13px; color: #6B7280; line-height: 1.6; margin: 16px 0;">
+          <strong style="color: #1A1A1A;">Smittenbrot</strong> · Sophia Smittenberg<br>
+          Waldstr. 1, 82131 Stockdorf<br>
+          USt-IdNr: DE453765806 · info@smittenbrot.de
+        </div>
 
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
           <tr>
-            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Bestellnummer:</strong></td>
-            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderPrefix}</td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Rechnungsnummer:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${invoiceNumber}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Datum:</strong></td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Bestellnummer:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Rechnungsdatum:</strong></td>
             <td style="padding: 4px 0; text-align: right; font-size: 14px;">${orderDateDe}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Abholung am:</strong></td>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Leistungsdatum (Abholung):</strong></td>
             <td style="padding: 4px 0; text-align: right; font-size: 14px;">${fulfillmentDe}</td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Abholort:</strong></td>
             <td style="padding: 4px 0; text-align: right; font-size: 14px;">${pickupName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #6B7280; font-size: 14px;"><strong>Kunde:</strong></td>
+            <td style="padding: 4px 0; text-align: right; font-size: 14px;">${customerName}</td>
           </tr>
         </table>
 
@@ -260,7 +276,7 @@ async function sendReceiptEmail(
           <p style="margin: 0 0 8px;"><strong>Abholinformation</strong></p>
           <p style="margin: 0;">
             Deine Bestellung ist ab dem <strong>${fulfillmentDe}</strong> zur Abholung bereit.<br>
-            Bitte bringe deine Bestellnummer (${orderPrefix}) mit oder nenne sie beim Abholen.
+            Bitte bringe deine Bestellnummer (${orderNumber}) mit oder nenne sie beim Abholen.
           </p>
         </div>
 
