@@ -168,23 +168,27 @@ async function getProduct(productId: string) {
 
 /**
  * Calculate the total reserved quantity for a product on a given
- * fulfillment date from the orders + order_items tables.
+ * fulfillment date, ENFORCING the "subscriptions reserve first" rule.
  *
- * Counts all orders where:
- *   - fulfillment_date matches
- *   - status NOT IN ('cancelled', 'refunded')
- *   - order_items includes the given product_id
+ * reserved = materialized orders (one-time + already-placed subscription
+ *            orders, non-cancelled/refunded)
+ *          + projected demand from active subscriptions that do NOT yet
+ *            have a materialized order for this date
  *
- * Returns the sum of quantities.
+ * The exclusion of already-materialized subscriptions prevents double
+ * counting: before the 20:00 run a subscription contributes projected
+ * demand; after it, the same demand is a real order row instead.
  */
 async function getReservedCount(
   productId: string,
   fulfillmentDate: string,
 ): Promise<number> {
-  // Step 1: Get all valid (non-cancelled, non-refunded) order IDs for the date
+  // Step 1: Get all valid (non-cancelled, non-refunded) orders for the date,
+  // keeping subscription_id so we can tell which subscriptions are already
+  // materialized into orders for this date.
   const { data: validOrders, error: ordersError } = await supabase
     .from("orders")
-    .select("id")
+    .select("id, subscription_id")
     .eq("fulfillment_date", fulfillmentDate)
     .not("status", "in", `(${EXCLUDED_STATUSES.map((s) => `"${s}"`).join(",")})`);
 
@@ -193,25 +197,46 @@ async function getReservedCount(
     return 0;
   }
 
-  if (!validOrders || validOrders.length === 0) {
-    return 0;
-  }
-
-  const orderIds = validOrders.map((o) => o.id);
+  const orders = validOrders ?? [];
 
   // Step 2: Sum quantities from order_items for the product within those orders
-  const { data: items, error: itemsError } = await supabase
-    .from("order_items")
-    .select("quantity")
-    .eq("product_id", productId)
-    .in("order_id", orderIds);
+  let materializedQty = 0;
+  if (orders.length > 0) {
+    const orderIds = orders.map((o) => o.id);
+    const { data: items, error: itemsError } = await supabase
+      .from("order_items")
+      .select("quantity")
+      .eq("product_id", productId)
+      .in("order_id", orderIds);
 
-  if (itemsError) {
-    log("error", "Failed to fetch order items:", itemsError);
-    return 0;
+    if (itemsError) {
+      log("error", "Failed to fetch order items:", itemsError);
+      return 0;
+    }
+
+    materializedQty = (items ?? []).reduce(
+      (sum, item) => sum + (item.quantity ?? 0),
+      0,
+    );
   }
 
-  return (items ?? []).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+  // Step 3: Add projected demand from active subscriptions that do NOT yet
+  // have a materialized order for this date (their demand is not in
+  // materializedQty). Subscriptions already materialized are excluded to
+  // avoid double counting.
+  const subIdsWithOrder = new Set(
+    orders
+      .filter((o) => o.subscription_id)
+      .map((o) => o.subscription_id as string),
+  );
+
+  const projectedSubscriptionQty = await getSubscriptionReservedCount(
+    productId,
+    fulfillmentDate,
+    subIdsWithOrder,
+  );
+
+  return materializedQty + projectedSubscriptionQty;
 }
 
 /**
@@ -230,6 +255,7 @@ async function getReservedCount(
 async function getSubscriptionReservedCount(
   productId: string,
   fulfillmentDate: string,
+  excludeSubscriptionIds?: Set<string>,
 ): Promise<number> {
   const productionDayColumn = getProductionDayColumn(fulfillmentDate);
   if (!productionDayColumn) {
@@ -239,12 +265,12 @@ async function getSubscriptionReservedCount(
 
   const currentWeek = await getCurrentWeekType();
 
-  // Get active subscriptions (status = 'active' and not paused)
+  // Get active subscriptions (status = 'active' and not paused for this date)
   const { data: activeSubscriptions, error: subError } = await supabase
     .from("subscriptions")
     .select("id")
     .eq("status", "active")
-    .or("paused_until.is.null,paused_until.lt.${fulfillmentDate}");
+    .or(`paused_until.is.null,paused_until.lt.${fulfillmentDate}`);
 
   if (subError) {
     log("error", "Failed to fetch active subscriptions:", subError);
@@ -255,7 +281,13 @@ async function getSubscriptionReservedCount(
     return 0;
   }
 
-  const subscriptionIds = activeSubscriptions.map((s) => s.id);
+  const subscriptionIds = activeSubscriptions
+    .map((s) => s.id)
+    .filter((id) => !excludeSubscriptionIds?.has(id));
+
+  if (subscriptionIds.length === 0) {
+    return 0;
+  }
 
   // Get subscription_items joined with products, filtered by product_id
   const { data: items, error: itemsError } = await supabase
@@ -495,7 +527,7 @@ async function handleSubscriptionReservation(
     .from("subscriptions")
     .select("id")
     .eq("status", "active")
-    .or("paused_until.is.null,paused_until.lt.${fulfillment_date}");
+    .or(`paused_until.is.null,paused_until.lt.${fulfillment_date}`);
 
   if (subError) {
     log("error", "Failed to fetch active subscriptions:", subError);
@@ -701,7 +733,7 @@ async function handleCapacityImpactPreview(
     .from("subscriptions")
     .select("id")
     .eq("status", "active")
-    .or("paused_until.is.null,paused_until.lt.${today}");
+    .or(`paused_until.is.null,paused_until.lt.${today}`);
 
   if (subError) {
     log("error", "Failed to fetch active subscriptions:", subError);
@@ -817,9 +849,12 @@ async function handleCapacityImpactPreview(
 
 async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const path = url.pathname.replace(/\/$/, ""); // strip trailing slash
+  const path = url.pathname.replace(/\/+$/, ""); // strip trailing slash
+  // Supabase includes the function name in the path
+  // (e.g. "/capacity-manager/check-capacity"), so route on the LAST segment.
+  const action = path.split("/").pop() ?? "";
 
-  log("info", `Incoming request: ${req.method} ${path}`);
+  log("info", `Incoming request: ${req.method} ${path} (action=${action})`);
 
   // Only accept POST requests for all routes
   if (req.method !== "POST") {
@@ -834,20 +869,20 @@ async function handleRequest(req: Request): Promise<Response> {
     return badRequest("Invalid JSON body");
   }
 
-  // Route the request
-  switch (path) {
-    case "/check-capacity":
+  // Route on the last path segment
+  switch (action) {
+    case "check-capacity":
       return await handleCheckCapacity(body as unknown as CheckCapacityRequest);
 
-    case "/reserve-capacity":
+    case "reserve-capacity":
       return await handleReserveCapacity(body as unknown as ReserveCapacityRequest);
 
-    case "/subscription-reservation":
+    case "subscription-reservation":
       return await handleSubscriptionReservation(
         body as unknown as SubscriptionReservationRequest,
       );
 
-    case "/capacity-impact-preview":
+    case "capacity-impact-preview":
       return await handleCapacityImpactPreview(
         body as unknown as CapacityImpactPreviewRequest,
       );

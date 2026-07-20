@@ -2,16 +2,20 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { getNextPickup } from '@/lib/pickup';
 import { Button } from '@/components/Button';
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, pickup_location_id, pickup_day, totalCents, clearCart } = useCart();
+  const { items, pickup_location_id, totalCents, clearCart } = useCart();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [loading, setLoading] = useState(false);
 
   const handlePlaceOrder = async () => {
@@ -19,58 +23,91 @@ export default function CheckoutScreen() {
       Alert.alert('Fehler', 'Warenkorb ist leer oder Abholort fehlt.');
       return;
     }
+    if (!user) {
+      Alert.alert('Anmeldung erforderlich', 'Bitte melde dich an, um zu bestellen.');
+      router.push('/login');
+      return;
+    }
 
     setLoading(true);
     try {
-      const fulfillmentDate = getNextPickupDate(pickup_day!);
-      const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
+      const fulfillmentDate = getNextPickup().date;
 
-      const orderData = {
-        customer_id: user?.id ?? null,
-        customer_email: user?.email ?? null,
-        customer_name: user?.name ?? null,
-        order_type: 'one_time',
-        fulfillment_date: fulfillmentDate,
-        pickup_location_id,
-        status: 'scheduled',
-        payment_status: 'pending',
-        total_cents: totalCents,
-        idempotency_key: idempotencyKey,
-      };
+      // 1. Create the PaymentIntent + pending order server-side. The server
+      //    recomputes the price from the DB and checks capacity — the client
+      //    total is never trusted.
+      const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+        body: {
+          items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+          fulfillment_date: fulfillmentDate,
+          pickup_location_id,
+          customer_name: user.name,
+        },
+      });
 
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert(orderData)
-        .select()
-        .single();
-
-      if (orderError || !order) {
-        Alert.alert('Fehler', orderError?.message ?? 'Bestellung fehlgeschlagen');
+      if (error) {
+        let message = 'Zahlung konnte nicht gestartet werden.';
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const b = await error.context.json();
+            message = b?.message ?? b?.error ?? message;
+          } catch {
+            /* keep default message */
+          }
+        }
+        Alert.alert('Nicht möglich', message);
         return;
       }
 
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price_cents: item.unit_price_cents,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) {
-        Alert.alert('Fehler', itemsError.message);
+      const { clientSecret, customerId, ephemeralKey } = data ?? {};
+      if (!clientSecret) {
+        Alert.alert('Fehler', 'Ungültige Antwort vom Server.');
         return;
       }
 
+      // 2. Initialise the Stripe payment sheet.
+      const initResult = await initPaymentSheet({
+        merchantDisplayName: 'Smittenbrot',
+        paymentIntentClientSecret: clientSecret,
+        customerId,
+        customerEphemeralKeySecret: ephemeralKey,
+        returnURL: 'smittenbrot://stripe-redirect',
+        allowsDelayedPaymentMethods: false,
+      });
+      if (initResult.error) {
+        Alert.alert('Fehler', initResult.error.message);
+        return;
+      }
+
+      // 3. Present the payment sheet.
+      const { error: sheetError } = await presentPaymentSheet();
+      if (sheetError) {
+        // A user-cancel is not worth an error alert.
+        if (sheetError.code !== 'Canceled') {
+          Alert.alert('Zahlung fehlgeschlagen', sheetError.message);
+        }
+        return;
+      }
+
+      // 4. Success — the order is created server-side by the stripe-webhook
+      //    once payment is confirmed (no successful payment ⇒ no order).
       clearCart();
-      router.replace(`/order/${order.id}`);
+      Alert.alert(
+        'Zahlung erfolgreich',
+        'Vielen Dank! Deine Bestellung wird bestätigt und erscheint in Kürze in deinen Bestellungen.',
+      );
+      router.replace('/(tabs)/orders');
+    } catch (e) {
+      Alert.alert('Fehler', e instanceof Error ? e.message : 'Unbekannter Fehler');
     } finally {
       setLoading(false);
     }
   };
+
+  // All products are 7% VAT; prices are gross (brutto).
+  const netCents = Math.round(totalCents / 1.07);
+  const vatCents = totalCents - netCents;
+  const fmt = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -88,9 +125,18 @@ export default function CheckoutScreen() {
             </View>
           ))}
           <View style={styles.divider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryName}>Nettobetrag</Text>
+            <Text style={styles.summaryPrice}>{fmt(netCents)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryName}>zzgl. 7 % MwSt.</Text>
+            <Text style={styles.summaryPrice}>{fmt(vatCents)}</Text>
+          </View>
+          <View style={styles.divider} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Gesamtsumme</Text>
-            <Text style={styles.totalValue}>{(totalCents / 100).toFixed(2)}€</Text>
+            <Text style={styles.totalLabel}>Gesamt (brutto)</Text>
+            <Text style={styles.totalValue}>{fmt(totalCents)}</Text>
           </View>
         </View>
 
@@ -104,7 +150,7 @@ export default function CheckoutScreen() {
         </View>
 
         <Button
-          title={`${totalCents / 100}€ bezahlen`}
+          title={`${(totalCents / 100).toFixed(2)}€ bezahlen`}
           onPress={handlePlaceOrder}
           loading={loading}
           size="lg"
@@ -112,20 +158,11 @@ export default function CheckoutScreen() {
         />
 
         <Text style={styles.hint}>
-          Stripe-Zahlung wird beim nächsten Release integriert. Vorab wird die Bestellung mit "pending" erfasst.
+          Sichere Zahlung über Stripe. Du erhältst nach Zahlungseingang eine Bestätigung per E-Mail.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function getNextPickupDate(pickupDay: string): string {
-  const now = new Date();
-  const targetDay = pickupDay === 'wednesday' ? 3 : 6;
-  const next = new Date(now);
-  next.setDate(now.getDate() + ((targetDay - now.getDay() + 7) % 7));
-  if (next <= now) next.setDate(next.getDate() + 7);
-  return next.toISOString().split('T')[0];
 }
 
 const styles = StyleSheet.create({

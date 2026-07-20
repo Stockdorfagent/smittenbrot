@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
@@ -22,24 +22,17 @@ export default function OrdersScreen() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<string>('all');
 
   const fetchOrders = useCallback(async () => {
     if (!user) { setOrders([]); return; }
-    const query = supabase
+    const { data } = await supabase
       .from('orders')
       .select('*, items:order_items(*, product:products(*)), pickup_location:pickup_locations(*)')
       .eq('customer_id', user.id)
       .order('fulfillment_date', { ascending: false })
       .limit(50);
-
-    if (filter !== 'all') {
-      query.eq('status', filter);
-    }
-
-    const { data } = await query;
     setOrders((data ?? []) as unknown as OrderWithItems[]);
-  }, [user, filter]);
+  }, [user]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -68,27 +61,14 @@ export default function OrdersScreen() {
         <Text style={styles.title}>Bestellungen</Text>
       </View>
 
-      <ScrollView horizontal style={styles.filterRow} showsHorizontalScrollIndicator={false}>
-        {['all', 'scheduled', 'locked_for_production', 'fulfilled', 'cancelled'].map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'Alle' : STATUS_LABELS[f]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {orders.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Keine Bestellungen gefunden</Text>
+            <Text style={styles.emptyTitle}>Noch keine Bestellungen</Text>
+            <Text style={styles.emptyText}>Deine Bestellungen und Abo-Lieferungen erscheinen hier.</Text>
           </View>
         ) : (
           orders.map((order) => (
@@ -103,7 +83,7 @@ export default function OrdersScreen() {
                     day: 'numeric', month: 'short', year: 'numeric',
                   })}
                 </Text>
-                <View style={[styles.statusBadge, styles[`status_${order.status}` as keyof typeof styles] || styles.status_scheduled]}>
+                <View style={[styles.statusBadge, (styles[`status_${order.status}` as keyof typeof styles] as ViewStyle) || styles.status_scheduled]}>
                   <Text style={styles.statusText}>{STATUS_LABELS[order.status]}</Text>
                 </View>
               </View>

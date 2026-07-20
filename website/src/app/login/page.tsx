@@ -18,6 +18,29 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
+    // Try to establish session from URL hash (password reset flow)
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setIsRecovery(true);
+      // Extract tokens from hash and set session manually
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ data: { session } }) => {
+            if (session?.user) setEmail(session.user.email || '');
+          });
+      } else {
+        // Fallback: try getSession which works if client already processed the hash
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) setEmail(session.user.email || '');
+        });
+      }
+      return;
+    }
+
+    // Listen for PASSWORD_RECOVERY event (website's own forgot password flow)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
@@ -26,14 +49,6 @@ export default function LoginPage() {
         });
       }
     });
-    // Also check hash directly on mount (for page reloads)
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
-      setIsRecovery(true);
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) setEmail(session.user.email || '');
-      });
-    }
     return () => subscription.unsubscribe();
   }, []);
 
@@ -61,6 +76,15 @@ export default function LoginPage() {
     if (!newPassword) return;
     setLoading(true);
     setError('');
+
+    // Ensure session is established from the recovery hash
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setError('Sitzung nicht gefunden. Bitte fordere einen neuen Link an.');
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       setError(error.message);

@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { theme } from '@/lib/theme';
@@ -45,23 +46,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <CartProvider>
-          <StatusBar style="dark" />
+      <StripeProvider
+        publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+        urlScheme="smittenbrot"
+      >
+        <AuthProvider>
+          <CartProvider>
+            <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(admin)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="cart"
-            options={{
-              headerShown: true,
-              headerTitle: 'Warenkorb',
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
-              presentation: 'modal',
-            }}
-          />
           <Stack.Screen
             name="checkout"
             options={{
@@ -76,7 +70,9 @@ export default function RootLayout() {
             name="order/[id]"
             options={{
               headerShown: true,
-              headerTitle: 'Bestellung',
+              headerTitle: '',
+              headerBackTitle: 'Zurück',
+              headerShadowVisible: false,
               headerStyle: { backgroundColor: theme.colors.background },
               headerTintColor: theme.colors.text,
             }}
@@ -91,9 +87,10 @@ export default function RootLayout() {
               presentation: 'modal',
             }}
           />
-        </Stack>
-      </CartProvider>
-    </AuthProvider>
+            </Stack>
+          </CartProvider>
+        </AuthProvider>
+      </StripeProvider>
     </ErrorBoundary>
   );
 }

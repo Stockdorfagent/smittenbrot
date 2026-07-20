@@ -1,40 +1,61 @@
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { theme } from '@/lib/theme';
+import { Button } from '@/components/Button';
+import { QuantitySelector } from '@/components/QuantitySelector';
 import type { Product } from '@/lib/types';
 
 interface ProductCardProps {
   product: Product;
   available: boolean;
-  onAddToCart: () => void;
+  onPress?: () => void; // opens the product detail
   quantity?: number;
+  onIncrease?: () => void;
+  onDecrease?: () => void;
+  onAdd?: () => void;
 }
 
-export function ProductCard({ product, available, onAddToCart, quantity = 0 }: ProductCardProps) {
-  const soldOut = !available || (product.capacity > 0 && quantity >= product.capacity);
+export function ProductCard({
+  product,
+  available,
+  onPress,
+  quantity = 0,
+  onIncrease,
+  onDecrease,
+  onAdd,
+}: ProductCardProps) {
+  const soldOut = !available;
+  const showControls = !soldOut && !!onAdd;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onAddToCart} activeOpacity={0.7} disabled={soldOut}>
-      {product.cover_image_url ? (
-        <Image source={{ uri: product.cover_image_url }} style={styles.image} />
-      ) : (
-        <View style={[styles.imagePlaceholder]}>
-          <Text style={styles.placeholderText}>{product.name.charAt(0)}</Text>
-        </View>
-      )}
+    <View style={styles.card}>
+      <TouchableOpacity activeOpacity={onPress ? 0.85 : 1} onPress={onPress} disabled={!onPress}>
+        {product.cover_image_url ? (
+          <Image source={{ uri: product.cover_image_url }} style={styles.image} />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderText}>{product.name.charAt(0)}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
       <View style={styles.content}>
-        <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
-        <Text style={styles.price}>{product.price_cents / 100}€</Text>
+        <View style={styles.row}>
+          <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
+          <Text style={styles.price}>{(product.price_cents / 100).toFixed(2).replace('.', ',')} €</Text>
+        </View>
+
         {soldOut ? (
           <View style={styles.soldOutBadge}>
             <Text style={styles.soldOutText}>Ausverkauft</Text>
           </View>
-        ) : (
-          <Text style={styles.capacity}>
-            {quantity > 0 ? `+${quantity}` : 'In den Warenkorb'}
-          </Text>
-        )}
+        ) : showControls ? (
+          <View style={styles.controls}>
+            <QuantitySelector quantity={quantity} onIncrease={onIncrease!} onDecrease={onDecrease!} />
+            <Button title="In den Warenkorb" onPress={onAdd!} size="sm" style={styles.addButton} />
+          </View>
+        ) : null}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -43,44 +64,24 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    marginBottom: theme.spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  image: {
-    width: '100%',
-    height: 140,
-    resizeMode: 'cover',
-  },
+  image: { width: '100%', height: 180, resizeMode: 'cover' },
   imagePlaceholder: {
     width: '100%',
-    height: 140,
+    height: 180,
     backgroundColor: theme.colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: {
-    fontSize: 48,
-    color: theme.colors.secondary,
-    fontFamily: theme.fontFamily.display,
-  },
-  content: {
-    padding: theme.spacing.md,
-  },
-  name: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  price: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.secondary,
-    fontWeight: '500',
-  },
+  placeholderText: { fontSize: 48, color: theme.colors.secondary },
+  content: { padding: theme.spacing.md },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  name: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text, flex: 1, marginRight: theme.spacing.sm },
+  price: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '600' },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.md },
+  addButton: { flex: 1 },
   soldOutBadge: {
     backgroundColor: theme.colors.soldOut,
     borderRadius: theme.borderRadius.sm,
@@ -89,15 +90,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: theme.spacing.sm,
   },
-  soldOutText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.white,
-    fontWeight: '600',
-  },
-  capacity: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.accent,
-    marginTop: theme.spacing.sm,
-    fontWeight: '500',
-  },
+  soldOutText: { fontSize: theme.fontSize.xs, color: theme.colors.white, fontWeight: '600' },
 });

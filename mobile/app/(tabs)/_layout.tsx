@@ -1,26 +1,18 @@
-import { Tabs } from 'expo-router';
-import { Text, View, StyleSheet } from 'react-native';
+import { Tabs, Redirect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { useCart } from '@/context/CartContext';
-import { CartBadge } from '@/components/CartBadge';
-
-function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    index: '🏠',
-    shop: '🥖',
-    orders: '📋',
-    subscriptions: '🔄',
-    profile: '👤',
-  };
-  return (
-    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
-      {icons[name] || '●'}
-    </Text>
-  );
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function TabLayout() {
   const { itemCount } = useCart();
+  const { user, loading } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  // The app requires an account — send unauthenticated users to login.
+  if (loading) return null;
+  if (!user) return <Redirect href="/login" />;
 
   return (
     <Tabs
@@ -29,30 +21,29 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.white,
           borderTopColor: theme.colors.border,
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 60,
+          // Respect the phone's bottom inset (gesture bar / home indicator)
+          // so the tab bar is never hidden behind the system navigation.
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom + 6,
+          paddingTop: 6,
         },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textLight,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           tabBarLabel: 'Start',
-          tabBarIcon: ({ focused }) => <TabIcon name="index" focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="shop"
+        name="cart"
         options={{
-          tabBarLabel: 'Shop',
-          tabBarIcon: ({ focused }) => <TabIcon name="shop" focused={focused} />,
+          tabBarLabel: 'Warenkorb',
+          tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />,
           tabBarBadge: itemCount > 0 ? itemCount : undefined,
         }}
       />
@@ -60,21 +51,21 @@ export default function TabLayout() {
         name="orders"
         options={{
           tabBarLabel: 'Bestellungen',
-          tabBarIcon: ({ focused }) => <TabIcon name="orders" focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="subscriptions"
         options={{
           tabBarLabel: 'Abos',
-          tabBarIcon: ({ focused }) => <TabIcon name="subscriptions" focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="repeat-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           tabBarLabel: 'Profil',
-          tabBarIcon: ({ focused }) => <TabIcon name="profile" focused={focused} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

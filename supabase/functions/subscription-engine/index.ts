@@ -23,7 +23,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 // ── Clients ──────────────────────────────────────────────────
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2025-03-31.basil",
+  apiVersion: "2025-08-27.basil",
   httpClient: Stripe.createFetchHttpClient(),
 });
 
@@ -112,6 +112,46 @@ function getNextFulfillmentDate(): string {
 
   const target = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
   return formatDateInTz(target);
+}
+
+/**
+ * "YYYY-MM-DDTHH:MM" wall-clock in Europe/Berlin (DST-correct).
+ */
+function berlinWallClock(d: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
+}
+
+/**
+ * Next date (YYYY-MM-DD, Europe/Berlin) for a SPECIFIC pickup weekday whose
+ * order cutoff (two days before at 22:00) is still in the future. Used when a
+ * subscription's order is generated on demand (e.g. at subscription creation).
+ */
+function getNextDateForPickupDay(pickupDay: "wednesday" | "saturday"): string {
+  const targetDow = pickupDay === "wednesday" ? 3 : 6;
+  const now = new Date();
+  const nowWall = berlinWallClock(now);
+  for (let i = 0; i <= 21; i++) {
+    const cand = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const candStr = formatDateInTz(cand);
+    const candDow = new Date(candStr + "T12:00:00Z").getUTCDay();
+    if (candDow !== targetDow) continue;
+    const [y, m, d] = candStr.split("-").map(Number);
+    const cutoff = new Date(Date.UTC(y, m - 1, d));
+    cutoff.setUTCDate(cutoff.getUTCDate() - 2);
+    const cutoffWall = `${cutoff.toISOString().slice(0, 10)}T22:00`;
+    if (nowWall < cutoffWall) return candStr;
+  }
+  return formatDateInTz(now);
 }
 
 /**
@@ -237,25 +277,68 @@ function buildReceiptHtml(
 }
 
 /**
- * Insert a notification record.
+ * Dispatch a notification by calling the notification-dispatch edge
+ * function, which actually sends push/email AND logs to the
+ * notifications table.
+ *
+ *   - Customer notifications → POST /send-notification
+ *       { customer_id, type, channel, data }
+ *   - Admin alerts (customerId === null) → POST /send-admin-alert
+ *       { message }
+ *
+ * Failures are logged but never thrown — notification delivery must
+ * never break order/subscription processing.
  */
-async function insertNotification(
+async function dispatchNotification(
   customerId: string | null,
   type: string,
   channel: string,
+  data?: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await supabase.from("notifications").insert({
-    customer_id: customerId,
-    type,
-    channel,
-    sent_at: new Date().toISOString(),
-    delivered: false,
-  });
+  const base = `${SUPABASE_URL}/functions/v1/notification-dispatch`;
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  };
 
-  if (error) {
+  try {
+    let resp: Response;
+    if (customerId === null) {
+      if (type !== "admin_alert") {
+        console.warn(
+          `[subscription-engine] Skipping notification "${type}" with no customer.`,
+        );
+        return;
+      }
+      resp = await fetch(`${base}/send-admin-alert`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: (data?.message as string) ?? "Smittenbrot: Systemhinweis.",
+        }),
+      });
+    } else {
+      resp = await fetch(`${base}/send-notification`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          customer_id: customerId,
+          type,
+          channel,
+          data: data ?? {},
+        }),
+      });
+    }
+
+    if (!resp.ok) {
+      console.error(
+        `[subscription-engine] notification-dispatch (${type}) returned ${resp.status}: ${await resp.text()}`,
+      );
+    }
+  } catch (err) {
     console.error(
-      `[subscription-engine] Failed to insert notification (${type}):`,
-      error,
+      `[subscription-engine] Failed to dispatch notification (${type}):`,
+      err,
     );
   }
 }
@@ -385,7 +468,8 @@ async function process12pmReminders(): Promise<{
       )
     `)
     .eq("status", "active")
-    .or("paused_until.is.null,paused_until.lt.${todayInTz()}");
+    .eq("pickup_day", dow === 1 ? "wednesday" : "saturday")
+    .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
 
   if (subError) {
     console.error(
@@ -415,11 +499,12 @@ async function process12pmReminders(): Promise<{
       // Determine notification channel based on push_token availability
       const channel = customer.push_token ? "both" : "email";
 
-      // Insert notification record
-      await insertNotification(
+      // Send the reminder (push/email + logging) via notification-dispatch
+      await dispatchNotification(
         customer.id,
         "subscription_reminder",
         channel,
+        { fulfillment_date: fulfillmentDate },
       );
 
       processed++;
@@ -484,7 +569,8 @@ async function process8pmOrderPlacement(): Promise<{
       )
     `)
     .eq("status", "active")
-    .or("paused_until.is.null,paused_until.lt.${todayInTz()}");
+    .eq("pickup_day", dow === 1 ? "wednesday" : "saturday")
+    .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
 
   if (subError) {
     console.error(
@@ -623,7 +709,7 @@ async function process8pmOrderPlacement(): Promise<{
           subscription_id: sub.id,
           fulfillment_date: fulfillmentDate,
           pickup_location_id: sub.pickup_location_id,
-          status: "grace_period_open",
+          status: "scheduled",
           payment_status: "pending",
           total_cents: totalCents,
           customer_email: customer.email,
@@ -675,11 +761,12 @@ async function process8pmOrderPlacement(): Promise<{
         continue;
       }
 
-      // Send notification that order was placed
-      await insertNotification(
+      // Send "order placed" notification (push/email + logging)
+      await dispatchNotification(
         customer.id,
         "order_placed",
         customer.push_token ? "both" : "email",
+        { fulfillment_date: fulfillmentDate },
       );
 
       // Audit log
@@ -754,12 +841,17 @@ async function process10pmLock(): Promise<{
         push_token
       )
     `)
-    .eq("status", "grace_period_open")
-    .eq("order_type", "subscription");
+    // Charge the subscription orders whose cutoff is NOW — i.e. those for the
+    // imminent pickup date. Orders may have been created early (at subscription
+    // time) as 'scheduled', so we accept 'scheduled' or 'grace_period_open'
+    // but only for this run's pickup date, never future ones.
+    .in("status", ["scheduled", "grace_period_open"])
+    .eq("order_type", "subscription")
+    .eq("fulfillment_date", getNextFulfillmentDate());
 
   if (ordersError) {
     console.error(
-      "[subscription-engine] Failed to fetch grace_period_open orders:",
+      "[subscription-engine] Failed to fetch orders to lock:",
       ordersError,
     );
     return { locked: 0, paid: 0, failed: 0, errors: [ordersError.message] };
@@ -792,7 +884,7 @@ async function process10pmLock(): Promise<{
           updated_at: new Date().toISOString(),
         })
         .eq("id", order.id)
-        .eq("status", "grace_period_open"); // Conditional update for safety
+        .in("status", ["scheduled", "grace_period_open"]); // Conditional update for safety
 
       if (lockError) {
         errors.push(
@@ -989,10 +1081,14 @@ async function process10pmLock(): Promise<{
         }
 
         // Send payment_failed notification to customer
-        await insertNotification(customer.id, "payment_failed", "both");
+        await dispatchNotification(customer.id, "payment_failed", "both");
 
         // Send admin alert about payment failure
-        await insertNotification(null, "admin_alert", "both");
+        await dispatchNotification(null, "admin_alert", "both", {
+          message:
+            `Zahlung fehlgeschlagen für Bestellung ${order.id}` +
+            `${customer.name ? ` (${customer.name})` : ""}: ${msg}`,
+        });
 
         // Audit log
         await logAudit(
@@ -1084,7 +1180,7 @@ async function processCancellations(): Promise<{
       cancelled++;
 
       // Send cancellation notification to customer
-      await insertNotification(sub.customer_id, "subscription_cancelled", "both");
+      await dispatchNotification(sub.customer_id, "subscription_cancelled", "both");
 
       // Audit log
       await logAudit(
@@ -1134,28 +1230,16 @@ async function processSingleSubscription(
   success: boolean;
   error: string | null;
 }> {
-  const fulfillmentDate = options?.fulfillmentDate ?? getNextFulfillmentDate();
   const skipIfExisting = options?.skipIfExisting ?? true;
 
-  // Determine pickup day column based on the fulfillment date's day of week
-  const fulfillmentDow = new Date(fulfillmentDate).getDay();
-  // Wednesday = 3, Saturday = 6
-  const pickupDayColumn = fulfillmentDow === 3 ? "available_wed" : "available_sat";
-
-  // Get current week type
-  const currentWeek = await getCurrentWeekType();
-
-  console.log(
-    `[subscription-engine] processSingleSubscription: ` +
-      `sub=${subscriptionId}, fulfillmentDate=${fulfillmentDate}, week=${currentWeek}`,
-  );
-
-  // Fetch subscription with customer details
+  // Fetch subscription (incl. its chosen pickup_day) first — the fulfillment
+  // date depends on which weekday this subscription is for.
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select(`
       id,
       customer_id,
+      pickup_day,
       pickup_location_id,
       status,
       paused_until,
@@ -1177,6 +1261,16 @@ async function processSingleSubscription(
     );
     return { orderId: null, success: false, error: msg };
   }
+
+  const subPickupDay = (sub.pickup_day as "wednesday" | "saturday") ?? "wednesday";
+  const fulfillmentDate = options?.fulfillmentDate ?? getNextDateForPickupDay(subPickupDay);
+  const pickupDayColumn = subPickupDay === "wednesday" ? "available_wed" : "available_sat";
+  const currentWeek = await getCurrentWeekType();
+
+  console.log(
+    `[subscription-engine] processSingleSubscription: ` +
+      `sub=${subscriptionId}, fulfillmentDate=${fulfillmentDate}, week=${currentWeek}`,
+  );
 
   const customer = sub.customers as unknown as {
     id: string;
@@ -1297,7 +1391,7 @@ async function processSingleSubscription(
       subscription_id: sub.id,
       fulfillment_date: fulfillmentDate,
       pickup_location_id: sub.pickup_location_id,
-      status: "grace_period_open",
+      status: "scheduled",
       payment_status: "pending",
       total_cents: totalCents,
       customer_email: customer.email,
@@ -1346,10 +1440,11 @@ async function processSingleSubscription(
   }
 
   // Send placed notification
-  await insertNotification(
+  await dispatchNotification(
     customer.id,
     "order_placed",
     customer.push_token ? "both" : "email",
+    { fulfillment_date: fulfillmentDate },
   );
 
   // Audit log
@@ -1375,6 +1470,75 @@ async function processSingleSubscription(
     success: true,
     error: null,
   };
+}
+
+/**
+ * Pause a subscription: set it paused (with an optional resume date) AND
+ * remove any already-generated, NOT-yet-charged upcoming order, so the customer
+ * is not charged for the paused week and the capacity is freed. An order that
+ * is already charged/locked (past its cutoff) is left untouched — that week
+ * stands and the pause takes effect from the next delivery.
+ */
+async function pauseSubscription(
+  subscriptionId: string,
+  resumeDate: string | null,
+): Promise<{ success: boolean; removedOrders: number; error: string | null }> {
+  const { error: subErr } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "paused",
+      paused_until: resumeDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", subscriptionId);
+  if (subErr) return { success: false, removedOrders: 0, error: subErr.message };
+
+  const today = todayInTz();
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("subscription_id", subscriptionId)
+    .eq("order_type", "subscription")
+    .in("status", ["scheduled", "grace_period_open"])
+    .eq("payment_status", "pending")
+    .gte("fulfillment_date", today);
+
+  let removed = 0;
+  for (const o of orders ?? []) {
+    await supabase.from("order_items").delete().eq("order_id", o.id);
+    const { error: delErr } = await supabase.from("orders").delete().eq("id", o.id);
+    if (!delErr) removed++;
+  }
+
+  await logAudit("subscription_paused", "subscription", subscriptionId, null, {
+    paused_until: resumeDate,
+    removed_orders: removed,
+  });
+  return { success: true, removedOrders: removed, error: null };
+}
+
+/**
+ * Resume a paused subscription and regenerate the upcoming order (if still
+ * before its cutoff). Idempotent — if an order already exists it is kept.
+ */
+async function resumeSubscription(
+  subscriptionId: string,
+): Promise<{ success: boolean; orderId: string | null; error: string | null }> {
+  const { error: subErr } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "active",
+      paused_until: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", subscriptionId);
+  if (subErr) return { success: false, orderId: null, error: subErr.message };
+
+  const result = await processSingleSubscription(subscriptionId);
+  await logAudit("subscription_resumed", "subscription", subscriptionId, null, {
+    order_id: result.orderId,
+  });
+  return { success: true, orderId: result.orderId, error: null };
 }
 
 // ── HTTP Router ──────────────────────────────────────────────
@@ -1472,6 +1636,32 @@ serve(async (req: Request): Promise<Response> => {
         });
       }
 
+      case "pause":
+      case "pause-subscription": {
+        let body: { subscription_id?: string; resume_date?: string };
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        if (!body.subscription_id) {
+          return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        const result = await pauseSubscription(body.subscription_id, body.resume_date ?? null);
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
+      }
+
+      case "resume":
+      case "resume-subscription": {
+        let body: { subscription_id?: string };
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        if (!body.subscription_id) {
+          return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        const result = await resumeSubscription(body.subscription_id);
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
+      }
+
       default: {
         // If no recognized action, return available endpoints
         return new Response(
@@ -1483,6 +1673,8 @@ serve(async (req: Request): Promise<Response> => {
               "process-10pm-lock",
               "process-cancellations",
               "process-single-subscription",
+              "pause",
+              "resume",
             ],
           }),
           {

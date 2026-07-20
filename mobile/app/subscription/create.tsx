@@ -2,11 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
+import { LocationDropdown } from '@/components/LocationDropdown';
 import type { Product, PickupLocation, WeekCycle } from '@/lib/types';
 import type { PickupDay } from '@/lib/types';
 
@@ -15,6 +18,7 @@ type Step = 'pickup_day' | 'products' | 'location' | 'review';
 export default function SubscriptionCreateScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [step, setStep] = useState<Step>('pickup_day');
   const [pickupDay, setPickupDay] = useState<PickupDay>('wednesday');
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,19 +29,34 @@ export default function SubscriptionCreateScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from('pickup_locations')
-      .select('*')
-      .eq('active', true)
-      .order('sort_order', { ascending: true })
-      .then(({ data }) => setLocations(data ?? []));
+    (async () => {
+      const { data: locs } = await supabase
+        .from('pickup_locations')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+      const list = (locs ?? []) as PickupLocation[];
+      setLocations(list);
 
-    supabase
-      .from('week_cycle')
-      .select('*')
-      .maybeSingle()
-      .then(({ data }) => setWeekCycle(data));
-  }, []);
+      // Default to the account's preferred pickup location (Stockdorf fallback).
+      if (list.length > 0 && user) {
+        const { data: profile } = await supabase
+          .from('customers')
+          .select('preferred_pickup_location_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        const pref = profile?.preferred_pickup_location_id
+          ? list.find((l) => l.id === profile.preferred_pickup_location_id)
+          : undefined;
+        const stockdorf = list.find((l) => /stockdorf|waldstr/i.test(`${l.name} ${l.address}`));
+        setSelectedLocation((pref ?? stockdorf ?? list[0]).id);
+      }
+
+      const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle();
+      setWeekCycle(cycle as WeekCycle | null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const fetchProducts = useCallback(async () => {
     const { data: allProducts } = await supabase
@@ -75,11 +94,55 @@ export default function SubscriptionCreateScreen() {
 
     setLoading(true);
     try {
+      // 0. A subscription must have an active saved card so the weekly cron
+      //    can charge it. Ensure one exists before creating the subscription.
+      const { data: si, error: siError } = await supabase.functions.invoke(
+        'create-setup-intent',
+        { body: {} },
+      );
+      if (siError) {
+        let message = 'Zahlungsmethode konnte nicht vorbereitet werden.';
+        if (siError instanceof FunctionsHttpError) {
+          try {
+            const b = await siError.context.json();
+            message = b?.error ?? message;
+          } catch {
+            /* keep default message */
+          }
+        }
+        Alert.alert('Fehler', message);
+        return;
+      }
+
+      if (si && !si.hasPaymentMethod) {
+        const init = await initPaymentSheet({
+          merchantDisplayName: 'Smittenbrot',
+          setupIntentClientSecret: si.setupIntentClientSecret,
+          customerId: si.customerId,
+          customerEphemeralKeySecret: si.ephemeralKey,
+          returnURL: 'smittenbrot://stripe-redirect',
+        });
+        if (init.error) {
+          Alert.alert('Fehler', init.error.message);
+          return;
+        }
+        const { error: sheetError } = await presentPaymentSheet();
+        if (sheetError) {
+          // No card saved → do NOT create the subscription.
+          if (sheetError.code !== 'Canceled') {
+            Alert.alert('Zahlungsmethode erforderlich', sheetError.message);
+          }
+          return;
+        }
+      }
+
+      // 1. Card is now on file — create the subscription.
       const { data: sub, error: subError } = await supabase
         .from('subscriptions')
         .insert({
           customer_id: user.id,
           status: 'active',
+          pickup_day: pickupDay,
           pickup_location_id: selectedLocation,
         })
         .select()
@@ -105,13 +168,29 @@ export default function SubscriptionCreateScreen() {
         return;
       }
 
-      Alert.alert('Abonnement erstellt', 'Dein Abonnement ist aktiv. Du erhältst eine Bestätigung per E-Mail.', [
+      // 2. Generate the concrete order for the next pickup right away so it
+      //    shows up immediately (reserves capacity, changeable until the 22:00
+      //    cutoff, charged then). Best-effort — the weekly cron is the backstop.
+      try {
+        await supabase.functions.invoke('subscription-engine/process-single-subscription', {
+          body: { subscription_id: sub.id },
+        });
+      } catch {
+        /* ignore — the scheduled run will generate it */
+      }
+
+      Alert.alert('Abonnement erstellt', 'Dein Abonnement ist aktiv. Deine erste Bestellung ist bereits vorgemerkt.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } finally {
       setLoading(false);
     }
   };
+
+  const subTotalCents = Object.entries(quantities).reduce(
+    (sum, [pid, qty]) => sum + (products.find((p) => p.id === pid)?.price_cents ?? 0) * qty,
+    0,
+  );
 
   if (!user) {
     return (
@@ -182,18 +261,11 @@ export default function SubscriptionCreateScreen() {
           <View>
             <Text style={styles.stepTitle}>Abholort wählen</Text>
             <Text style={styles.stepHint}>Wo möchtest du deine Bestellungen abholen?</Text>
-            {locations.map((loc) => (
-              <TouchableOpacity
-                key={loc.id}
-                style={[styles.locationOption, selectedLocation === loc.id && styles.locationOptionActive]}
-                onPress={() => setSelectedLocation(loc.id)}
-              >
-                <Text style={[styles.locationName, selectedLocation === loc.id && styles.locationNameActive]}>
-                  {loc.name}
-                </Text>
-                <Text style={styles.locationAddress}>{loc.address}</Text>
-              </TouchableOpacity>
-            ))}
+            <LocationDropdown
+              locations={locations}
+              selectedId={selectedLocation}
+              onSelect={setSelectedLocation}
+            />
             <Button title="Weiter" onPress={() => setStep('review')} size="lg" disabled={!selectedLocation} style={styles.nextButton} />
           </View>
         )}
@@ -217,12 +289,19 @@ export default function SubscriptionCreateScreen() {
                   <View key={productId} style={styles.reviewProductRow}>
                     <Text style={styles.reviewProductName}>{product?.name} ×{qty}</Text>
                     <Text style={styles.reviewProductPrice}>
-                      {(((product?.price_cents ?? 0) * qty) / 100).toFixed(2)}€
+                      {(((product?.price_cents ?? 0) * qty) / 100).toFixed(2).replace('.', ',')} €
                     </Text>
                   </View>
                 );
               })}
+              <View style={styles.reviewTotalRow}>
+                <Text style={styles.reviewTotalLabel}>Gesamt pro Lieferung</Text>
+                <Text style={styles.reviewTotalValue}>{(subTotalCents / 100).toFixed(2).replace('.', ',')} €</Text>
+              </View>
             </View>
+            <Text style={styles.reviewHint}>
+              Wird bei jeder Lieferung berechnet. Enthält 7 % MwSt.
+            </Text>
             <Button title="Abonnement erstellen" onPress={handleConfirm} loading={loading} size="lg" style={styles.nextButton} />
           </View>
         )}
@@ -393,6 +472,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: theme.colors.secondary,
   },
+  reviewTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  reviewTotalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
+  reviewTotalValue: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
+  reviewHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginBottom: theme.spacing.sm, marginTop: theme.spacing.xs },
   nextButton: {
     marginTop: theme.spacing.lg,
   },

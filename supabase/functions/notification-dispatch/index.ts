@@ -13,6 +13,7 @@
 // ============================================================
 
 import { createClient } from "@supabase/supabase-js";
+import { serve } from "std/http/server";
 
 // ── Environment Variables ────────────────────────────────────
 
@@ -783,3 +784,175 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
     invoiceNumber,
   };
 }
+
+// ═════════════════════════════════════════════════════════════
+// HTTP Router — makes the functions above invocable over HTTP.
+// Server-to-server only; callers authenticate with the service-role
+// key (verify_jwt stays enabled for this function).
+// ═════════════════════════════════════════════════════════════
+
+/** Format an ISO date (YYYY-MM-DD) as DD.MM.YYYY for German copy. */
+function formatDe(dateStr: unknown): string {
+  if (typeof dateStr !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return typeof dateStr === "string" ? dateStr : "";
+  }
+  const [y, m, d] = dateStr.slice(0, 10).split("-");
+  return `${d}.${m}.${y}`;
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Default German copy per notification type. Callers (e.g. the
+ * subscription engine) can POST just { customer_id, type, channel, data }
+ * and the correct title/body is rendered here, keeping notification
+ * wording in a single place. An explicit title/body overrides the template.
+ */
+const NOTIFICATION_TEMPLATES: Record<
+  string,
+  (data: Record<string, unknown>) => { title: string; body: string }
+> = {
+  subscription_reminder: (d) => ({
+    title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
+    body:
+      `Dein Smittenbrot-Abo wird heute um 20:00 Uhr als Bestellung` +
+      `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben. ` +
+      `Änderungen oder Stornierung sind bis 22:00 Uhr möglich.`,
+  }),
+  order_placed: (d) => ({
+    title: "Deine Abo-Bestellung wurde aufgegeben",
+    body:
+      `Deine Bestellung${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} ` +
+      `wurde aufgegeben. Du kannst sie bis 22:00 Uhr noch ändern oder stornieren.`,
+  }),
+  payment_failed: () => ({
+    title: "Zahlung fehlgeschlagen",
+    body:
+      "Die Zahlung für deine Smittenbrot-Bestellung ist fehlgeschlagen. " +
+      "Bitte aktualisiere deine Zahlungsmethode in der App.",
+  }),
+  subscription_cancelled: () => ({
+    title: "Abonnement gekündigt",
+    body:
+      "Dein Smittenbrot-Abonnement wurde gekündigt. Du kannst jederzeit " +
+      "ein neues Abo starten.",
+  }),
+  subscription_paused: (d) => ({
+    title: "Abonnement pausiert",
+    body: d.resume_date
+      ? `Dein Abo ist bis ${formatDe(d.resume_date)} pausiert und wird danach automatisch fortgesetzt.`
+      : "Dein Abo ist pausiert.",
+  }),
+  closure_notice: () => ({
+    title: "Backpause bei Smittenbrot",
+    body:
+      "Während unserer Schließzeit findet keine Produktion statt. " +
+      "Betroffene Abos werden automatisch pausiert und danach fortgesetzt.",
+  }),
+};
+
+serve(async (req: Request): Promise<Response> => {
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const url = new URL(req.url);
+  const action = url.pathname.replace(/\/+$/, "").split("/").pop() ?? "";
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
+  try {
+    switch (action) {
+      case "send-notification": {
+        const customerId = (body.customer_id as string) ?? "";
+        const type = (body.type as string) ?? "";
+        const channel = (body.channel as string) ?? "both";
+        if (!customerId) {
+          return jsonResponse({ error: "customer_id is required" }, 400);
+        }
+        let title = body.title as string | undefined;
+        let text = body.body as string | undefined;
+        if ((!title || !text) && NOTIFICATION_TEMPLATES[type]) {
+          const rendered = NOTIFICATION_TEMPLATES[type](
+            (body.data as Record<string, unknown>) ?? {},
+          );
+          title = title ?? rendered.title;
+          text = text ?? rendered.body;
+        }
+        const result = await send_notification(
+          customerId,
+          type,
+          channel,
+          title ?? "Smittenbrot",
+          text ?? "",
+        );
+        return jsonResponse(result, result.success ? 200 : 502);
+      }
+
+      case "send-pickup-ready": {
+        const orderIds = Array.isArray(body.order_ids)
+          ? (body.order_ids as string[])
+          : body.order_id
+          ? [body.order_id as string]
+          : [];
+        if (orderIds.length === 0) {
+          return jsonResponse(
+            { error: "order_ids (or order_id) is required" },
+            400,
+          );
+        }
+        const result = await send_pickup_ready(
+          orderIds,
+          body.extra_text as string | undefined,
+        );
+        return jsonResponse(result);
+      }
+
+      case "send-admin-alert": {
+        const message = (body.message as string) ?? "";
+        if (!message) {
+          return jsonResponse({ error: "message is required" }, 400);
+        }
+        const result = await send_admin_alert(message);
+        return jsonResponse(result, result.success ? 200 : 502);
+      }
+
+      case "send-order-receipt": {
+        const orderId = (body.order_id as string) ?? "";
+        if (!orderId) {
+          return jsonResponse({ error: "order_id is required" }, 400);
+        }
+        const result = await send_order_receipt(orderId);
+        return jsonResponse(result, result.success ? 200 : 502);
+      }
+
+      default:
+        return jsonResponse(
+          {
+            error: `Unknown action: ${action}`,
+            available_actions: [
+              "send-notification",
+              "send-pickup-ready",
+              "send-admin-alert",
+              "send-order-receipt",
+            ],
+          },
+          404,
+        );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Internal server error";
+    log("error", `Router error on action "${action}": ${msg}`);
+    return jsonResponse({ error: msg }, 500);
+  }
+});

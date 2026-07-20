@@ -38,7 +38,7 @@ export const theme = {
     hero: 36,
   },
   fontFamily: {
-    display: 'Georgia',
+    display: 'System',
     body: 'System',
   },
 };

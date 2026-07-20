@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Platform, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +16,11 @@ const STATUS_LABELS: Record<string, string> = {
   cancellation_pending: 'Kündigung läuft',
   cancelled: 'Gekündigt',
   payment_failed: 'Zahlung fehlgeschlagen',
+};
+
+const DAY_LABELS: Record<string, string> = {
+  wednesday: 'Mittwochs',
+  saturday: 'Samstags',
 };
 
 export default function SubscriptionsScreen() {
@@ -32,6 +38,7 @@ export default function SubscriptionsScreen() {
       .from('subscriptions')
       .select('*, items:subscription_items(*, product:products(*)), pickup_location:pickup_locations(*)')
       .eq('customer_id', user.id)
+      .neq('status', 'cancelled')
       .order('created_at', { ascending: false });
     setSubscriptions((data ?? []) as any);
   }, [user]);
@@ -46,25 +53,23 @@ export default function SubscriptionsScreen() {
 
   const handlePause = async (subId: string) => {
     const resumeDate = pauseDate.toISOString().split('T')[0];
-    const { error } = await supabase
-      .from('subscriptions')
-      .update({ status: 'paused', paused_until: resumeDate })
-      .eq('id', subId);
-    if (error) {
-      Alert.alert('Fehler', error.message);
-    } else {
-      fetchSubscriptions();
-    }
+    // The engine also removes any not-yet-charged upcoming order so the paused
+    // week isn't charged.
+    const { error } = await supabase.functions.invoke('subscription-engine/pause', {
+      body: { subscription_id: subId, resume_date: resumeDate },
+    });
+    if (error) Alert.alert('Fehler', 'Pausieren fehlgeschlagen.');
+    else await fetchSubscriptions();
     setPausingId(null);
   };
 
   const handleResume = async (subId: string) => {
-    const { error } = await supabase
-      .from('subscriptions')
-      .update({ status: 'active', paused_until: null })
-      .eq('id', subId);
-    if (error) Alert.alert('Fehler', error.message);
-    else fetchSubscriptions();
+    // The engine also regenerates the upcoming order if still before its cutoff.
+    const { error } = await supabase.functions.invoke('subscription-engine/resume', {
+      body: { subscription_id: subId },
+    });
+    if (error) Alert.alert('Fehler', 'Fortsetzen fehlgeschlagen.');
+    else await fetchSubscriptions();
   };
 
   const handleCancel = (subId: string) => {
@@ -118,6 +123,12 @@ export default function SubscriptionsScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {subscriptions.length > 0 && (
+          <Text style={styles.helpText}>
+            Um Produkte oder den Abholort zu ändern, kündige dein Abo und erstelle ein neues.
+          </Text>
+        )}
+
         {subscriptions.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Noch keine Abonnements</Text>
@@ -132,7 +143,7 @@ export default function SubscriptionsScreen() {
           subscriptions.map((sub) => (
             <View key={sub.id} style={styles.subCard}>
               <View style={styles.subHeader}>
-                <View style={[styles.statusDot, styles[`statusDot_${sub.status}` as keyof typeof styles] || styles.statusDot_active]}>
+                <View style={[styles.statusDot, (styles[`statusDot_${sub.status}` as keyof typeof styles] as ViewStyle) || styles.statusDot_active]}>
                   <View />
                 </View>
                 <Text style={styles.subStatus}>{STATUS_LABELS[sub.status]}</Text>
@@ -146,13 +157,21 @@ export default function SubscriptionsScreen() {
               ))}
 
               <Text style={styles.subLocation}>
-                Abholung: {sub.pickup_location?.name}
+                {DAY_LABELS[sub.pickup_day] ?? ''} · Abholung: {sub.pickup_location?.name}
               </Text>
 
               {sub.status === 'active' && (
                 <View style={styles.actionRow}>
                   {pausingId === sub.id ? (
-                    <View style={styles.pauseRow}>
+                    <View style={styles.pauseBox}>
+                      <Text style={styles.pauseLabel}>Bis wann möchtest du pausieren?</Text>
+                      <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
+                        <Text style={styles.dateButtonText}>
+                          {pauseDate.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Text>
+                        <Ionicons name="calendar-outline" size={18} color={theme.colors.textLight} />
+                      </TouchableOpacity>
+                      <Text style={styles.pauseHint}>Dein Abo wird an diesem Tag automatisch fortgesetzt.</Text>
                       {showDatePicker && (
                         <DateTimePicker
                           value={pauseDate}
@@ -165,14 +184,10 @@ export default function SubscriptionsScreen() {
                           }}
                         />
                       )}
-                      <Button
-                        title="Datum wählen"
-                        onPress={() => setShowDatePicker(true)}
-                        variant="ghost"
-                        size="sm"
-                      />
-                      <Button title="Pausieren" onPress={() => handlePause(sub.id)} size="sm" />
-                      <Button title="Abbrechen" onPress={() => setPausingId(null)} variant="ghost" size="sm" />
+                      <View style={styles.pauseActions}>
+                        <Button title="Pause bestätigen" onPress={() => handlePause(sub.id)} size="sm" style={styles.pauseConfirm} />
+                        <Button title="Abbrechen" onPress={() => setPausingId(null)} variant="ghost" size="sm" />
+                      </View>
                     </View>
                   ) : (
                     <>
@@ -216,6 +231,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     paddingTop: 0,
     paddingBottom: theme.spacing.xxl,
+  },
+  helpText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
   },
   subCard: {
     backgroundColor: theme.colors.white,
@@ -275,10 +296,25 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     flexWrap: 'wrap',
   },
-  pauseRow: {
+  pauseBox: {
     flex: 1,
     gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
+  pauseLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.text },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.cream,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+  },
+  dateButtonText: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '500' },
+  pauseHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
+  pauseActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
+  pauseConfirm: { flex: 1 },
   resumeButton: {
     marginTop: theme.spacing.md,
   },

@@ -402,27 +402,29 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  // Parse the URL path
+  // Parse the URL path. Supabase includes the function name in the path
+  // (e.g. "/closure-handler/active"), so route on the LAST segment.
   const url = new URL(req.url);
-  const path = url.pathname;
+  const path = url.pathname.replace(/\/+$/, "");
+  const action = path.split("/").pop() ?? "";
 
-  // Parse JSON body
+  // Parse JSON body (tolerant: /active takes no body)
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
-    return badRequest("Invalid JSON body");
+    body = {};
   }
 
-  // Route the request
-  switch (path) {
-    case "/create":
+  // Route on the last path segment
+  switch (action) {
+    case "create":
       return await handleCreate(body as unknown as CreateClosureRequest);
 
-    case "/delete":
+    case "delete":
       return await handleDelete(body as unknown as DeleteClosureRequest);
 
-    case "/active":
+    case "active":
       return await handleActive();
 
     default:

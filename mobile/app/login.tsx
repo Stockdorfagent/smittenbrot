@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn, signUp, signInWithMagicLink } = useAuth();
+  const { user, signIn, signUp, signInWithMagicLink, resetPassword } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,28 +18,39 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Redirect once the session is actually established — doing it here (rather
+  // than right after signIn) avoids the "log in twice" race where the auth
+  // gate bounced back to login before the session had propagated.
+  useEffect(() => {
+    if (user) router.replace('/(tabs)');
+  }, [user]);
+
   const handleSubmit = async () => {
     setError('');
     setLoading(true);
     try {
       if (isRegister) {
         const { error: err } = await signUp(email, password, name, phone);
-        if (err) {
-          setError(err);
-        } else {
-          router.replace('/(tabs)');
-        }
+        if (err) setError(err);
       } else {
         const { error: err } = await signIn(email, password);
-        if (err) {
-          setError(err);
-        } else {
-          router.replace('/(tabs)');
-        }
+        if (err) setError(err);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Bitte gib zuerst deine E-Mail-Adresse ein.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const { error: err } = await resetPassword(email);
+    setLoading(false);
+    setError(err ?? 'Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts geschickt.');
   };
 
   const handleMagicLink = async () => {
@@ -66,15 +77,16 @@ export default function LoginScreen() {
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Text style={styles.logo}>Smittenbrot</Text>
-            <Text style={styles.subtitle}>Artisanale Bäckerei aus München</Text>
+            <Image source={require('../assets/logo-mark.png')} style={styles.logoImg} />
+            <Text style={styles.brand}>Smittenbrot</Text>
+            <Text style={styles.subtitle}>Sauerteig aus Stockdorf</Text>
           </View>
 
           <View style={styles.form}>
             <Text style={styles.title}>{isRegister ? 'Konto erstellen' : 'Anmelden'}</Text>
 
             {error ? (
-              <Text style={[styles.error, error.includes('Prüfe') && styles.success]}>{error}</Text>
+              <Text style={[styles.error, (error.includes('Prüfe') || error.includes('geschickt')) && styles.success]}>{error}</Text>
             ) : null}
 
             {isRegister && (
@@ -84,6 +96,9 @@ export default function LoginScreen() {
             {!isRegister && (
               <>
                 <Input label="Passwort" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
+                <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotLink}>
+                  <Text style={styles.forgotText}>Passwort vergessen?</Text>
+                </TouchableOpacity>
                 <Button title="Magic Link senden" onPress={handleMagicLink} variant="ghost" size="sm" loading={loading} />
               </>
             )}
@@ -107,19 +122,6 @@ export default function LoginScreen() {
                 {isRegister ? 'Bereits ein Konto? Anmelden' : 'Noch kein Konto? Registrieren'}
               </Text>
             </TouchableOpacity>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ODER</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <Button title="Weiter mit Apple" onPress={() => setError('Apple Sign-In folgt')} variant="secondary" style={styles.socialButton} />
-            <Button title="Weiter mit Google" onPress={() => setError('Google Sign-In folgt')} variant="secondary" style={styles.socialButton} />
-
-            <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-              <Text style={styles.backText}>Zurück</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -142,10 +144,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
   },
-  logo: {
-    fontSize: theme.fontSize.hero,
-    fontFamily: theme.fontFamily.display,
+  logoImg: {
+    width: 88,
+    height: 88,
+    resizeMode: 'contain',
+  },
+  brand: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
     color: theme.colors.primary,
+    marginTop: theme.spacing.sm,
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  forgotText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.secondary,
   },
   subtitle: {
     fontSize: theme.fontSize.sm,

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export interface CartItem {
   productId: string;
@@ -95,6 +96,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'LOAD_CART', payload: JSON.parse(saved) });
       } catch {}
     }
+  }, []);
+
+  // Load preferred pickup location from customer profile
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from('customers')
+        .select('preferred_pickup_location_id')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.preferred_pickup_location_id && !state.pickupLocationId) {
+            dispatch({ type: 'SET_PICKUP_LOCATION', payload: data.preferred_pickup_location_id });
+          }
+        });
+    });
   }, []);
 
   useEffect(() => {
