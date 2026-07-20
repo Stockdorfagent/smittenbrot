@@ -2,8 +2,18 @@ export type PickupDay = 'wednesday' | 'saturday';
 
 export interface NextPickup {
   day: PickupDay;
-  date: string; // YYYY-MM-DD
-  label: string; // e.g. "Mittwoch, 23. Juli"
+  date: string;        // YYYY-MM-DD (Europe/Berlin calendar date)
+  label: string;       // e.g. "Mittwoch, 23. Juli"
+  cutoffLabel: string; // e.g. "Bestellschluss: Montag, 22:00 Uhr"
+}
+
+/**
+ * A Date whose LOCAL fields represent the Europe/Berlin wall-clock time, so
+ * getDay()/getHours()/getDate() reflect Berlin regardless of the runtime's
+ * own timezone. All pickup math below stays in this single frame.
+ */
+function berlinNow(now: Date): Date {
+  return new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
 }
 
 /**
@@ -12,20 +22,18 @@ export interface NextPickup {
  *   - Saturday pickup closes Thursday 22:00  (two days before, at 22:00)
  *
  * An order placed now is assigned to the soonest pickup whose cutoff is still
- * in the future. This mirrors the mobile app's `getNextPickup()` so both
- * frontends assign identical fulfillment dates. The server re-validates; this
- * drives the client display + the fulfillment_date sent to checkout.
- *
- * NOTE: runs client-side (in the browser) so it uses the customer's device
- * timezone — matching the app. A stricter Europe/Berlin server-side cutoff
- * validation is a separate launch-hardening item.
+ * in the future. Shared by the website's shop, cart, product detail and
+ * checkout so all of them assign identical dates. The server re-validates.
+ * Computed in Europe/Berlin so it is correct irrespective of device timezone.
  */
 export function getNextPickup(now: Date = new Date()): NextPickup {
+  const b = berlinNow(now);
+
   const candidates: { day: PickupDay; date: Date }[] = [];
   for (let i = 0; i < 21; i++) {
-    const d = new Date(now);
+    const d = new Date(b);
     d.setHours(0, 0, 0, 0);
-    d.setDate(now.getDate() + i);
+    d.setDate(b.getDate() + i);
     const dow = d.getDay();
     if (dow === 3) candidates.push({ day: 'wednesday', date: d });
     if (dow === 6) candidates.push({ day: 'saturday', date: d });
@@ -36,7 +44,7 @@ export function getNextPickup(now: Date = new Date()): NextPickup {
     const cutoff = new Date(c.date);
     cutoff.setDate(c.date.getDate() - 2);
     cutoff.setHours(22, 0, 0, 0);
-    if (now < cutoff) {
+    if (b < cutoff) {
       chosen = c;
       break;
     }
@@ -51,5 +59,18 @@ export function getNextPickup(now: Date = new Date()): NextPickup {
     day: 'numeric',
     month: 'long',
   });
-  return { day: chosen.day, date, label };
+
+  // Cutoff = two days before the pickup, at 22:00 Berlin.
+  const cutoffDate = new Date(chosen.date);
+  cutoffDate.setDate(chosen.date.getDate() - 2);
+  const isToday =
+    cutoffDate.getFullYear() === b.getFullYear() &&
+    cutoffDate.getMonth() === b.getMonth() &&
+    cutoffDate.getDate() === b.getDate();
+  const cutoffWeekday = cutoffDate.toLocaleDateString('de-DE', { weekday: 'long' });
+  const cutoffLabel = isToday
+    ? 'Bestellschluss: heute 22:00 Uhr'
+    : `Bestellschluss: ${cutoffWeekday}, 22:00 Uhr`;
+
+  return { day: chosen.day, date, label, cutoffLabel };
 }

@@ -5,43 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
+import { getNextPickup } from '@/lib/pickup';
 import Link from 'next/link';
-
-function getNextPickup(): { day: 'wednesday' | 'saturday'; label: string; cutoffLabel: string; fulfillmentDate: string } {
-  const now = new Date();
-  const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-  const day = berlin.getDay();
-  const hours = berlin.getHours();
-  const minutes = berlin.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  const cutoffMinutes = 22 * 60;
-
-  if (day === 1 && totalMinutes < cutoffMinutes) {
-    const wed = new Date(berlin);
-    wed.setDate(wed.getDate() + 2);
-    return { day: 'wednesday', label: 'Mittwoch', cutoffLabel: 'Bestellschluss: heute 22:00', fulfillmentDate: wed.toISOString().split('T')[0] };
-  }
-
-  if ((day === 1 && totalMinutes >= cutoffMinutes) || day === 2 || day === 3) {
-    const dt = new Date(berlin);
-    let diff = (6 - dt.getDay() + 7) % 7;
-    if (diff === 0) diff += 7;
-    dt.setDate(dt.getDate() + diff);
-    return { day: 'saturday', label: 'Samstag', cutoffLabel: 'Bestellschluss: Donnerstag 22:00', fulfillmentDate: dt.toISOString().split('T')[0] };
-  }
-
-  if (day === 4 && totalMinutes < cutoffMinutes) {
-    const sat = new Date(berlin);
-    sat.setDate(sat.getDate() + 2);
-    return { day: 'saturday', label: 'Samstag', cutoffLabel: 'Bestellschluss: heute 22:00', fulfillmentDate: sat.toISOString().split('T')[0] };
-  }
-
-  const wedNext = new Date(berlin);
-  let wedDiff = (3 - wedNext.getDay() + 7) % 7;
-  if (wedDiff === 0) wedDiff += 7;
-  wedNext.setDate(wedNext.getDate() + wedDiff);
-  return { day: 'wednesday', label: 'Mittwoch', cutoffLabel: 'Bestellschluss: Montag 22:00', fulfillmentDate: wedNext.toISOString().split('T')[0] };
-}
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -160,6 +125,7 @@ export default function ProductDetailPage() {
           <p className="mt-2 text-smitten-accent text-2xl font-bold">
             {formatPrice(product.price_cents)}
           </p>
+          <p className="text-xs text-smitten-text/40">inkl. 7 % MwSt.</p>
 
           <div className="mt-4">
             <p className="text-sm text-smitten-text/50">

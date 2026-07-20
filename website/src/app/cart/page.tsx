@@ -4,22 +4,9 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 import { PickupLocation, formatPrice } from '@/lib/types';
+import { getNextPickup } from '@/lib/pickup';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-function getNextPickup(): { label: string; cutoffLabel: string } {
-  const now = new Date();
-  const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-  const day = berlin.getDay();
-  const hours = berlin.getHours();
-  const minutes = berlin.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  const cutoffMinutes = 22 * 60;
-  if (day === 1 && totalMinutes < cutoffMinutes) return { label: 'Mittwoch', cutoffLabel: 'Bestellschluss: heute 22:00' };
-  if ((day === 1 && totalMinutes >= cutoffMinutes) || day === 2 || day === 3) return { label: 'Samstag', cutoffLabel: 'Bestellschluss: Donnerstag 22:00' };
-  if (day === 4 && totalMinutes < cutoffMinutes) return { label: 'Samstag', cutoffLabel: 'Bestellschluss: heute 22:00' };
-  return { label: 'Mittwoch', cutoffLabel: 'Bestellschluss: Montag 22:00' };
-}
 
 export default function CartPage() {
   const { state, removeItem, updateQuantity, clearCart, setPickupLocation, totalCents, itemCount } = useCart();

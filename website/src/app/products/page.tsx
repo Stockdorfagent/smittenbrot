@@ -4,73 +4,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
+import { getNextPickup } from '@/lib/pickup';
 import Link from 'next/link';
-
-function getNextPickup(): { day: 'wednesday' | 'saturday'; label: string; cutoffLabel: string; fulfillmentDate: string } {
-  const now = new Date();
-  // Get current time in Europe/Berlin
-  const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-  const day = berlin.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  const hours = berlin.getHours();
-  const minutes = berlin.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  const cutoffMinutes = 22 * 60; // 22:00
-
-  // Helper to get next Wednesday/Saturday date as ISO string
-  function nextDayDate(targetDay: number): string {
-    const dt = new Date(berlin);
-    let diff = (targetDay - dt.getDay() + 7) % 7;
-    if (diff === 0) diff += 7;
-    dt.setDate(dt.getDate() + diff);
-    return dt.toISOString().split('T')[0];
-  }
-
-  if (day === 1 && totalMinutes < cutoffMinutes) {
-    // Monday before 22:00 → Wednesday this week
-    const wed = new Date(berlin);
-    wed.setDate(wed.getDate() + 2);
-    return {
-      day: 'wednesday',
-      label: 'Mittwoch',
-      cutoffLabel: 'Bestellschluss: heute 22:00',
-      fulfillmentDate: wed.toISOString().split('T')[0],
-    };
-  }
-
-  if ((day === 1 && totalMinutes >= cutoffMinutes) || day === 2 || day === 3) {
-    // Monday after 22:00, or Tue/Wed → Saturday this week
-    return {
-      day: 'saturday',
-      label: 'Samstag',
-      cutoffLabel: 'Bestellschluss: Donnerstag 22:00',
-      fulfillmentDate: nextDayDate(6),
-    };
-  }
-
-  if (day === 4 && totalMinutes < cutoffMinutes) {
-    // Thursday before 22:00 → Saturday this week
-    const sat = new Date(berlin);
-    sat.setDate(sat.getDate() + 2); // Saturday = Thursday + 2
-    return {
-      day: 'saturday',
-      label: 'Samstag',
-      cutoffLabel: 'Bestellschluss: heute 22:00',
-      fulfillmentDate: sat.toISOString().split('T')[0],
-    };
-  }
-
-  // Thursday after 22:00, or Fri/Sat/Sun → next Wednesday
-  const wedNext = new Date(berlin);
-  let wedDiff = (3 - wedNext.getDay() + 7) % 7;
-  if (wedDiff === 0) wedDiff += 7;
-  wedNext.setDate(wedNext.getDate() + wedDiff);
-  return {
-    day: 'wednesday',
-    label: 'Mittwoch',
-    cutoffLabel: 'Bestellschluss: Montag 22:00',
-    fulfillmentDate: wedNext.toISOString().split('T')[0],
-  };
-}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -139,6 +74,7 @@ export default function ProductsPage() {
       <p className="mt-2 text-sm text-smitten-text/50">
         Jetzt bestellen für <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
       </p>
+      <p className="mt-1 text-xs text-smitten-text/40">Alle Preise inkl. 7 % MwSt.</p>
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map(product => (
