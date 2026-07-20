@@ -15,6 +15,7 @@ export default function AdminPickupLocationsPage() {
     address: '',
     cabinet_code: '',
     notification_template: '',
+    pickup_instructions: '',
     active: true,
     sort_order: 0,
   });
@@ -52,6 +53,7 @@ export default function AdminPickupLocationsPage() {
         address: editForm.address,
         cabinet_code: editForm.cabinet_code,
         notification_template: editForm.notification_template,
+        pickup_instructions: editForm.pickup_instructions,
         active: editForm.active,
         sort_order: editForm.sort_order,
       })
@@ -70,12 +72,13 @@ export default function AdminPickupLocationsPage() {
       address: addForm.address,
       cabinet_code: addForm.cabinet_code,
       notification_template: addForm.notification_template,
+      pickup_instructions: addForm.pickup_instructions,
       active: addForm.active,
       sort_order: addForm.sort_order,
     });
     if (!error) {
       setShowAdd(false);
-      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', active: true, sort_order: 0 });
+      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', pickup_instructions: '', active: true, sort_order: 0 });
       loadLocations();
     }
   }
@@ -151,6 +154,18 @@ export default function AdminPickupLocationsPage() {
                 className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">
+              Abhol-Hinweis für Kund:innen (erscheint bei der Bestellung und in der Bestätigungs-E-Mail)
+            </label>
+            <textarea
+              value={addForm.pickup_instructions}
+              onChange={(e) => setAddForm({ ...addForm, pickup_instructions: e.target.value })}
+              rows={2}
+              placeholder="z.B. Selbstbedienung im Abholschrank – deine Bestellnummer steht auf der Verpackung."
+              className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+            />
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">
@@ -238,6 +253,16 @@ export default function AdminPickupLocationsPage() {
                     className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                   />
                 </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-smitten-text/60 mb-1">Abhol-Hinweis für Kund:innen (erscheint bei der Bestellung und in der Bestätigungs-E-Mail)</label>
+                  <textarea
+                    value={editForm.pickup_instructions || ''}
+                    onChange={(e) => setEditForm({ ...editForm, pickup_instructions: e.target.value })}
+                    rows={2}
+                    placeholder="z.B. Selbstbedienung im Abholschrank – deine Bestellnummer steht auf der Verpackung."
+                    className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Benachrichtigungsvorlage</label>

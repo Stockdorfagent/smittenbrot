@@ -141,17 +141,22 @@ async function sendReceiptEmail(
       // Continue with a simplified receipt
     }
 
-    // Fetch pickup location name
+    // Fetch pickup location name + its customer-facing pickup instructions
     let pickupName = "Abholort";
+    let pickupInstructions =
+      "Deine Bestellnummer steht auf der Verpackung deiner Bestellung.";
     const pickupLocationId = order.pickup_location_id as string;
     if (pickupLocationId) {
       const { data: location } = await supabase
         .from("pickup_locations")
-        .select("name, address")
+        .select("name, address, pickup_instructions")
         .eq("id", pickupLocationId)
         .single();
       if (location) {
         pickupName = `${location.name} (${location.address})`;
+        if (location.pickup_instructions) {
+          pickupInstructions = location.pickup_instructions as string;
+        }
       }
     }
 
@@ -275,8 +280,8 @@ async function sendReceiptEmail(
         <div style="background: #F3F4F6; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #1A1A1A;">
           <p style="margin: 0 0 8px;"><strong>Abholinformation</strong></p>
           <p style="margin: 0;">
-            Deine Bestellung ist ab dem <strong>${fulfillmentDe}</strong> zur Abholung bereit.<br>
-            Bitte bringe deine Bestellnummer (${orderNumber}) mit oder nenne sie beim Abholen.
+            Deine Bestellung ist ab dem <strong>${fulfillmentDe}</strong> abholbereit.<br>
+            ${pickupInstructions}
           </p>
         </div>
 

@@ -16,6 +16,8 @@ export default function CartPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const router = useRouter();
   const pickup = getNextPickup();
+  const [images, setImages] = useState<Record<string, string>>({});
+  const itemIds = state.items.map(i => i.productId).join(',');
 
   useEffect(() => {
     async function init() {
@@ -51,6 +53,21 @@ export default function CartPage() {
     }
     init();
   }, []);
+
+  // Load product thumbnails for the items currently in the cart.
+  useEffect(() => {
+    const ids = state.items.map(i => i.productId);
+    if (ids.length === 0) { setImages({}); return; }
+    (async () => {
+      const { data } = await supabase.from('products').select('id, cover_image_url').in('id', ids);
+      if (data) {
+        const map: Record<string, string> = {};
+        for (const p of data) if (p.cover_image_url) map[p.id] = p.cover_image_url as string;
+        setImages(map);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemIds]);
 
   const handleCheckout = () => {
     if (isGuest && (!guestName || !guestEmail)) return;
@@ -95,41 +112,53 @@ export default function CartPage() {
         {state.items.map(item => (
           <div
             key={item.productId}
-            className="flex items-center gap-4 bg-white rounded-xl p-4 border border-smitten-cream"
+            className="flex gap-3 bg-white rounded-xl p-4 border border-smitten-cream"
           >
-            <div className="w-16 h-16 bg-smitten-cream rounded-lg flex items-center justify-center text-xl font-display text-smitten-secondary shrink-0">
-              {item.name.charAt(0)}
+            <div className="w-16 h-16 bg-smitten-cream rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+              {images[item.productId] ? (
+                <img
+                  src={images[item.productId]}
+                  alt={item.name}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <span className="text-xl font-bold text-smitten-secondary/50">{item.name.charAt(0)}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-smitten-text truncate">{item.name}</p>
-              <p className="text-sm text-smitten-accent font-medium">
-                {formatPrice(item.priceCents)}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-smitten-text">{item.name}</p>
+                <button
+                  onClick={() => removeItem(item.productId)}
+                  className="shrink-0 text-smitten-text/30 hover:text-red-500 leading-none"
+                  title="Entfernen"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-sm text-smitten-secondary">{formatPrice(item.priceCents)}</p>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                    className="w-8 h-8 rounded-full border border-smitten-cream flex items-center justify-center text-sm hover:bg-smitten-cream"
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-sm">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                    className="w-8 h-8 rounded-full border border-smitten-cream flex items-center justify-center text-sm hover:bg-smitten-cream"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="font-semibold text-smitten-text">
+                  {formatPrice(item.priceCents * item.quantity)}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                className="w-8 h-8 rounded-full border border-smitten-cream flex items-center justify-center text-sm hover:bg-smitten-cream"
-              >
-                −
-              </button>
-              <span className="w-6 text-center text-sm">{item.quantity}</span>
-              <button
-                onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                className="w-8 h-8 rounded-full border border-smitten-cream flex items-center justify-center text-sm hover:bg-smitten-cream"
-              >
-                +
-              </button>
-            </div>
-            <p className="w-20 text-right font-medium text-smitten-text">
-              {formatPrice(item.priceCents * item.quantity)}
-            </p>
-            <button
-              onClick={() => removeItem(item.productId)}
-              className="text-smitten-text/30 hover:text-red-500"
-            >
-              ✕
-            </button>
           </div>
         ))}
       </div>

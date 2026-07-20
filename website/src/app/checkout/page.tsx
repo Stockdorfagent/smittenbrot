@@ -134,6 +134,7 @@ function CheckoutForm() {
   // Pickup day/date is derived from the order cutoff (not chosen by the customer).
   // Computed on the client after mount to avoid an SSR/hydration timezone mismatch.
   const [pickupLine, setPickupLine] = useState('');
+  const [pickupInstructions, setPickupInstructions] = useState('');
 
   // Discount state
   const [discountCode, setDiscountCode] = useState('');
@@ -160,6 +161,19 @@ function CheckoutForm() {
     const p = getNextPickup();
     setPickupLine(`Abholung: ${p.label} · ${p.cutoffLabel}`);
   }, []);
+
+  // Load the selected location's pickup instructions (shown on success).
+  useEffect(() => {
+    if (!state.pickupLocationId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('pickup_locations')
+        .select('pickup_instructions')
+        .eq('id', state.pickupLocationId)
+        .single();
+      if (data?.pickup_instructions) setPickupInstructions(data.pickup_instructions);
+    })();
+  }, [state.pickupLocationId]);
 
   const totalAfterDiscount = Math.max(0, totalCents - discountCents);
 
@@ -288,9 +302,9 @@ function CheckoutForm() {
           <p className="mt-1 text-sm text-amber-800">
             Deine Bestellnummer und die Rechnung erhältst du in Kürze per E-Mail.
           </p>
-          <p className="mt-1 text-xs text-amber-700/70">
-            Bitte nenne deinen Namen und die Bestellnummer bei der Abholung.
-          </p>
+          {pickupInstructions && (
+            <p className="mt-2 text-sm text-amber-800">{pickupInstructions}</p>
+          )}
         </div>
         <Link
           href="/products"

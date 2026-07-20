@@ -23,6 +23,7 @@ export interface PickupLocation {
   active: boolean;
   cabinet_code: string | null;
   notification_template: string;
+  pickup_instructions: string | null;
   sort_order: number;
 }
 

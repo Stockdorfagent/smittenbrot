@@ -221,6 +221,7 @@ function buildReceiptHtml(
   items: Array<{ quantity: number; unit_price_cents: number; name: string }>,
   invoiceNumber: string,
   fulfillmentDate: string,
+  pickupInstructions: string,
 ): string {
   const customerName = customer.name ?? "Kunde";
   const orderNumber = (order.order_number as string) || invoiceNumber;
@@ -281,6 +282,11 @@ function buildReceiptHtml(
           <tr><td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td><td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${(totalCents / 100).toFixed(2)}€</td></tr>
         </tfoot>
       </table>
+
+      <div style="background: #F3F4F6; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px; color: #1A1A1A;">
+        <p style="margin: 0 0 8px;"><strong>Abholinformation</strong></p>
+        <p style="margin: 0;">Deine Bestellung ist ab dem <strong>${formatIsoDe(fulfillmentDate)}</strong> abholbereit.<br>${pickupInstructions}</p>
+      </div>
 
       <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
       <p style="font-size: 11px; color: #6B7280; text-align: center;">
@@ -1010,8 +1016,13 @@ async function process10pmLock(): Promise<{
                 name: ((it.product as { name?: string } | null)?.name) ?? "Produkt",
               }));
               const fulfillmentDate = await getFulfillmentDateFromOrder(order.id);
+              const { data: pickupLoc } = fullOrder.pickup_location_id
+                ? await supabase.from("pickup_locations").select("pickup_instructions").eq("id", fullOrder.pickup_location_id as string).single()
+                : { data: null };
+              const pickupInstructions = (pickupLoc?.pickup_instructions as string) ||
+                "Deine Bestellnummer steht auf der Verpackung deiner Bestellung.";
 
-              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate);
+              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate, pickupInstructions);
 
               // Send via Brevo API directly
               const brevoPayload = {
