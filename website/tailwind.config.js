@@ -20,8 +20,12 @@ module.exports = {
         // inconsistently — clean/straight (Inter) for visitors without it,
         // rounder for machines that have it installed. Use Inter everywhere;
         // the wordmark is the logo image.
-        display: ['Inter', 'system-ui', 'sans-serif'],
-        body: ['Inter', 'system-ui', 'sans-serif'],
+        // var(--font-inter) is the actual next/font-loaded Inter (see layout.tsx).
+        // Referencing it guarantees font-display/font-body match the body font
+        // everywhere — the literal 'Inter' fallback would otherwise resolve to a
+        // locally-installed font (e.g. Donau) and render inconsistently.
+        display: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        body: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },
