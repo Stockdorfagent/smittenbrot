@@ -133,7 +133,7 @@ function CheckoutForm() {
   const [clientSecret, setClientSecret] = useState('');
   // Pickup day/date is derived from the order cutoff (not chosen by the customer).
   // Computed on the client after mount to avoid an SSR/hydration timezone mismatch.
-  const [pickupLabel, setPickupLabel] = useState('');
+  const [pickupLine, setPickupLine] = useState('');
 
   // Discount state
   const [discountCode, setDiscountCode] = useState('');
@@ -157,7 +157,8 @@ function CheckoutForm() {
   }, []);
 
   useEffect(() => {
-    setPickupLabel(getNextPickup().label);
+    const p = getNextPickup();
+    setPickupLine(`Abholung: ${p.label} · ${p.cutoffLabel}`);
   }, []);
 
   const totalAfterDiscount = Math.max(0, totalCents - discountCents);
@@ -330,8 +331,8 @@ function CheckoutForm() {
               </div>
             ))}
           </div>
-          {pickupLabel && (
-            <p className="mt-3 text-sm text-smitten-text/70">Abholung: <strong className="text-smitten-text">{pickupLabel}</strong></p>
+          {pickupLine && (
+            <p className="mt-3 text-sm text-smitten-text/70">{pickupLine}</p>
           )}
           {discountCents > 0 && (
             <div className="mt-2 flex justify-between text-sm text-green-600">
@@ -399,8 +400,8 @@ function CheckoutForm() {
             </div>
           ))}
         </div>
-        {pickupLabel && (
-          <p className="mt-3 text-sm text-smitten-text/70">Abholung: <strong className="text-smitten-text">{pickupLabel}</strong></p>
+        {pickupLine && (
+          <p className="mt-3 text-sm text-smitten-text/70">{pickupLine}</p>
         )}
         {(() => {
           const netTotal = Math.round(totalCents / 1.07);

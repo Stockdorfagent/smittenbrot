@@ -16,7 +16,11 @@ module.exports = {
         'smitten-text': '#1A1A1A',
       },
       fontFamily: {
-        display: ['Donau', 'Inter', 'system-ui', 'sans-serif'],
+        // "Donau" (the logo font) is not shipped as a webfont; it rendered
+        // inconsistently — clean/straight (Inter) for visitors without it,
+        // rounder for machines that have it installed. Use Inter everywhere;
+        // the wordmark is the logo image.
+        display: ['Inter', 'system-ui', 'sans-serif'],
         body: ['Inter', 'system-ui', 'sans-serif'],
       },
     },

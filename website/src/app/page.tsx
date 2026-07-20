@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [pickupLabel, setPickupLabel] = useState('');
+  const [pickup, setPickup] = useState<{ label: string; cutoffLabel: string } | null>(null);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -25,7 +25,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    setPickupLabel(getNextPickup().label);
+    const p = getNextPickup();
+    setPickup({ label: p.label, cutoffLabel: p.cutoffLabel });
   }, []);
 
   return (
@@ -34,12 +35,14 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-smitten-cream/70 to-white">
         <div className="max-w-4xl mx-auto px-4 pt-20 pb-16 md:pt-28 md:pb-24 text-center">
           <img
-            src="/logo.svg"
+            src="/small-logo.png"
             alt="Smittenbrot"
-            className="mx-auto h-40 md:h-56 w-auto"
+            className="mx-auto h-28 md:h-36 w-auto"
           />
-          <h1 className="sr-only">Smittenbrot — Sauerteig aus Stockdorf</h1>
-          <p className="mt-6 text-xs md:text-sm font-semibold uppercase tracking-[0.22em] text-smitten-primary">
+          <h1 className="mt-5 text-4xl md:text-5xl font-bold text-smitten-text">
+            Smittenbrot
+          </h1>
+          <p className="mt-2 text-base md:text-lg text-smitten-secondary">
             Sauerteig aus Stockdorf
           </p>
           <p className="mt-5 text-lg md:text-xl text-smitten-secondary max-w-xl mx-auto leading-relaxed">
@@ -60,9 +63,9 @@ export default function HomePage() {
               Abo einrichten
             </Link>
           </div>
-          {pickupLabel && (
+          {pickup && (
             <p className="mt-6 text-sm text-smitten-secondary">
-              Nächste mögliche Abholung: <strong className="text-smitten-text font-semibold">{pickupLabel}</strong>
+              Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
             </p>
           )}
         </div>

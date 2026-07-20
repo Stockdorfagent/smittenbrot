@@ -33,7 +33,7 @@ export default function RootLayout({
             <div className="max-w-5xl mx-auto px-4 py-12">
               <div className="flex flex-col items-center gap-8 md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col items-center gap-2 md:items-start">
-                  <img src="/logo.svg" alt="Smittenbrot" className="h-24 md:h-28 w-auto" />
+                  <img src="/small-logo.png" alt="Smittenbrot" className="h-20 md:h-24 w-auto" />
                   <p className="text-sm text-smitten-secondary">Sauerteig aus Stockdorf</p>
                 </div>
                 <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-smitten-secondary">

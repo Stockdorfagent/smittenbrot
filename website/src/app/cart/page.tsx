@@ -135,9 +135,9 @@ export default function CartPage() {
       </div>
 
       <div className="mt-6">
-        <label className="block text-sm font-medium text-smitten-text/70">Nächste Abholung</label>
+        <label className="block text-sm font-medium text-smitten-text/70">Abholung</label>
         <p className="mt-1 text-sm text-smitten-text">
-          <strong>{pickup.label}</strong> ({pickup.cutoffLabel})
+          <strong>{pickup.label}</strong> · {pickup.cutoffLabel}
         </p>
       </div>
 
