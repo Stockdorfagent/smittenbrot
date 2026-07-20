@@ -16,6 +16,33 @@ function getSupabaseAdmin() {
 
 const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
 
+/** "YYYY-MM-DDTHH:MM" wall-clock in Europe/Berlin (DST-correct). */
+function berlinWallClock(d: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+
+/**
+ * Cancellation cutoff wall-clock ("YYYY-MM-DDTHH:MM", Berlin) for a pickup
+ * date: two calendar days earlier at 22:00 (Wed pickup → Mon 22:00; Sat
+ * pickup → Thu 22:00). Matches the app's cancel-order edge function exactly.
+ */
+function cutoffWallClock(fulfillmentDate: string): string {
+  const [y, m, d] = fulfillmentDate.split('-').map(Number);
+  const cal = new Date(Date.UTC(y, m - 1, d));
+  cal.setUTCDate(cal.getUTCDate() - 2);
+  return `${cal.toISOString().slice(0, 10)}T22:00`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireUser(req);
@@ -52,11 +79,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bestellung wurde bereits storniert.' }, { status: 400 });
     }
 
-    // Check if order is before cutoff time
-    const now = new Date();
-    const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-    const fulfillmentDate = new Date(order.fulfillment_date + 'T14:00:00+02:00');
-    if (berlin > fulfillmentDate) {
+    // Cancellation cutoff — locks two calendar days before the pickup at 22:00
+    // Europe/Berlin (owner's stated fulfillment rule). Matches the app's
+    // cancel-order; string compare is safe (both are "YYYY-MM-DDTHH:MM").
+    if (berlinWallClock(new Date()) > cutoffWallClock(order.fulfillment_date)) {
       return NextResponse.json({ error: 'Bestellung kann nicht mehr storniert werden – für dich wird bereits gebacken.' }, { status: 400 });
     }
 

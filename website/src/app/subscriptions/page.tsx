@@ -98,6 +98,7 @@ export default function SubscriptionsPage() {
         .from('subscriptions')
         .select('*, subscription_items(*, products(name, price_cents)), pickup_locations(name, address)')
         .eq('customer_id', session.user.id)
+        .neq('status', 'cancelled') // hide fully-cancelled abos (cancellation_pending still shows)
         .order('created_at', { ascending: false });
       if (data) setSubscriptions(data as unknown as Subscription[]);
     }
