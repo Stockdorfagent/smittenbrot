@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
@@ -85,7 +85,9 @@ export default function HomeScreen() {
     }
   }, [user, pickup.day, pickup.date]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Refetch every time the tab regains focus (e.g. after placing/cancelling
+  // an order elsewhere), not just on first mount.
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   const onRefresh = async () => {
     setRefreshing(true);

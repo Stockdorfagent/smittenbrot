@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
@@ -34,7 +34,7 @@ export default function OrdersScreen() {
     setOrders((data ?? []) as unknown as OrderWithItems[]);
   }, [user]);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useFocusEffect(useCallback(() => { fetchOrders(); }, [fetchOrders]));
 
   const onRefresh = async () => {
     setRefreshing(true);

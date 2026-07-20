@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Platform, type ViewStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,7 +43,7 @@ export default function SubscriptionsScreen() {
     setSubscriptions((data ?? []) as any);
   }, [user]);
 
-  useEffect(() => { fetchSubscriptions(); }, [fetchSubscriptions]);
+  useFocusEffect(useCallback(() => { fetchSubscriptions(); }, [fetchSubscriptions]));
 
   const onRefresh = async () => {
     setRefreshing(true);
