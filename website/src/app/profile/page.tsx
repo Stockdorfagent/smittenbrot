@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [preferredLocation, setPreferredLocation] = useState('');
@@ -18,7 +19,21 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [reminderWed, setReminderWed] = useState(false);
   const [reminderSat, setReminderSat] = useState(true);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    const { error } = await supabase.functions.invoke('delete-account', { body: {} });
+    if (error) {
+      setDeleting(false);
+      alert('Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.');
+      return;
+    }
+    await supabase.auth.signOut();
+    router.push('/');
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -28,10 +43,11 @@ export default function ProfilePage() {
 
       const { data: customer } = await supabase
         .from('customers')
-        .select('name, preferred_pickup_location_id, reminder_wednesday, reminder_saturday')
+        .select('name, phone, preferred_pickup_location_id, reminder_wednesday, reminder_saturday')
         .eq('id', session.user.id)
         .single();
       if (customer?.name) setName(customer.name);
+      if (customer?.phone) setPhone(customer.phone);
       if (customer?.preferred_pickup_location_id) setPreferredLocation(customer.preferred_pickup_location_id);
       if (customer?.reminder_wednesday != null) setReminderWed(customer.reminder_wednesday);
       if (customer?.reminder_saturday != null) setReminderSat(customer.reminder_saturday);
@@ -55,6 +71,7 @@ export default function ProfilePage() {
       id: user.id,
       email,
       name,
+      phone: phone || null,
       preferred_pickup_location_id: preferredLocation || null,
       reminder_wednesday: reminderWed,
       reminder_saturday: reminderSat,
@@ -82,6 +99,12 @@ export default function ProfilePage() {
           <input type="text" value={name} onChange={e => setName(e.target.value)}
             className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
             placeholder="Dein Name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-smitten-text/70">Telefon (optional)</label>
+          <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            placeholder="Für Rückfragen zur Abholung" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Bevorzugter Abholort</label>
@@ -149,6 +172,35 @@ export default function ProfilePage() {
           <p className="font-medium text-red-600">Abmelden</p>
           <p className="text-sm text-red-400">Von deinem Konto abmelden</p>
         </button>
+      </div>
+
+      {/* ── Konto löschen (DSGVO Art. 17) ── */}
+      <div className="mt-10 pt-6 border-t border-smitten-cream">
+        {!confirmingDelete ? (
+          <button onClick={() => setConfirmingDelete(true)}
+            className="text-sm text-red-500 underline hover:text-red-600">
+            Konto löschen
+          </button>
+        ) : (
+          <div className="rounded-xl border border-red-200 bg-white p-5">
+            <p className="font-medium text-smitten-text">Konto endgültig löschen?</p>
+            <p className="mt-2 text-sm text-smitten-text/70">
+              Dein Konto und deine persönlichen Daten (Profil, gespeicherte Zahlungsmethode, Abos)
+              werden gelöscht. Rechnungen bewahren wir aus gesetzlichen Gründen (§ 147 AO) acht Jahre
+              auf. Dies kann nicht rückgängig gemacht werden.
+            </p>
+            <div className="mt-4 flex gap-3">
+              <button onClick={() => setConfirmingDelete(false)} disabled={deleting}
+                className="flex-1 rounded-full border border-smitten-cream py-2.5 text-sm font-medium text-smitten-text hover:bg-smitten-cream disabled:opacity-50 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={handleDeleteAccount} disabled={deleting}
+                className="flex-1 rounded-full bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {deleting ? 'Wird gelöscht…' : 'Ja, löschen'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

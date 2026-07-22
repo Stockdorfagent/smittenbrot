@@ -1,13 +1,94 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
+import { LocationDropdown } from '@/components/LocationDropdown';
+import type { PickupLocation } from '@/lib/types';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
+  const [deleting, setDeleting] = useState(false);
+
+  // Editable profile fields
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [preferredLocation, setPreferredLocation] = useState<string | null>(null);
+  const [locations, setLocations] = useState<PickupLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ data: customer }, { data: locs }] = await Promise.all([
+        supabase.from('customers')
+          .select('name, phone, preferred_pickup_location_id')
+          .eq('id', user.id).single(),
+        supabase.from('pickup_locations')
+          .select('*').eq('active', true).order('sort_order', { ascending: true }),
+      ]);
+      if (customer) {
+        setName(customer.name ?? '');
+        setPhone(customer.phone ?? '');
+        setPreferredLocation(customer.preferred_pickup_location_id ?? null);
+      }
+      if (locs) setLocations(locs);
+      setLoading(false);
+    })();
+  }, [user?.id]);
+
+  const handleSave = async () => {
+    if (!user || !name.trim()) return;
+    setSaving(true);
+    setSaved(false);
+    const { error } = await supabase.from('customers').upsert({
+      id: user.id,
+      email: user.email,
+      name: name.trim(),
+      phone: phone.trim() || null,
+      preferred_pickup_location_id: preferredLocation,
+    });
+    setSaving(false);
+    if (error) {
+      Alert.alert('Fehler', 'Speichern fehlgeschlagen. Bitte später erneut versuchen.');
+      return;
+    }
+    await refreshUser();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Konto löschen?',
+      'Dein Konto und deine persönlichen Daten (Profil, gespeicherte Zahlungsmethode, Abos) werden gelöscht. Rechnungen bewahren wir aus gesetzlichen Gründen 8 Jahre auf. Dies kann nicht rückgängig gemacht werden.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Konto löschen',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            const { error } = await supabase.functions.invoke('delete-account', { body: {} });
+            setDeleting(false);
+            if (error) {
+              Alert.alert('Fehler', 'Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.');
+              return;
+            }
+            await signOut();
+            router.replace('/login');
+          },
+        },
+      ],
+    );
+  };
 
   if (!user) {
     return (
@@ -34,20 +115,29 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Konto</Text>
-          <ProfileRow label="Name" value={user.name} />
           <ProfileRow label="E-Mail" value={user.email} />
+          {loading ? (
+            <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.md }} />
+          ) : (
+            <View style={{ marginTop: theme.spacing.md }}>
+              <Input label="Name" value={name} onChangeText={setName} placeholder="Dein Name" />
+              <Input label="Telefon (optional)" value={phone} onChangeText={setPhone}
+                placeholder="Für Rückfragen zur Abholung" keyboardType="phone-pad" />
+              <Text style={styles.fieldLabel}>Bevorzugter Abholort</Text>
+              <LocationDropdown locations={locations} selectedId={preferredLocation} onSelect={setPreferredLocation} />
+              <Button
+                title={saving ? 'Wird gespeichert…' : saved ? '✓ Gespeichert' : 'Speichern'}
+                onPress={handleSave}
+                disabled={saving || !name.trim()}
+                size="md"
+                style={{ marginTop: theme.spacing.md }}
+              />
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Einstellungen</Text>
-          <TouchableOpacity style={styles.row}>
-            <Text style={styles.rowLabel}>Zahlungsmethoden</Text>
-            <Text style={styles.rowArrow}>→</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.row}>
-            <Text style={styles.rowLabel}>Benachrichtigungen</Text>
-            <Text style={styles.rowArrow}>→</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/(tabs)/orders')}>
             <Text style={styles.rowLabel}>Bestellhistorie</Text>
             <Text style={styles.rowArrow}>→</Text>
@@ -65,6 +155,16 @@ export default function ProfileScreen() {
             size="md"
           />
         </View>
+
+        <TouchableOpacity
+          style={styles.deleteRow}
+          onPress={handleDeleteAccount}
+          disabled={deleting}
+        >
+          <Text style={styles.deleteText}>
+            {deleting ? 'Wird gelöscht…' : 'Konto löschen'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -142,6 +242,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: theme.spacing.md,
   },
+  fieldLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -176,5 +282,15 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     minWidth: 200,
+  },
+  deleteRow: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    marginTop: theme.spacing.xs,
+  },
+  deleteText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    textDecorationLine: 'underline',
   },
 });

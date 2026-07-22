@@ -132,6 +132,20 @@ function berlinWallClock(d: Date): string {
 }
 
 /**
+ * Current hour (0–23) in Europe/Berlin.
+ *
+ * Used by the cron DST guard: Supabase pg_cron only understands UTC and
+ * rejects CRON_TZ, so the time-sensitive jobs are scheduled at BOTH the
+ * summer and winter UTC hours (e.g. lock at 20:00 AND 21:00 UTC). Only the
+ * firing whose Berlin-local hour matches the intended time does the work;
+ * the other is a no-op. This keeps the 22:00 lock/charge aligned with the
+ * "Bestellschluss 22:00" shown to customers year-round.
+ */
+function berlinHour(): number {
+  return parseInt(berlinWallClock(new Date()).slice(11, 13), 10);
+}
+
+/**
  * Next date (YYYY-MM-DD, Europe/Berlin) for a SPECIFIC pickup weekday whose
  * order cutoff (two days before at 22:00) is still in the future. Used when a
  * subscription's order is generated on demand (e.g. at subscription creation).
@@ -1605,6 +1619,32 @@ serve(async (req: Request): Promise<Response> => {
   // compatibility with different cron trigger setups.
   const actionParam = url.searchParams.get("action");
   const action = actionParam ?? path.split("/").pop() ?? "";
+
+  // ── DST guard for the time-sensitive cron actions ──
+  // Each is cron-scheduled at both the summer and winter UTC hours; only the
+  // firing that lands on the intended Berlin-local hour proceeds, the other is
+  // a no-op. `?force=1` bypasses the guard for manual/testing invocation.
+  const GUARDED_HOURS: Record<string, number> = {
+    "process-12pm-reminders": 12,
+    "process_12pm_reminders": 12,
+    "process-8pm-order-placement": 20,
+    "process_8pm_order_placement": 20,
+    "process-10pm-lock": 22,
+    "process_10pm_lock": 22,
+  };
+  const expectedHour = GUARDED_HOURS[action];
+  if (expectedHour !== undefined && url.searchParams.get("force") !== "1") {
+    const h = berlinHour();
+    if (h !== expectedHour) {
+      return new Response(
+        JSON.stringify({
+          skipped: true,
+          reason: `DST guard: Berlin hour ${h} != expected ${expectedHour}. No-op firing of the dual UTC schedule.`,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
 
   try {
     switch (action) {

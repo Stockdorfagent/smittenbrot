@@ -23,6 +23,7 @@ interface Subscription {
   paused_until: string | null;
   created_at: string;
   pickup_location_id: string;
+  pickup_day: string | null;
   pickup_locations?: { name: string; address: string };
   subscription_items?: SubItem[];
 }
@@ -40,28 +41,6 @@ const statusColors: Record<string, string> = {
   cancellation_pending: 'bg-orange-100 text-orange-700',
   cancelled: 'bg-gray-100 text-gray-500',
 };
-
-function getNextPickupDay(): string {
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-  const day = now.getDay();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const time = hours * 60 + minutes;
-
-  // Mon before 22:00 → Wednesday
-  if (day === 1 && time < 22 * 60) return 'Mittwoch';
-  // Mon after 22:00, Tue, Wed → Saturday
-  if ((day === 1 && time >= 22 * 60) || day === 2) return 'Samstag';
-  // Wed → depends on time
-  if (day === 3) {
-    if (time < 22 * 60) return 'Mittwoch'; // Saturday would be wrong here
-    return 'Samstag';
-  }
-  // Thu before 22:00 → Saturday
-  if (day === 4 && time < 22 * 60) return 'Samstag';
-  // Thu after 22:00, Fri, Sat, Sun → next Wednesday
-  return 'Mittwoch';
-}
 
 export default function SubscriptionsPage() {
   const [user, setUser] = useState<unknown>(null);
@@ -127,6 +106,7 @@ export default function SubscriptionsPage() {
     const { data: sub } = await supabase.from('subscriptions').insert({
       customer_id: session.user.id,
       pickup_location_id: pending.pickupLocationId,
+      pickup_day: pending.pickupDay ?? 'wednesday',
       status: 'active',
       stripe_setup_intent_id: setupIntent.id,
     }).select().single();
@@ -258,9 +238,9 @@ export default function SubscriptionsPage() {
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[sub.status] || 'bg-gray-100 text-gray-500'}`}>
                       {statusLabels[sub.status] || sub.status}
                     </span>
-                    {sub.status === 'active' && (
+                    {(sub.status === 'active' || sub.status === 'paused') && (
                       <span className="ml-2 text-xs text-smitten-text/40">
-                        Nächste Abholung: <strong>{getNextPickupDay()}</strong>
+                        Abholtag: <strong>{sub.pickup_day === 'saturday' ? 'Samstag' : 'Mittwoch'}</strong>
                       </span>
                     )}
                   </div>

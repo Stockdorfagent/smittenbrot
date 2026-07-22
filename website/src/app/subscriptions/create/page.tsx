@@ -197,6 +197,7 @@ function SubscriptionCreateForm() {
     const { data: newSub, error: subError } = await supabase.from('subscriptions').insert({
       customer_id: user.id,
       pickup_location_id: selectedLocation,
+      pickup_day: pickupDay,
       status: 'active',
     }).select().single();
 

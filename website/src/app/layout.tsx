@@ -43,6 +43,7 @@ export default function RootLayout({
                 </div>
                 {/* Right: legal links */}
                 <nav className="order-3 flex flex-wrap justify-center md:justify-end gap-x-5 gap-y-2 text-sm text-smitten-secondary">
+                  <a href="/faq" className="hover:text-smitten-primary transition-colors">FAQ</a>
                   <a href="/impressum" className="hover:text-smitten-primary transition-colors">Impressum</a>
                   <a href="/datenschutz" className="hover:text-smitten-primary transition-colors">Datenschutz</a>
                   <a href="/zahlung-abholung" className="hover:text-smitten-primary transition-colors">Zahlung</a>
