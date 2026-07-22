@@ -14,7 +14,8 @@
       "bundleIdentifier": "de.smittenbrot.app",
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not need camera access.",
-        "NSPhotoLibraryUsageDescription": "This app does not need photo library access."
+        "NSPhotoLibraryUsageDescription": "This app does not need photo library access.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
