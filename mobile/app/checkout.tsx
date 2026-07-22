@@ -73,6 +73,13 @@ export default function CheckoutScreen() {
         customerEphemeralKeySecret: ephemeralKey,
         returnURL: 'smittenbrot://stripe-redirect',
         allowsDelayedPaymentMethods: false,
+        googlePay: {
+          merchantCountryCode: 'DE',
+          currencyCode: 'EUR',
+          // Google Pay test environment while on Stripe test keys; auto-flips
+          // to production when the publishable key becomes pk_live at launch.
+          testEnv: !(process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').startsWith('pk_live'),
+        },
       });
       if (initResult.error) {
         Alert.alert('Fehler', initResult.error.message);

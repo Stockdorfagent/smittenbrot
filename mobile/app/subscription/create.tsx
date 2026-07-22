@@ -121,6 +121,12 @@ export default function SubscriptionCreateScreen() {
           customerId: si.customerId,
           customerEphemeralKeySecret: si.ephemeralKey,
           returnURL: 'smittenbrot://stripe-redirect',
+          googlePay: {
+            merchantCountryCode: 'DE',
+            currencyCode: 'EUR',
+            // Test env on Stripe test keys; auto-flips to production at launch.
+            testEnv: !(process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').startsWith('pk_live'),
+          },
         });
         if (init.error) {
           Alert.alert('Fehler', init.error.message);
