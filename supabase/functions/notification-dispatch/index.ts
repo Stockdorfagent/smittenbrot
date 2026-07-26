@@ -21,6 +21,8 @@ const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "sophia@smittenbrot.de";
+// Public site URL — used to build the email unsubscribe link.
+const SITE_URL = (Deno.env.get("SITE_URL") ?? "https://smittenbrot-website.vercel.app").replace(/\/+$/, "");
 
 // ── Clients ──────────────────────────────────────────────────
 
@@ -817,13 +819,25 @@ const NOTIFICATION_TEMPLATES: Record<
   string,
   (data: Record<string, unknown>) => { title: string; body: string }
 > = {
-  subscription_reminder: (d) => ({
-    title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
-    body:
+  subscription_reminder: (d) => {
+    const text =
       `Dein Smittenbrot-Abo wird heute um 20:00 Uhr als Bestellung` +
       `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben. ` +
-      `Änderungen oder Stornierung sind bis 22:00 Uhr möglich.`,
-  }),
+      `Änderungen oder Stornierung sind bis 22:00 Uhr möglich.`;
+    // EU opt-out: reminder emails carry an unsubscribe link (unguessable token).
+    // Transactional mails (invoice, order, cancellation) intentionally do NOT.
+    const unsub =
+      d.customer_id && d.unsubscribe_token
+        ? `<p style="margin-top:24px;font-size:12px;color:#6B7280">` +
+          `Keine Bestell-Erinnerungen mehr? ` +
+          `<a href="${SITE_URL}/abmelden?c=${d.customer_id}&t=${d.unsubscribe_token}" style="color:#6B7280;text-decoration:underline">Hier abmelden</a>.` +
+          `</p>`
+        : "";
+    return {
+      title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
+      body: `<p style="margin:0">${text}</p>${unsub}`,
+    };
+  },
   order_placed: (d) => ({
     title: "Deine Abo-Bestellung wurde aufgegeben",
     body:

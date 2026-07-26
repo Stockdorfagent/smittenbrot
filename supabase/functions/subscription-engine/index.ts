@@ -499,7 +499,9 @@ async function process12pmReminders(): Promise<{
         id,
         email,
         name,
-        push_token
+        push_token,
+        reminder_email,
+        unsubscribe_token
       )
     `)
     .eq("status", "active")
@@ -529,17 +531,31 @@ async function process12pmReminders(): Promise<{
         email: string;
         name: string;
         push_token: string | null;
+        reminder_email: boolean | null;
+        unsubscribe_token: string | null;
       };
 
-      // Determine notification channel based on push_token availability
-      const channel = customer.push_token ? "both" : "email";
+      // Respect the customer's email-reminder preference (default on).
+      // Push (if a device token exists) is unaffected by this toggle.
+      const emailOn = customer.reminder_email !== false;
+      const hasPush = !!(customer.push_token && customer.push_token.trim());
+      let channel: string;
+      if (hasPush && emailOn) channel = "both";
+      else if (hasPush) channel = "push";
+      else if (emailOn) channel = "email";
+      else continue; // opted out of email and no push device — nothing to send
 
-      // Send the reminder (push/email + logging) via notification-dispatch
+      // Send the reminder (push/email + logging) via notification-dispatch.
+      // Pass unsubscribe info so the email can include an opt-out link.
       await dispatchNotification(
         customer.id,
         "subscription_reminder",
         channel,
-        { fulfillment_date: fulfillmentDate },
+        {
+          fulfillment_date: fulfillmentDate,
+          customer_id: customer.id,
+          unsubscribe_token: customer.unsubscribe_token,
+        },
       );
 
       processed++;
@@ -600,7 +616,9 @@ async function process8pmOrderPlacement(): Promise<{
         id,
         email,
         name,
-        push_token
+        push_token,
+        reminder_email,
+        unsubscribe_token
       )
     `)
     .eq("status", "active")

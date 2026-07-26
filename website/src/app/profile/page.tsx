@@ -17,8 +17,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [reminderWed, setReminderWed] = useState(false);
-  const [reminderSat, setReminderSat] = useState(true);
+  const [reminderEmail, setReminderEmail] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
@@ -43,14 +42,13 @@ export default function ProfilePage() {
 
       const { data: customer } = await supabase
         .from('customers')
-        .select('name, phone, preferred_pickup_location_id, reminder_wednesday, reminder_saturday')
+        .select('name, phone, preferred_pickup_location_id, reminder_email')
         .eq('id', session.user.id)
         .single();
       if (customer?.name) setName(customer.name);
       if (customer?.phone) setPhone(customer.phone);
       if (customer?.preferred_pickup_location_id) setPreferredLocation(customer.preferred_pickup_location_id);
-      if (customer?.reminder_wednesday != null) setReminderWed(customer.reminder_wednesday);
-      if (customer?.reminder_saturday != null) setReminderSat(customer.reminder_saturday);
+      if (customer?.reminder_email != null) setReminderEmail(customer.reminder_email);
 
       const { data: locs } = await supabase
         .from('pickup_locations')
@@ -73,8 +71,7 @@ export default function ProfilePage() {
       name,
       phone: phone || null,
       preferred_pickup_location_id: preferredLocation || null,
-      reminder_wednesday: reminderWed,
-      reminder_saturday: reminderSat,
+      reminder_email: reminderEmail,
     });
     setSaving(false);
     setSaved(true);
@@ -119,27 +116,19 @@ export default function ProfilePage() {
 
         {/* ── Reminder preferences ── */}
         <div className="pt-4 border-t border-smitten-cream">
-          <p className="text-sm font-medium text-smitten-text/70 mb-3">Bestell-Erinnerungen per E-Mail</p>
-          <label className="flex items-start gap-3 mb-3 cursor-pointer">
-            <input type="checkbox" checked={reminderWed}
-              onChange={e => setReminderWed(e.target.checked)}
-              className="mt-0.5 accent-smitten-accent" />
-            <div>
-              <p className="text-sm font-medium text-smitten-text">Ja, erinnere mich an die Montags-Bestellung</p>
-              <p className="text-xs text-smitten-text/60">für Mittwoch-Abholung · E-Mail am Montag um 12:00</p>
-            </div>
-          </label>
           <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" checked={reminderSat}
-              onChange={e => setReminderSat(e.target.checked)}
+            <input type="checkbox" checked={reminderEmail}
+              onChange={e => setReminderEmail(e.target.checked)}
               className="mt-0.5 accent-smitten-accent" />
             <div>
-              <p className="text-sm font-medium text-smitten-text">Ja, erinnere mich an die Donnerstags-Bestellung</p>
-              <p className="text-xs text-smitten-text/60">für Samstag-Abholung · E-Mail am Donnerstag um 12:00</p>
+              <p className="text-sm font-medium text-smitten-text">Bestell-Erinnerungen per E-Mail</p>
+              <p className="text-xs text-smitten-text/60">
+                Erinnerung, bevor deine Abo-Bestellung aufgegeben wird.
+              </p>
             </div>
           </label>
-          {!reminderWed && !reminderSat && (
-            <p className="text-xs text-smitten-secondary mt-2">Du erhältst keine Bestell-Erinnerungen.</p>
+          {!reminderEmail && (
+            <p className="text-xs text-smitten-secondary mt-2">Du erhältst keine Bestell-Erinnerungen per E-Mail.</p>
           )}
         </div>
 
