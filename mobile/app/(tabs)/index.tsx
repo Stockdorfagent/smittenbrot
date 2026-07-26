@@ -72,12 +72,22 @@ export default function HomeScreen() {
         .limit(1);
       setActiveSubscription((subs?.[0] as Subscription) ?? null);
 
+      // Only pickups that are still upcoming (today or later). Without this,
+      // a paid order that was never marked fulfilled keeps showing as the
+      // "next pickup" even after its pickup date has passed. Device clock =
+      // Berlin (Germany-only); format manually — no Intl (Hermes).
+      const now = new Date();
+      const todayStr =
+        `${now.getFullYear()}-` +
+        `${String(now.getMonth() + 1).padStart(2, '0')}-` +
+        `${String(now.getDate()).padStart(2, '0')}`;
       const { data: order } = await supabase
         .from('orders')
         .select('*')
         .eq('customer_id', user.id)
         .eq('payment_status', 'paid')
         .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production'])
+        .gte('fulfillment_date', todayStr)
         .order('fulfillment_date', { ascending: true })
         .limit(1)
         .maybeSingle();
