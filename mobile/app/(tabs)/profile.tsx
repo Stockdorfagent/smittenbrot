@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { LocationDropdown } from '@/components/LocationDropdown';
+import { ReminderSettings } from '@/components/ReminderSettings';
 import type { PickupLocation } from '@/lib/types';
 
 export default function ProfileScreen() {
@@ -135,6 +136,8 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        <ReminderSettings />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Einstellungen</Text>
