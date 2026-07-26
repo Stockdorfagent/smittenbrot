@@ -147,7 +147,17 @@ export default function HomeScreen() {
 
         {activeSubscription && (
           <TouchableOpacity style={styles.infoCard} onPress={() => router.push('/(tabs)/subscriptions')}>
-            <View style={styles.infoDot} />
+            <View
+              style={[
+                styles.infoDot,
+                {
+                  backgroundColor:
+                    activeSubscription.status === 'paused'
+                      ? theme.colors.textLight
+                      : theme.colors.success,
+                },
+              ]}
+            />
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoTitle}>
                 {activeSubscription.status === 'paused' ? 'Abonnement pausiert' : 'Aktives Abonnement'}
@@ -241,7 +251,7 @@ const styles = StyleSheet.create({
   infoTextWrap: { flex: 1 },
   infoTitle: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
   infoSub: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
-  infoAction: { fontSize: theme.fontSize.sm, color: theme.colors.primary, marginTop: 2 },
+  infoAction: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
