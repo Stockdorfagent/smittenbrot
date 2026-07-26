@@ -68,9 +68,7 @@ export function ReminderSettings() {
       <View style={styles.toggleRow}>
         <View style={{ flex: 1, paddingRight: theme.spacing.md }}>
           <Text style={styles.rowLabel}>Bestell-Erinnerung</Text>
-          <Text style={styles.hint}>
-            Wir schicken dir wöchentlich eine freundliche Erinnerung, dein Brot zu bestellen.
-          </Text>
+          <Text style={styles.hint}>Wöchentliche Push-Benachrichtigung – Tag und Uhrzeit wählbar.</Text>
         </View>
         <Switch
           value={prefs.enabled}
