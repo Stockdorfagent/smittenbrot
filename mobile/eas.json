@@ -1,7 +1,8 @@
 {
   "cli": {
     "version": ">= 3.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "local",
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
@@ -40,6 +41,13 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6793602303",
+        "ascApiKeyPath": "../../.credentials/AuthKey_34SGY4WGML.p8",
+        "ascApiKeyId": "34SGY4WGML",
+        "ascApiKeyIssuerId": "e19e70b9-c539-41c0-bece-a17bbe76fcfa"
+      }
+    }
   }
 }

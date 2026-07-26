@@ -16,7 +16,8 @@
         "NSCameraUsageDescription": "This app does not need camera access.",
         "NSPhotoLibraryUsageDescription": "This app does not need photo library access.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "3"
     },
     "android": {
       "adaptiveIcon": {
