@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { AdminOrderAlerts } from '@/components/AdminOrderAlerts';
 
 export default function TabLayout() {
   const { itemCount } = useCart();
@@ -15,7 +16,10 @@ export default function TabLayout() {
   if (!user) return <Redirect href="/login" />;
 
   return (
-    <Tabs
+    <>
+      {/* Admin-only: ka-ching + notification on new paid orders (renders null) */}
+      <AdminOrderAlerts />
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -68,6 +72,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
-    </Tabs>
+      </Tabs>
+    </>
   );
 }

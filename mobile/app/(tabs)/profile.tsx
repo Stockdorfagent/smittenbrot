@@ -139,6 +139,16 @@ export default function ProfileScreen() {
 
         <ReminderSettings />
 
+        {user.is_admin && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Administration</Text>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/admin-bakeday')}>
+              <Text style={styles.rowLabel}>Backtag-Übersicht</Text>
+              <Text style={styles.rowArrow}>→</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Einstellungen</Text>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/(tabs)/orders')}>

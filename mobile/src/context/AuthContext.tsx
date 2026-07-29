@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: profile.id,
             email: profile.email,
             name: profile.name,
-            is_admin: false,
+            is_admin: profile.is_admin ?? false,
           },
           loading: false,
         });
