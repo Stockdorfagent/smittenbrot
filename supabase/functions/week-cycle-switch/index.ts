@@ -179,12 +179,12 @@ serve(async (req: Request) => {
 
   log("info", `Request: POST ${path}`);
 
-  switch (path) {
-    case "/":
-      return await handleToggle();
-    case "/current":
-      return await handleCurrent();
-    default:
-      return jsonResponse({ error: "Not found" }, 404);
+  // Supabase mounts the function at /week-cycle-switch, so match the last
+  // path segment rather than an exact "/" (which never matches when deployed).
+  const action = path.replace(/\/+$/, "").split("/").pop() ?? "";
+  if (action === "current") {
+    return await handleCurrent();
   }
+  // Root (…/week-cycle-switch) → toggle. This is what the cron calls.
+  return await handleToggle();
 });
