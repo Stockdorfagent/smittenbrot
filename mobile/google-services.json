@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "136611897890",
+    "project_id": "smittenbrot",
+    "storage_bucket": "smittenbrot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136611897890:android:f2ded22ea56908e29f207b",
+        "android_client_info": {
+          "package_name": "de.smittenbrot.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJ62nUs5zenyB1EdJiZFpJjqtFOYjS8p0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
