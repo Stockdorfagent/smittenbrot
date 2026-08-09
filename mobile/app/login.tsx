@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { user, signIn, signUp, signInWithMagicLink, resetPassword } = useAuth();
+  const { user, signIn, signUp, resetPassword } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,22 +53,6 @@ export default function LoginScreen() {
     setError(err ?? 'Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts geschickt.');
   };
 
-  const handleMagicLink = async () => {
-    if (!email) {
-      setError('Bitte E-Mail-Adresse eingeben');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    const { error: err } = await signInWithMagicLink(email);
-    setLoading(false);
-    if (err) {
-      setError(err);
-    } else {
-      setError('Prüfe deine E-Mails für den Login-Link');
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -99,7 +83,7 @@ export default function LoginScreen() {
                 <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotLink}>
                   <Text style={styles.forgotText}>Passwort vergessen?</Text>
                 </TouchableOpacity>
-                <Button title="Magic Link senden" onPress={handleMagicLink} variant="ghost" size="sm" loading={loading} />
+                <Button title="Mit Code anmelden (ohne Passwort)" onPress={() => router.push('/code-login')} variant="ghost" size="sm" />
               </>
             )}
             {isRegister && (
