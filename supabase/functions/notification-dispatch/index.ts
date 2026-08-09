@@ -310,8 +310,14 @@ export async function send_notification(
     }
   }
 
-  // Log to notifications table
-  const hasError =
+  // Log to notifications table. "delivered" means the customer was reached
+  // via AT LEAST ONE channel — so an email that sent is not marked undelivered
+  // just because push failed. Any channel failure is still recorded in `error`
+  // (even when delivered=true) so push problems stay visible for monitoring.
+  const emailOk = emailResult?.success === true;
+  const pushOk = pushResult?.success === true;
+  const delivered = emailOk || pushOk;
+  const anyFailed =
     emailResult?.success === false || pushResult?.success === false;
 
   const { error: logError } = await supabase.from("notifications").insert({
@@ -319,9 +325,9 @@ export async function send_notification(
     type,
     channel: effectiveChannel === "none" ? channel : effectiveChannel,
     sent_at: new Date().toISOString(),
-    delivered: !hasError,
-    error: hasError
-      ? JSON.stringify({ email: emailResult?.error, push: pushResult?.error })
+    delivered,
+    error: anyFailed
+      ? JSON.stringify({ email: emailResult?.error ?? null, push: pushResult?.error ?? null })
       : null,
   });
 
@@ -329,7 +335,7 @@ export async function send_notification(
     log("error", `Failed to log notification for customer ${customerId}: ${logError.message}`);
   }
 
-  const success = !hasError && effectiveChannel !== "none";
+  const success = delivered;
 
   return {
     success,
