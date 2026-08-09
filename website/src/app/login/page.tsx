@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [code, setCode] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -103,7 +104,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.message === 'Invalid login credentials') {
-        setError('Schön, dass du wieder da bist! Ich habe meine Website erneuert – bitte wähle ein neues Passwort.');
+        setError('Schön, dass du wieder da bist! Am einfachsten meldest du dich ohne Passwort an – tippe unten auf „Ohne Passwort anmelden – Code per E-Mail". Oder setze über „Passwort vergessen?" ein neues Passwort.');
       } else {
         setError(error.message);
       }
@@ -160,18 +161,39 @@ export default function LoginPage() {
     setLoading(false);
   }
 
-  const handleMagicLink = async () => {
+  const handleSendCode = async () => {
     if (!email) return;
     setLoading(true);
     setError('');
-
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    // Existing customers only (no silent account creation on a typo);
+    // new customers use "Registrieren".
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
     if (error) {
-      setError(error.message);
+      setError(
+        /not allowed|signups/i.test(error.message)
+          ? 'Für diese E-Mail gibt es noch kein Konto. Bitte registriere dich zuerst.'
+          : error.message,
+      );
     } else {
       setMagicLinkSent(true);
     }
     setLoading(false);
+  };
+
+  const handleVerifyCode = async () => {
+    if (code.length < 6) return;
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    if (error) {
+      setError('Code ungültig oder abgelaufen. Bitte fordere einen neuen an.');
+      setLoading(false);
+      return;
+    }
+    router.push('/');
   };
 
   const handleOAuth = async (provider: 'google' | 'apple') => {
@@ -268,19 +290,47 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-6 text-center">
-        {!magicLinkSent ? (
-          <button
-            onClick={handleMagicLink}
-            disabled={!email || loading}
-            className="text-sm text-smitten-secondary hover:underline disabled:opacity-50"
-          >
-            Magischen Link senden
-          </button>
-        ) : (
-          <p className="text-sm text-green-600">Magic Link gesendet! Prüfe dein E-Mail-Postfach.</p>
-        )}
-      </div>
+      {mode === 'login' && (
+        <div className="mt-4">
+          {!magicLinkSent ? (
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={!email || loading}
+              className="w-full border border-smitten-primary text-smitten-primary py-2.5 rounded-full text-sm font-medium hover:bg-smitten-primary/5 transition-colors disabled:opacity-50"
+            >
+              Ohne Passwort anmelden – Code per E-Mail
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-smitten-text/70">Code aus der E-Mail</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                placeholder="123456"
+                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-center text-lg tracking-widest bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+              />
+              <button
+                type="button"
+                onClick={handleVerifyCode}
+                disabled={code.length < 6 || loading}
+                className="w-full bg-smitten-primary text-white py-2.5 rounded-full text-sm font-medium hover:bg-smitten-primary/90 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Wird geprüft...' : 'Anmelden'}
+              </button>
+              <p className="text-xs text-smitten-text/50 text-center">
+                6-stelligen Code aus der E-Mail eingeben – oder den Link in der E-Mail antippen. Du bleibst danach angemeldet.
+              </p>
+              <button type="button" onClick={handleSendCode} disabled={loading}
+                className="w-full text-xs text-smitten-secondary hover:underline disabled:opacity-50">
+                Code erneut senden
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {false && (<>
       <div className="mt-6 relative">
