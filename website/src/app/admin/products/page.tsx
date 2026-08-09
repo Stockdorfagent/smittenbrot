@@ -25,6 +25,7 @@ export default function AdminProductsPage() {
     cycle: 'permanent' as string,
     available_wed: true,
     available_sat: true,
+    subscribable: true,
     active: false,
   });
   const [uploading, setUploading] = useState(false);
@@ -140,6 +141,7 @@ export default function AdminProductsPage() {
         cycle: editForm.cycle,
         available_wed: editForm.available_wed,
         available_sat: editForm.available_sat,
+        subscribable: editForm.subscribable,
         active: editForm.active,
       })
       .eq('id', editingId);
@@ -212,6 +214,7 @@ export default function AdminProductsPage() {
         cycle: newForm.cycle,
         available_wed: newForm.available_wed,
         available_sat: newForm.available_sat,
+        subscribable: newForm.subscribable,
         active: newForm.active,
       })
       .select()
@@ -227,7 +230,7 @@ export default function AdminProductsPage() {
         }
       }
       setCreating(false);
-      setNewForm({ name: '', description: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, active: false });
+      setNewForm({ name: '', description: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, subscribable: true, active: false });
       setNewPhoto(null);
       loadProducts();
     }
@@ -309,6 +312,7 @@ export default function AdminProductsPage() {
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_sat} onChange={e => setNewForm({...newForm, available_sat: e.target.checked})} className="rounded" /> Samstag</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.subscribable} onChange={e => setNewForm({...newForm, subscribable: e.target.checked})} className="rounded" /> Abo-fähig</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.active} onChange={e => setNewForm({...newForm, active: e.target.checked})} className="rounded" /> Aktiv</label>
           </div>
           <div className="flex gap-2">
@@ -443,6 +447,15 @@ export default function AdminProductsPage() {
                       className="rounded border-smitten-cream text-smitten-text focus:ring-smitten-accent"
                     />
                     Samstag
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-smitten-text">
+                    <input
+                      type="checkbox"
+                      checked={editForm.subscribable !== false}
+                      onChange={(e) => setEditForm({ ...editForm, subscribable: e.target.checked })}
+                      className="rounded border-smitten-cream text-smitten-text focus:ring-smitten-accent"
+                    />
+                    Abo-fähig
                   </label>
                   <label className="flex items-center gap-2 text-sm text-smitten-text">
                     <input

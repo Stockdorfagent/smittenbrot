@@ -40,6 +40,7 @@ export interface Product {
   cycle: ProductCycle;
   available_wed: boolean;
   available_sat: boolean;
+  subscribable: boolean;
   active: boolean;
   cover_image_url: string | null;
   images: string[];

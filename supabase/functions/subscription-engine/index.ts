@@ -541,11 +541,12 @@ async function process12pmReminders(): Promise<{
       // their week. If nothing is due this week, skip the reminder entirely.
       const { data: rawItems } = await supabase
         .from("subscription_items")
-        .select(`quantity, products!inner ( name, cycle, ${pickupDayColumn} )`)
+        .select(`quantity, products!inner ( name, cycle, subscribable, ${pickupDayColumn} )`)
         .eq("subscription_id", sub.id);
       const items: { name: string; quantity: number }[] = [];
       for (const it of rawItems ?? []) {
-        const p = it.products as unknown as { name: string; cycle: string; [k: string]: unknown };
+        const p = it.products as unknown as { name: string; cycle: string; subscribable: boolean; [k: string]: unknown };
+        if (p.subscribable === false) continue;
         if (!p[pickupDayColumn]) continue;
         if (p.cycle === "hidden") continue;
         if (p.cycle === "week_a" && currentWeek !== "A") continue;
@@ -699,6 +700,7 @@ async function process8pmOrderPlacement(): Promise<{
             name,
             price_cents,
             cycle,
+            subscribable,
             ${pickupDayColumn}
           )
         `)
@@ -741,6 +743,11 @@ async function process8pmOrderPlacement(): Promise<{
           console.log(
             `[subscription-engine] Product ${product.id} not available for ${pickupDayColumn}. Skipping.`,
           );
+          return false;
+        }
+
+        // Seasonal/temporary products can't be part of a subscription
+        if (product.subscribable === false) {
           return false;
         }
 
@@ -1429,6 +1436,7 @@ async function processSingleSubscription(
         name,
         price_cents,
         cycle,
+        subscribable,
         ${pickupDayColumn}
       )
     `)
@@ -1461,6 +1469,7 @@ async function processSingleSubscription(
     const availableForDay = product[pickupDayColumn];
     if (!availableForDay) return false;
 
+    if (product.subscribable === false) return false;
     if (product.cycle === "hidden") return false;
     if (product.cycle === "week_a" && currentWeek !== "A") return false;
     if (product.cycle === "week_b" && currentWeek !== "B") return false;
@@ -1670,10 +1679,10 @@ async function updateSubscription(
     .filter((i) => i && i.product_id && Number.isFinite(i.quantity) && i.quantity > 0)
     .map((i) => ({ product_id: i.product_id, quantity: Math.min(99, Math.floor(i.quantity)) }));
   if (clean.length === 0) return { success: false, applied_this_week: false, error: "At least one item is required" };
-  const { data: prods } = await supabase.from("products").select("id").in("id", clean.map((i) => i.product_id));
-  const known = new Set((prods ?? []).map((p) => p.id));
-  if (clean.some((i) => !known.has(i.product_id))) {
-    return { success: false, applied_this_week: false, error: "Unknown product" };
+  const { data: prods } = await supabase.from("products").select("id, subscribable").in("id", clean.map((i) => i.product_id));
+  const okIds = new Set((prods ?? []).filter((p) => p.subscribable !== false).map((p) => p.id));
+  if (clean.some((i) => !okIds.has(i.product_id))) {
+    return { success: false, applied_this_week: false, error: "Product not available for subscription" };
   }
 
   // 3. Optional pickup-location change

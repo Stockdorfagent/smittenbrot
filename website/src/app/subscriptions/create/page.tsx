@@ -58,7 +58,7 @@ function SubscriptionCreateForm() {
     if (cycleData) setWeekCycle(cycleData.current_week);
 
     const { data: prodData } = await supabase
-      .from('products').select('*').eq('active', true).order('sort_order', { ascending: true });
+      .from('products').select('*').eq('active', true).eq('subscribable', true).order('sort_order', { ascending: true });
     if (prodData) {
       const filtered = prodData.filter(p => {
         if (p.cycle === 'permanent') return true;

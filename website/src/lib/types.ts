@@ -8,6 +8,7 @@ export interface Product {
   cycle: 'permanent' | 'week_a' | 'week_b' | 'hidden';
   available_wed: boolean;
   available_sat: boolean;
+  subscribable: boolean;
   active: boolean;
   cover_image_url: string | null;
   alt_text: string | null;

@@ -63,6 +63,7 @@ export default function SubscriptionCreateScreen() {
       .from('products')
       .select('*')
       .eq('active', true)
+      .eq('subscribable', true)
       .not('cycle', 'eq', 'hidden')
       .order('sort_order', { ascending: true });
 

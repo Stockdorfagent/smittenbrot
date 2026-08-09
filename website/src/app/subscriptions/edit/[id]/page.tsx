@@ -47,7 +47,7 @@ export default function SubscriptionEditPage() {
 
       const cycle = cycleData?.current_week ?? 'A';
       const { data: prodData } = await supabase
-        .from('products').select('*').eq('active', true).order('sort_order', { ascending: true });
+        .from('products').select('*').eq('active', true).eq('subscribable', true).order('sort_order', { ascending: true });
       const filtered = (prodData ?? []).filter((p) => {
         if (day === 'wednesday' && !p.available_wed) return false;
         if (day === 'saturday' && !p.available_sat) return false;
