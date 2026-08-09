@@ -125,7 +125,7 @@ export default function SubscriptionsScreen() {
       >
         {subscriptions.length > 0 && (
           <Text style={styles.helpText}>
-            Um Produkte oder den Abholort zu ändern, kündige dein Abo und erstelle ein neues.
+            Tippe auf „Bearbeiten", um Produkte, Mengen oder den Abholort zu ändern.
           </Text>
         )}
 
@@ -191,6 +191,7 @@ export default function SubscriptionsScreen() {
                     </View>
                   ) : (
                     <>
+                      <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
                       <Button title="Pausieren" onPress={() => setPausingId(sub.id)} variant="ghost" size="sm" />
                       <Button title="Kündigen" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
                     </>
@@ -199,7 +200,10 @@ export default function SubscriptionsScreen() {
               )}
 
               {sub.status === 'paused' && (
-                <Button title="Fortsetzen" onPress={() => handleResume(sub.id)} variant="primary" size="sm" style={styles.resumeButton} />
+                <View style={styles.pausedActions}>
+                  <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
+                  <Button title="Fortsetzen" onPress={() => handleResume(sub.id)} variant="primary" size="sm" style={styles.resumeButton} />
+                </View>
               )}
             </View>
           ))
@@ -314,6 +318,7 @@ const styles = StyleSheet.create({
   dateButtonText: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '500' },
   pauseHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
   pauseActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
+  pausedActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   pauseConfirm: { flex: 1 },
   resumeButton: {
     marginTop: theme.spacing.md,

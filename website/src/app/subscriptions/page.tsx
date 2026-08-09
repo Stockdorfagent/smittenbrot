@@ -289,6 +289,12 @@ export default function SubscriptionsPage() {
 
                 {/* Actions */}
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {(sub.status === 'active' || sub.status === 'paused') && (
+                    <Link href={`/subscriptions/edit/${sub.id}`}
+                      className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
+                      Bearbeiten
+                    </Link>
+                  )}
                   {(sub.status === 'active' || isPauseExpired) && (
                     <button onClick={() => { setPausingId(sub.id); setPauseFrom(''); setPauseUntil(''); }}
                       className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">

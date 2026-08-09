@@ -1618,6 +1618,93 @@ async function resumeSubscription(
   return { success: true, orderId: result.orderId, error: null };
 }
 
+/**
+ * Customer-facing: modify an active/paused subscription's items (and optionally
+ * its pickup location). Ownership is verified against the caller's user id.
+ *
+ * Reuses processSingleSubscription so the not-yet-charged upcoming order is
+ * rebuilt from the new items — the change lands on this week's single charge
+ * when that order isn't locked yet, otherwise it applies from the next
+ * delivery (no refund/recharge, no second transaction).
+ */
+async function updateSubscription(
+  userId: string,
+  subscriptionId: string,
+  items: { product_id: string; quantity: number }[],
+  pickupLocationId: string | null,
+): Promise<{ success: boolean; applied_this_week: boolean; error: string | null }> {
+  // 1. Ownership + editable status
+  const { data: sub, error: subErr } = await supabase
+    .from("subscriptions")
+    .select("id, customer_id, status, pickup_day, pickup_location_id")
+    .eq("id", subscriptionId)
+    .single();
+  if (subErr || !sub) return { success: false, applied_this_week: false, error: "Subscription not found" };
+  if (sub.customer_id !== userId) return { success: false, applied_this_week: false, error: "Not your subscription" };
+  if (sub.status !== "active" && sub.status !== "paused") {
+    return { success: false, applied_this_week: false, error: `Cannot edit a ${sub.status} subscription` };
+  }
+
+  // 2. Validate items (server-side — never trust client prices/products)
+  const clean = (items ?? [])
+    .filter((i) => i && i.product_id && Number.isFinite(i.quantity) && i.quantity > 0)
+    .map((i) => ({ product_id: i.product_id, quantity: Math.min(99, Math.floor(i.quantity)) }));
+  if (clean.length === 0) return { success: false, applied_this_week: false, error: "At least one item is required" };
+  const { data: prods } = await supabase.from("products").select("id").in("id", clean.map((i) => i.product_id));
+  const known = new Set((prods ?? []).map((p) => p.id));
+  if (clean.some((i) => !known.has(i.product_id))) {
+    return { success: false, applied_this_week: false, error: "Unknown product" };
+  }
+
+  // 3. Optional pickup-location change
+  let locId = sub.pickup_location_id;
+  if (pickupLocationId && pickupLocationId !== sub.pickup_location_id) {
+    const { data: loc } = await supabase
+      .from("pickup_locations").select("id").eq("id", pickupLocationId).eq("active", true).maybeSingle();
+    if (!loc) return { success: false, applied_this_week: false, error: "Invalid pickup location" };
+    locId = pickupLocationId;
+    await supabase.from("subscriptions")
+      .update({ pickup_location_id: locId, updated_at: new Date().toISOString() }).eq("id", sub.id);
+  }
+
+  // 4. Replace the subscription's items
+  await supabase.from("subscription_items").delete().eq("subscription_id", sub.id);
+  const { error: insErr } = await supabase.from("subscription_items")
+    .insert(clean.map((i) => ({ subscription_id: sub.id, product_id: i.product_id, quantity: i.quantity })));
+  if (insErr) return { success: false, applied_this_week: false, error: insErr.message };
+
+  // 5. Rebuild the upcoming order (active subs only; paused subs get a fresh
+  //    order when they resume).
+  let appliedThisWeek = false;
+  if (sub.status === "active") {
+    const nextDate = getNextDateForPickupDay((sub.pickup_day as "wednesday" | "saturday") ?? "wednesday");
+    const { data: existing } = await supabase
+      .from("orders")
+      .select("id, payment_status, status")
+      .eq("subscription_id", sub.id)
+      .eq("fulfillment_date", nextDate)
+      .maybeSingle();
+
+    if (existing) {
+      const charged = existing.payment_status === "paid" ||
+        existing.status === "locked_for_production" || existing.status === "fulfilled";
+      if (!charged) {
+        // Not yet charged → replace it with a fresh order from the new items.
+        await supabase.from("order_items").delete().eq("order_id", existing.id);
+        await supabase.from("orders").delete().eq("id", existing.id);
+        const r = await processSingleSubscription(sub.id, { skipIfExisting: false });
+        appliedThisWeek = r.success;
+      }
+      // charged/locked → leave it untouched; change applies from next delivery.
+    } else {
+      const r = await processSingleSubscription(sub.id, { skipIfExisting: true });
+      appliedThisWeek = r.success;
+    }
+  }
+
+  return { success: true, applied_this_week: appliedThisWeek, error: null };
+}
+
 // ── HTTP Router ──────────────────────────────────────────────
 
 serve(async (req: Request): Promise<Response> => {
@@ -1762,6 +1849,25 @@ serve(async (req: Request): Promise<Response> => {
           return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
         const result = await resumeSubscription(body.subscription_id);
+        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
+      }
+
+      case "update-subscription": {
+        // Customer-facing: this fn is --no-verify-jwt (for cron), so verify the
+        // caller's JWT + subscription ownership manually.
+        const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+        const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+        if (authErr || !user) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+        }
+        let body: { subscription_id?: string; items?: { product_id: string; quantity: number }[]; pickup_location_id?: string | null };
+        try { body = await req.json(); } catch {
+          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        if (!body.subscription_id || !Array.isArray(body.items)) {
+          return new Response(JSON.stringify({ error: "subscription_id and items are required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+        const result = await updateSubscription(user.id, body.subscription_id, body.items, body.pickup_location_id ?? null);
         return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
       }
 
