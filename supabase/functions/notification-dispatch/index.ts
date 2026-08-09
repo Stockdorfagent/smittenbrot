@@ -824,6 +824,14 @@ const NOTIFICATION_TEMPLATES: Record<
       `Dein Smittenbrot-Abo wird heute um 20:00 Uhr als Bestellung` +
       `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben. ` +
       `Änderungen oder Stornierung sind bis 22:00 Uhr möglich.`;
+    // This week's items (already A/B-filtered by the engine) so the customer
+    // knows exactly what's coming — important for bi-weekly breads.
+    const list = Array.isArray(d.items) ? (d.items as { name: string; quantity: number }[]) : [];
+    const itemsHtml = list.length
+      ? `<p style="margin:16px 0 4px;font-weight:600">Diese Woche dabei:</p><ul style="margin:0;padding-left:20px">` +
+        list.map((i) => `<li>${i.quantity}× ${i.name}</li>`).join("") +
+        `</ul>`
+      : "";
     // EU opt-out: reminder emails carry an unsubscribe link (unguessable token).
     // Transactional mails (invoice, order, cancellation) intentionally do NOT.
     const unsub =
@@ -835,7 +843,7 @@ const NOTIFICATION_TEMPLATES: Record<
         : "";
     return {
       title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
-      body: `<p style="margin:0">${text}</p>${unsub}`,
+      body: `<p style="margin:0">${text}</p>${itemsHtml}${unsub}`,
     };
   },
   order_placed: (d) => ({

@@ -523,6 +523,7 @@ async function process12pmReminders(): Promise<{
 
   const errors: string[] = [];
   let processed = 0;
+  const currentWeek = await getCurrentWeekType();
 
   for (const sub of subscriptions) {
     try {
@@ -534,6 +535,24 @@ async function process12pmReminders(): Promise<{
         reminder_email: boolean | null;
         unsubscribe_token: string | null;
       };
+
+      // The items that will actually be in this week's order — respects the
+      // A/B cycle + weekday availability, so bi-weekly breads only appear in
+      // their week. If nothing is due this week, skip the reminder entirely.
+      const { data: rawItems } = await supabase
+        .from("subscription_items")
+        .select(`quantity, products!inner ( name, cycle, ${pickupDayColumn} )`)
+        .eq("subscription_id", sub.id);
+      const items: { name: string; quantity: number }[] = [];
+      for (const it of rawItems ?? []) {
+        const p = it.products as unknown as { name: string; cycle: string; [k: string]: unknown };
+        if (!p[pickupDayColumn]) continue;
+        if (p.cycle === "hidden") continue;
+        if (p.cycle === "week_a" && currentWeek !== "A") continue;
+        if (p.cycle === "week_b" && currentWeek !== "B") continue;
+        items.push({ name: p.name, quantity: it.quantity });
+      }
+      if (items.length === 0) continue; // no delivery for this sub this week
 
       // Respect the customer's email-reminder preference (default on).
       // Push (if a device token exists) is unaffected by this toggle.
@@ -555,6 +574,7 @@ async function process12pmReminders(): Promise<{
           fulfillment_date: fulfillmentDate,
           customer_id: customer.id,
           unsubscribe_token: customer.unsubscribe_token,
+          items,
         },
       );
 
