@@ -681,8 +681,18 @@ async function process8pmOrderPlacement(): Promise<{
         .maybeSingle();
 
       if (existingOrder) {
+        // The order was pre-created (subscribe / resume / edit) as Vorgemerkt.
+        // It IS being placed for this week now, so send the "order placed"
+        // email on schedule (the pre-create path deliberately stays silent).
+        // The 22:00 lock charges it like any other pending order.
         console.log(
-          `[subscription-engine] Order already exists for subscription ${sub.id} on ${fulfillmentDate}. Skipping.`,
+          `[subscription-engine] Order already exists for subscription ${sub.id} on ${fulfillmentDate}. Sending placed notification.`,
+        );
+        await dispatchNotification(
+          customer.id,
+          "order_placed",
+          customer.push_token ? "both" : "email",
+          { fulfillment_date: fulfillmentDate },
         );
         skippedSubscriptions++;
         continue;
@@ -1545,17 +1555,14 @@ async function processSingleSubscription(
     return { orderId: null, success: false, error: msg };
   }
 
-  // Send placed notification
-  await dispatchNotification(
-    customer.id,
-    "order_placed",
-    customer.push_token ? "both" : "email",
-    { fulfillment_date: fulfillmentDate },
-  );
+  // NOTE: no "order placed" email here. This path just pre-creates the
+  // Vorgemerkt (pending) order on subscribe / resume / edit. The customer is
+  // told "order placed, change until 22h" only on the scheduled placement day
+  // (process8pmOrderPlacement, Mon/Thu) — not immediately when they resume.
 
   // Audit log
   await logAudit(
-    "subscription_order_placed",
+    "subscription_order_prenoted",
     "order",
     order.id,
     null,
