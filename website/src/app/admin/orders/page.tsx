@@ -38,6 +38,7 @@ export default function AdminOrdersPage() {
   const [sending, setSending] = useState<Record<string, boolean>>({});
   const [invoiceFrom, setInvoiceFrom] = useState('');
   const [invoiceTo, setInvoiceTo] = useState('');
+  const [hideTestOrders, setHideTestOrders] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -123,7 +124,15 @@ export default function AdminOrdersPage() {
     }
   }
 
+  // Paid orders are numbered TEST-#00001… while test-invoice-mode is on
+  // (migration 008) — those are app testers, not customers. Hidden by default
+  // so the list reflects real demand; the toggle brings them back for cleanup.
+  const testOrderCount = orders.filter((o) =>
+    ((o as any).order_number ?? '').startsWith('TEST-'),
+  ).length;
+
   const filteredOrders = orders.filter((o) => {
+    if (hideTestOrders && ((o as any).order_number ?? '').startsWith('TEST-')) return false;
     if (statusFilter && o.status !== statusFilter) return false;
     if (locationFilter && o.pickup_location_id !== locationFilter) return false;
     if (dayFilter) {
@@ -177,6 +186,17 @@ export default function AdminOrdersPage() {
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
         </select>
+        {testOrderCount > 0 && (
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-smitten-cream bg-white text-sm text-smitten-text">
+            <input
+              type="checkbox"
+              checked={hideTestOrders}
+              onChange={(e) => setHideTestOrders(e.target.checked)}
+              className="accent-smitten-primary"
+            />
+            Testbestellungen ausblenden ({testOrderCount})
+          </label>
+        )}
       </div>
 
       <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-end gap-3 flex-wrap">
