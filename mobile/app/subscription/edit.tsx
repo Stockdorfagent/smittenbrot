@@ -109,8 +109,9 @@ export default function SubscriptionEditScreen() {
     );
   }
 
+  // No 'top' edge: the stack header already covers the status bar.
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Abo bearbeiten' }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Produkte</Text>

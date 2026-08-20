@@ -324,6 +324,35 @@ function buildReceiptHtml(
  * Failures are logged but never thrown — notification delivery must
  * never break order/subscription processing.
  */
+/**
+ * Record the outcome of a subscription receipt/invoice email.
+ *
+ * The receipt doubles as the invoice, so a silent failure means the card was
+ * charged and nobody knows the paperwork never arrived. Edge-function console
+ * logs are short-lived and not queryable afterwards, so every attempt lands in
+ * `notifications` (delivered=true/false, reason on failure). The order number
+ * goes into the error text because the table has no order_id column.
+ */
+async function logReceiptOutcome(
+  customerId: string | null,
+  order: Record<string, unknown>,
+  delivered: boolean,
+  reason: string | null = null,
+): Promise<void> {
+  const ref = (order.order_number as string | null) ?? (order.id as string);
+  const { error } = await supabase.from("notifications").insert({
+    customer_id: customerId,
+    type: "order_receipt",
+    channel: "email",
+    sent_at: new Date().toISOString(),
+    delivered,
+    error: delivered ? null : `${ref}: ${reason ?? "unknown error"}`,
+  });
+  if (error) {
+    console.error("[subscription-engine] Failed to log receipt outcome:", error);
+  }
+}
+
 async function dispatchNotification(
   customerId: string | null,
   type: string,
@@ -1114,12 +1143,27 @@ async function process10pmLock(): Promise<{
                 });
                 if (brevoResp.ok) {
                   console.log(`[subscription-engine] Receipt sent to ${customerEmail} for order ${order.id}`);
+                  await logReceiptOutcome(customer.id, fullOrder, true);
                 } else {
-                  console.warn(`[subscription-engine] Failed to send receipt: ${await brevoResp.text()}`);
+                  const body = await brevoResp.text();
+                  console.warn(`[subscription-engine] Failed to send receipt: ${body}`);
+                  await logReceiptOutcome(
+                    customer.id,
+                    fullOrder,
+                    false,
+                    `Brevo ${brevoResp.status}: ${body.slice(0, 300)}`,
+                  );
                 }
+              } else {
+                console.error("[subscription-engine] BREVO_API_KEY not configured — cannot send receipt.");
+                await logReceiptOutcome(customer.id, fullOrder, false, "BREVO_API_KEY not configured");
               }
             } catch (receiptError) {
+              const msg = receiptError instanceof Error ? receiptError.message : String(receiptError);
               console.warn(`[subscription-engine] Receipt sending error for order ${order.id}:`, receiptError);
+              // `fullOrder` is scoped to the try block; `order` is always in scope
+              // and logReceiptOutcome falls back to its id when there is no number.
+              await logReceiptOutcome(customer.id, order as unknown as Record<string, unknown>, false, msg);
             }
 
             console.log(

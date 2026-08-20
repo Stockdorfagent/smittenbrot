@@ -87,6 +87,29 @@ export default function RootLayout() {
               presentation: 'modal',
             }}
           />
+          {/* Screens not listed here inherit headerShown:false from the Stack
+              and end up with no way back — the user is stuck. Both of these
+              are pushed routes, so they need a header with a back button. */}
+          <Stack.Screen
+            name="subscription/edit"
+            options={{
+              headerShown: true,
+              headerTitle: 'Abo bearbeiten',
+              headerBackTitle: 'Zurück',
+              headerStyle: { backgroundColor: theme.colors.background },
+              headerTintColor: theme.colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="admin-bakeday"
+            options={{
+              headerShown: true,
+              headerTitle: 'Backtag-Übersicht',
+              headerBackTitle: 'Zurück',
+              headerStyle: { backgroundColor: theme.colors.background },
+              headerTintColor: theme.colors.text,
+            }}
+          />
             </Stack>
           </CartProvider>
         </AuthProvider>

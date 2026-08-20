@@ -80,8 +80,9 @@ export default function AdminBakeday() {
   const bakeList = Object.entries(totals).sort((a, b) => b[1] - a[1]);
   const totalItems = bakeList.reduce((s, [, q]) => s + q, 0);
 
+  // No 'top' edge: the stack header already covers the status bar.
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Backtag-Übersicht' }} />
       <ScrollView
         contentContainerStyle={styles.scroll}

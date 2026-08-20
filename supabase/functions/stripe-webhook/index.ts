@@ -76,18 +76,46 @@ async function insertNotification(
   customerId: string | null,
   type: string,
   channel: string,
+  delivered = false,
+  failure: string | null = null,
 ): Promise<void> {
   const { error } = await supabase.from("notifications").insert({
     customer_id: customerId,
     type,
     channel,
     sent_at: new Date().toISOString(),
-    delivered: false,
+    delivered,
+    error: failure,
   });
 
   if (error) {
     console.error(`[stripe-webhook] Failed to insert notification (${type}):`, error);
   }
+}
+
+/**
+ * Record the outcome of a receipt/invoice email.
+ *
+ * The receipt email doubles as the customer's invoice, so a silent failure is
+ * serious: the money is taken and nothing tells anyone the paperwork never
+ * arrived. Console logs alone are not enough — edge-function log retention is
+ * short and not queryable after the fact — so every attempt lands in
+ * `notifications` with delivered=true/false and the reason on failure. The
+ * order number goes into the error text because the table has no order_id.
+ */
+async function logReceiptOutcome(
+  order: Record<string, unknown>,
+  delivered: boolean,
+  reason: string | null = null,
+): Promise<void> {
+  const ref = (order.order_number as string | null) ?? (order.id as string);
+  await insertNotification(
+    (order.customer_id as string | null) ?? null,
+    "order_receipt",
+    "email",
+    delivered,
+    delivered ? null : `${ref}: ${reason ?? "unknown error"}`,
+  );
 }
 
 /**
@@ -109,6 +137,7 @@ async function sendReceiptEmail(
       console.warn(
         `[stripe-webhook] No customer_email for order ${order.id} — skipping receipt.`,
       );
+      await logReceiptOutcome(order, false, "no customer_email on the order");
       return;
     }
 
@@ -116,6 +145,7 @@ async function sendReceiptEmail(
       console.error(
         "[stripe-webhook] BREVO_API_KEY not configured — cannot send receipt.",
       );
+      await logReceiptOutcome(order, false, "BREVO_API_KEY not configured");
       return;
     }
 
@@ -317,17 +347,24 @@ async function sendReceiptEmail(
         `[stripe-webhook] Brevo API error (${response.status}) sending receipt to ${recipientEmail}:`,
         JSON.stringify(body),
       );
+      await logReceiptOutcome(
+        order,
+        false,
+        `Brevo ${response.status}: ${JSON.stringify(body).slice(0, 300)}`,
+      );
       return;
     }
 
     console.log(
       `[stripe-webhook] Receipt email sent to ${recipientEmail} for order ${orderId} (subject: "${subject}").`,
     );
+    await logReceiptOutcome(order, true);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(
       `[stripe-webhook] Failed to send receipt email for order ${order.id}: ${msg}`,
     );
+    await logReceiptOutcome(order, false, msg);
   }
 }
 
