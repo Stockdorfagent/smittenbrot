@@ -4,6 +4,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -31,6 +32,8 @@ export default function SubscriptionsScreen() {
   const [pausingId, setPausingId] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pauseDate, setPauseDate] = useState(new Date());
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const fetchSubscriptions = useCallback(async () => {
     if (!user) { setSubscriptions([]); return; }
@@ -69,6 +72,65 @@ export default function SubscriptionsScreen() {
       body: { subscription_id: subId },
     });
     if (error) Alert.alert('Fehler', 'Fortsetzen fehlgeschlagen.');
+    else await fetchSubscriptions();
+  };
+
+  /**
+   * A failed charge left the subscription in `payment_failed` with no way out:
+   * the screen rendered no buttons for that status and nothing server-side ever
+   * moved it back. The customer could neither fix their card nor cancel.
+   * Presenting the Stripe sheet saves a fresh card, then the subscription goes
+   * active again and the next engine run generates its order.
+   */
+  const handleUpdatePayment = async (subId: string) => {
+    setBusyId(subId);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-setup-intent', { body: {} });
+      if (error || !data?.setupIntentClientSecret) {
+        Alert.alert('Fehler', 'Zahlungsmethode konnte nicht geladen werden.');
+        return;
+      }
+      const init = await initPaymentSheet({
+        merchantDisplayName: 'Smittenbrot',
+        setupIntentClientSecret: data.setupIntentClientSecret,
+        customerId: data.customerId,
+        customerEphemeralKeySecret: data.ephemeralKey,
+        returnURL: 'smittenbrot://stripe-redirect',
+      });
+      if (init.error) {
+        Alert.alert('Fehler', init.error.message);
+        return;
+      }
+      const { error: sheetError } = await presentPaymentSheet();
+      if (sheetError) {
+        if (sheetError.code !== 'Canceled') Alert.alert('Fehler', sheetError.message);
+        return;
+      }
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({ status: 'active' })
+        .eq('id', subId);
+      if (updateError) {
+        Alert.alert('Fehler', updateError.message);
+        return;
+      }
+      Alert.alert(
+        'Zahlungsmethode gespeichert',
+        'Dein Abo ist wieder aktiv. Die nächste Bestellung wird automatisch erstellt.',
+      );
+      await fetchSubscriptions();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** The cancel dialog promises this is reversible, but nothing offered it. */
+  const handleUndoCancel = async (subId: string) => {
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ status: 'active' })
+      .eq('id', subId);
+    if (error) Alert.alert('Fehler', error.message);
     else await fetchSubscriptions();
   };
 
@@ -123,7 +185,7 @@ export default function SubscriptionsScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {subscriptions.length > 0 && (
+        {subscriptions.some((s) => s.status === 'active' || s.status === 'paused') && (
           <Text style={styles.helpText}>
             Tippe auf „Bearbeiten", um Produkte, Mengen oder den Abholort zu ändern.
           </Text>
@@ -203,6 +265,35 @@ export default function SubscriptionsScreen() {
                 <View style={styles.pausedActions}>
                   <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
                   <Button title="Fortsetzen" onPress={() => handleResume(sub.id)} variant="primary" size="sm" style={styles.resumeButton} />
+                </View>
+              )}
+
+              {sub.status === 'payment_failed' && (
+                <View style={styles.actionRow}>
+                  <Text style={styles.statusHint}>
+                    Die letzte Zahlung hat nicht funktioniert. Hinterlege eine Zahlungsmethode,
+                    dann läuft dein Abo weiter.
+                  </Text>
+                  <Button
+                    title="Zahlungsmethode aktualisieren"
+                    onPress={() => handleUpdatePayment(sub.id)}
+                    loading={busyId === sub.id}
+                    size="sm"
+                  />
+                  <View style={styles.pausedActions}>
+                    <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
+                    <Button title="Kündigen" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
+                  </View>
+                </View>
+              )}
+
+              {sub.status === 'cancellation_pending' && (
+                <View style={styles.actionRow}>
+                  <Text style={styles.statusHint}>
+                    Deine Kündigung wird bearbeitet. Du kannst sie zurücknehmen, solange sie
+                    noch nicht abgeschlossen ist.
+                  </Text>
+                  <Button title="Kündigung zurücknehmen" onPress={() => handleUndoCancel(sub.id)} variant="ghost" size="sm" />
                 </View>
               )}
             </View>
@@ -319,6 +410,12 @@ const styles = StyleSheet.create({
   pauseHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
   pauseActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
   pausedActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  statusHint: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+    lineHeight: 20,
+  },
   pauseConfirm: { flex: 1 },
   resumeButton: {
     marginTop: theme.spacing.md,

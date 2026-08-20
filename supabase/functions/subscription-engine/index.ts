@@ -1282,11 +1282,50 @@ async function process10pmLock(): Promise<{
  * Called at Monday/Thursday 22:00.
  * Subscriptions with status='cancellation_pending' get cancelled.
  */
+/**
+ * Resume subscriptions whose pause has run out.
+ *
+ * When a customer pauses, the app asks "bis wann?" and promises "Dein Abo wird
+ * an diesem Tag automatisch fortgesetzt." Nothing kept that promise: order
+ * generation selects `status = 'active'`, so a paused subscription was skipped
+ * for ever and the resume date did nothing. The customer had to notice and tap
+ * "Fortsetzen" themselves — otherwise the bread simply never came back.
+ *
+ * Runs from processCancellations (every 30 minutes) so a pause ends promptly.
+ */
+async function resumeExpiredPauses(): Promise<{ resumed: number }> {
+  const today = todayInTz();
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .update({ status: "active", paused_until: null })
+    .eq("status", "paused")
+    .not("paused_until", "is", null)
+    .lte("paused_until", today)
+    .select("id");
+
+  if (error) {
+    console.error("[subscription-engine] Failed to resume expired pauses:", error);
+    return { resumed: 0 };
+  }
+
+  const resumed = data?.length ?? 0;
+  if (resumed > 0) {
+    console.log(
+      `[subscription-engine] Resumed ${resumed} subscription(s) whose pause ended on or before ${today}.`,
+    );
+  }
+  return { resumed };
+}
+
 async function processCancellations(): Promise<{
   cancelled: number;
+  resumed: number;
   errors: string[];
 }> {
   console.log("[subscription-engine] processCancellations: processing");
+
+  // Piggy-backs on this job because it is the only frequent one (*/30).
+  const { resumed } = await resumeExpiredPauses();
 
   // Find all cancellation_pending subscriptions
   const { data: subscriptions, error: subError } = await supabase
@@ -1302,12 +1341,12 @@ async function processCancellations(): Promise<{
       "[subscription-engine] Failed to fetch cancellation_pending subscriptions:",
       subError,
     );
-    return { cancelled: 0, errors: [subError.message] };
+    return { cancelled: 0, resumed, errors: [subError.message] };
   }
 
   if (!subscriptions || subscriptions.length === 0) {
     console.log("[subscription-engine] No cancellation_pending subscriptions.");
-    return { cancelled: 0, errors: [] };
+    return { cancelled: 0, resumed, errors: [] };
   }
 
   let cancelled = 0;
@@ -1364,9 +1403,9 @@ async function processCancellations(): Promise<{
 
   console.log(
     `[subscription-engine] processCancellations done: ` +
-      `${cancelled} cancelled, ${errors.length} errors`,
+      `${cancelled} cancelled, ${resumed} resumed, ${errors.length} errors`,
   );
-  return { cancelled, errors };
+  return { cancelled, resumed, errors };
 }
 
 /**
