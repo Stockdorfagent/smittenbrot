@@ -107,6 +107,9 @@ export default function CartScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.dropdownName}>{selected?.name ?? 'Abholort wählen'}</Text>
             {selected?.address ? <Text style={styles.dropdownAddress}>{selected.address}</Text> : null}
+            {selected?.pickup_instructions ? (
+              <Text style={styles.dropdownHint}>{selected.pickup_instructions}</Text>
+            ) : null}
           </View>
           <Ionicons name="chevron-down" size={20} color={theme.colors.textLight} />
         </TouchableOpacity>
@@ -205,6 +208,7 @@ const styles = StyleSheet.create({
   },
   dropdownName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
   dropdownAddress: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  dropdownHint: { fontSize: theme.fontSize.sm, color: theme.colors.text, marginTop: theme.spacing.xs, lineHeight: 18 },
   pickupDayCard: {
     backgroundColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md, marginBottom: theme.spacing.md,

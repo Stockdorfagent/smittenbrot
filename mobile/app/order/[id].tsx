@@ -39,7 +39,7 @@ interface OrderRow {
   created_at: string;
   customer_name: string | null;
   items: OrderItem[];
-  pickup_location: { name: string; address: string } | null;
+  pickup_location: { name: string; address: string; pickup_instructions: string | null } | null;
 }
 
 const fmt = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
@@ -56,7 +56,7 @@ export default function OrderDetailScreen() {
     setLoading(true);
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, order_type, status, payment_status, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address)')
+      .select('id, order_number, order_type, status, payment_status, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
       .eq('id', id)
       .single();
     setOrder((data as unknown as OrderRow) ?? null);
@@ -136,6 +136,11 @@ export default function OrderDetailScreen() {
               <Text style={styles.detailValue}>{order.pickup_location.name}</Text>
             </View>
           )}
+          {order.pickup_location?.pickup_instructions ? (
+            <View style={styles.hintRow}>
+              <Text style={styles.hintText}>{order.pickup_location.pickup_instructions}</Text>
+            </View>
+          ) : null}
           <View style={[styles.detailRow, styles.lastRow]}>
             <Text style={styles.detailLabel}>Zahlung</Text>
             <Text style={styles.detailValue}>{PAYMENT_LABELS[order.payment_status] ?? order.payment_status}</Text>
@@ -209,6 +214,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
   lastRow: { borderBottomWidth: 0 },
+  hintRow: {
+    backgroundColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md, marginTop: theme.spacing.sm,
+  },
+  hintText: { fontSize: theme.fontSize.sm, color: theme.colors.text, lineHeight: 19 },
   detailLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
   detailValue: { fontSize: theme.fontSize.sm, color: theme.colors.text, fontWeight: '500' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },

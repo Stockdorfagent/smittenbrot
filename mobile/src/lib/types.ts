@@ -24,6 +24,10 @@ export interface PickupLocation {
   notification_template: string;
   sort_order: number;
   created_at: string;
+  /** Admin-editable, per-location pickup hint (migration 013). Shown in the
+   *  cart and on the order confirmation, and included in the emails. */
+  pickup_instructions: string | null;
+  cabinet_code: string | null;
 }
 
 // --- Products ---
