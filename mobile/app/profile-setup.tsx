@@ -20,9 +20,13 @@ export default function ProfileSetupScreen() {
   const [error, setError] = useState('');
 
   const save = async () => {
-    const trimmed = name.trim();
+    const trimmed = name.trim().replace(/\s+/g, ' ');
     if (trimmed.length < 2) {
       setError('Bitte gib deinen Namen ein.');
+      return;
+    }
+    if (!trimmed.includes(' ')) {
+      setError('Bitte gib Vor- und Nachnamen ein — beides steht auf deiner Bestellbestätigung.');
       return;
     }
     if (!user) return;
@@ -55,16 +59,16 @@ export default function ProfileSetupScreen() {
           <View style={styles.form}>
             <Text style={styles.title}>Willkommen!</Text>
             <Text style={styles.lead}>
-              Wie dürfen wir dich nennen? Der Name steht auf deiner Bestellbestätigung.
+              Wie heißt du? Vor- und Nachname stehen auf deiner Bestellbestätigung.
             </Text>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <Input
-              label="Name"
+              label="Vor- und Nachname"
               value={name}
               onChangeText={setName}
-              placeholder="Dein Name"
+              placeholder="z. B. Sophia Smittenberg"
               autoCapitalize="words"
             />
             <Button title="Weiter" onPress={save} loading={loading} size="lg" style={{ marginTop: theme.spacing.sm }} />

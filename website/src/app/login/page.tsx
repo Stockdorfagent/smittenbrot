@@ -254,12 +254,13 @@ export default function LoginPage() {
       <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="mt-6 space-y-4">
         {mode === 'register' && (
           <div>
-            <label className="block text-sm font-medium text-smitten-text/70">Name</label>
+            <label className="block text-sm font-medium text-smitten-text/70">Vor- und Nachname</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               required
+              placeholder="z. B. Sophia Smittenberg"
               className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
             />
           </div>
