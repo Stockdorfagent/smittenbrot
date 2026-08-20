@@ -17,7 +17,7 @@
         "NSPhotoLibraryUsageDescription": "This app does not need photo library access.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "8"
+      "buildNumber": "9"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +26,7 @@
       },
       "package": "de.smittenbrot.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       "expo-router",
