@@ -1,4 +1,51 @@
+/**
+ * The app is distributed through the stores only — no direct APK download.
+ *
+ * TO GO LIVE: fill in the two URLs below. While a URL is null that platform
+ * shows as "in Vorbereitung" instead of a dead link.
+ *   Google Play: https://play.google.com/store/apps/details?id=de.smittenbrot.app
+ *   App Store:   https://apps.apple.com/de/app/id6793602303
+ * Both 404 until the listings are actually published (checked 20.08.2026):
+ * Android is in closed testing, iOS is on TestFlight — testers get their
+ * invitation by email and do not use this page.
+ */
+const PLAY_URL: string | null = null;
+const APP_STORE_URL: string | null = null;
+
+function StoreLink({
+  href,
+  store,
+  hint,
+}: {
+  href: string | null;
+  store: string;
+  hint: string;
+}) {
+  if (!href) {
+    return (
+      <div className="flex-1 rounded-xl border border-smitten-cream bg-white p-5">
+        <p className="font-display font-bold text-smitten-text">{store}</p>
+        <p className="mt-1 text-sm text-smitten-secondary">In Vorbereitung</p>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex-1 rounded-xl border border-smitten-text bg-smitten-text p-5 transition-opacity hover:opacity-90"
+    >
+      <p className="font-display font-bold text-white">{store}</p>
+      <p className="mt-1 text-sm text-white/80">{hint}</p>
+    </a>
+  );
+}
+
 export default function AppPage() {
+  const live = PLAY_URL || APP_STORE_URL;
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-display font-bold text-smitten-text">
@@ -6,69 +53,34 @@ export default function AppPage() {
       </h1>
       <p className="mt-4 text-smitten-text leading-relaxed">
         Bestelle dein Brot und Gebäck direkt von deinem Smartphone – schneller,
-        bequemer und immer auf dem neuesten Stand.
+        bequemer und immer auf dem neuesten Stand. Mit einem Abo musst du nie
+        wieder daran denken, rechtzeitig zu bestellen.
       </p>
 
-      <div className="mt-8 bg-smitten-cream rounded-xl p-6 border border-smitten-cream">
+      <div className="mt-8">
         <h2 className="text-xl font-display font-bold text-smitten-text">
-          App herunterladen
+          {live ? 'App laden' : 'Bald in den App-Stores'}
         </h2>
         <p className="mt-2 text-sm text-smitten-text">
-          Lade dir die <span className="text-smitten-primary italic">Smittenbrot</span> App direkt herunter und installiere sie auf deinem Android-Handy.
-          Kein Google Play Store nötig.
+          {live
+            ? 'Die App gibt es für Android und iPhone – Updates kommen automatisch.'
+            : 'Wir bereiten die Veröffentlichung für Android und iPhone vor. Sobald es losgeht, findest du die App hier.'}
         </p>
 
-        <a
-          href="https://expo.dev/artifacts/eas/wMnXKLs8xrZc371s0T_o_14NqYIDkTssMT-dVQlU8Es.apk"
-          className="mt-5 inline-flex items-center gap-2 bg-smitten-primary text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-primary/90 transition-colors text-base"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          App herunterladen
-        </a>
-      </div>
-
-      <div className="mt-8 space-y-6">
-        <div className="bg-white rounded-xl border border-smitten-cream p-6">
-          <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
-            App herunterladen
-          </h2>
-          <p className="mt-2 text-sm text-smitten-text ml-9">
-            Tippe auf den Download-Button oben. Dein Android-Handy lädt die App herunter.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-smitten-cream p-6">
-          <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
-            Installation erlauben
-          </h2>
-          <p className="mt-2 text-sm text-smitten-text ml-9">
-            Beim Öffnen der heruntergeladenen App erscheint eine Sicherheitsfrage.
-            Erlaube die Installation – das ist nötig, weil die App nicht aus dem
-            Google Play Store kommt. Tippe auf <strong>„Einstellungen"</strong> und
-            schalte <strong>„Installation unbekannter Apps erlauben"</strong> ein.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-smitten-cream p-6">
-          <h2 className="text-lg font-display font-bold text-smitten-text flex items-center gap-2">
-            <span className="w-7 h-7 bg-smitten-primary text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
-            Fertig!
-          </h2>
-          <p className="mt-2 text-sm text-smitten-text ml-9">
-            Nach der Installation findest du <span className="text-smitten-primary italic">Smittenbrot</span> auf deinem Startbildschirm.
-            Melde dich an oder erstelle ein Konto und bestelle dein Brot – jederzeit und überall.
-          </p>
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row">
+          <StoreLink href={PLAY_URL} store="Google Play" hint="Für Android" />
+          <StoreLink href={APP_STORE_URL} store="App Store" hint="Für iPhone" />
         </div>
       </div>
 
-      <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <strong>Hinweis:</strong> Die App wird regelmäßig aktualisiert. Wenn ich neue
-        Funktionen veröffentliche, lade einfach die aktuelle Version herunter und
-        installiere sie neu – deine Daten und Einstellungen bleiben erhalten.
+      <div className="mt-8 rounded-xl bg-smitten-cream p-6">
+        <h2 className="text-lg font-display font-bold text-smitten-text">
+          Auch ohne App
+        </h2>
+        <p className="mt-2 text-sm text-smitten-text">
+          Du kannst alles auch hier auf der Website bestellen – Einzelbestellungen
+          und Abos, mit demselben Konto wie in der App.
+        </p>
       </div>
     </div>
   );
