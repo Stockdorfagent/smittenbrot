@@ -14,6 +14,10 @@ export default function TabLayout() {
   // The app requires an account — send unauthenticated users to login.
   if (loading) return null;
   if (!user) return <Redirect href="/login" />;
+  // Passwordless sign-up creates the profile with a blank name (the database
+  // has no name to work from). Ask for it once before letting them shop — it
+  // goes on the order confirmation and the invoice.
+  if (!user.name?.trim()) return <Redirect href="/profile-setup" />;
 
   return (
     <>

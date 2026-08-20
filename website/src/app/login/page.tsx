@@ -131,14 +131,9 @@ export default function LoginPage() {
       return;
     }
 
-    // Create customer record — use user from signUp response directly
-    if (data?.user) {
-      await supabase.from('customers').upsert({
-        id: data.user.id,
-        email,
-        name,
-      }, { onConflict: 'id' });
-    }
+    // The customers profile row is created by the database from the signUp
+    // metadata (migration 016). Doing it here never worked: with email
+    // confirmation on there is no session yet, so RLS refused the insert.
 
     setMode('login');
     setError('Registrierung erfolgreich! Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte klicke auf den Link, um dein Konto zu aktivieren.');
@@ -165,16 +160,17 @@ export default function LoginPage() {
     if (!email) return;
     setLoading(true);
     setError('');
-    // Existing customers only (no silent account creation on a typo);
-    // new customers use "Registrieren".
+    // One door for everyone: a returning customer is signed in, a new one gets
+    // an account. Entering the code also confirms the address, so no separate
+    // confirmation mail is needed. Matches the app (mobile/app/code-login.tsx).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: true },
     });
     if (error) {
       setError(
-        /not allowed|signups/i.test(error.message)
-          ? 'Für diese E-Mail gibt es noch kein Konto. Bitte registriere dich zuerst.'
+        /rate|limit|seconds/i.test(error.message)
+          ? 'Bitte warte einen Moment, bevor du einen neuen Code anforderst.'
           : error.message,
       );
     } else {
@@ -187,11 +183,25 @@ export default function LoginPage() {
     if (code.length < 6) return;
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     if (error) {
       setError('Code ungültig oder abgelaufen. Bitte fordere einen neuen an.');
       setLoading(false);
       return;
+    }
+    // A brand-new account has no name yet (the database creates the profile
+    // row with an empty name) — send them to Profil to fill it in, since it
+    // goes on the order confirmation and invoice. The app does the same.
+    if (data.user) {
+      const { data: profile } = await supabase
+        .from('customers')
+        .select('name')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (!profile?.name?.trim()) {
+        router.push('/profile');
+        return;
+      }
     }
     router.push('/');
   };

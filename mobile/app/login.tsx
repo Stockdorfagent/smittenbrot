@@ -14,7 +14,6 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,8 +29,16 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       if (isRegister) {
-        const { error: err } = await signUp(email, password, name, phone);
-        if (err) setError(err);
+        const { error: err, needsConfirmation } = await signUp(email, password, name);
+        if (err) {
+          setError(err);
+        } else if (needsConfirmation) {
+          // No session yet — the address has to be confirmed first. (The
+          // passwordless code route avoids this step entirely.)
+          setIsRegister(false);
+          setPassword('');
+          setError('Konto erstellt. Wir haben dir eine Bestätigungs-E-Mail geschickt — bitte bestätige deine Adresse und melde dich dann an.');
+        }
       } else {
         const { error: err } = await signIn(email, password);
         if (err) setError(err);
@@ -73,37 +80,52 @@ export default function LoginScreen() {
               <Text style={[styles.error, (error.includes('Prüfe') || error.includes('geschickt')) && styles.success]}>{error}</Text>
             ) : null}
 
+            {/* The passwordless code is the way in — for new and returning
+                customers alike. The password form below stays as a fallback. */}
+            {!isRegister && (
+              <>
+                <Text style={styles.lead}>
+                  Am einfachsten ohne Passwort: du bekommst einen 6-stelligen Code per E-Mail.
+                  Neu hier? Dein Konto wird dabei gleich angelegt.
+                </Text>
+                <Button
+                  title="Ohne Passwort anmelden"
+                  onPress={() => router.push('/code-login')}
+                  size="lg"
+                  style={styles.submitButton}
+                />
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>oder mit Passwort</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              </>
+            )}
+
             {isRegister && (
               <Input label="Name" value={name} onChangeText={setName} placeholder="Dein Name" autoCapitalize="words" />
             )}
             <Input label="E-Mail" value={email} onChangeText={setEmail} placeholder="hallo@example.de" keyboardType="email-address" autoCapitalize="none" />
+            <Input label="Passwort" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
             {!isRegister && (
-              <>
-                <Input label="Passwort" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
-                <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotLink}>
-                  <Text style={styles.forgotText}>Passwort vergessen?</Text>
-                </TouchableOpacity>
-                <Button title="Mit Code anmelden (ohne Passwort)" onPress={() => router.push('/code-login')} variant="ghost" size="sm" />
-              </>
-            )}
-            {isRegister && (
-              <>
-                <Input label="Telefon" value={phone} onChangeText={setPhone} placeholder="+49 89 123456" keyboardType="phone-pad" />
-                <Input label="Passwort" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
-              </>
+              <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotLink}>
+                <Text style={styles.forgotText}>Passwort vergessen?</Text>
+              </TouchableOpacity>
             )}
 
             <Button
               title={isRegister ? 'Konto erstellen' : 'Anmelden'}
               onPress={handleSubmit}
               loading={loading}
+              variant={isRegister ? 'primary' : 'secondary'}
               size="lg"
               style={styles.submitButton}
             />
 
             <TouchableOpacity onPress={() => { setIsRegister(!isRegister); setError(''); }}>
               <Text style={styles.switchText}>
-                {isRegister ? 'Bereits ein Konto? Anmelden' : 'Noch kein Konto? Registrieren'}
+                {isRegister ? 'Bereits ein Konto? Anmelden' : 'Konto mit Passwort erstellen'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -138,6 +160,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.primary,
     marginTop: theme.spacing.sm,
+  },
+  lead: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
   },
   forgotLink: {
     alignSelf: 'flex-end',

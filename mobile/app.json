@@ -17,7 +17,7 @@
         "NSPhotoLibraryUsageDescription": "This app does not need photo library access.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "7"
+      "buildNumber": "8"
     },
     "android": {
       "adaptiveIcon": {

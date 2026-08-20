@@ -425,12 +425,33 @@ async function createOrderFromPaymentIntent(
   const discountCents = Number(md.discount_cents) || 0;
   const discountCode = md.discount_code || null;
 
+  // orders.customer_id is a foreign key to customers(id). If the profile row is
+  // missing, the insert below would fail and the money would be charged with no
+  // order to show for it. Migration 016 makes the row appear automatically for
+  // every new account, so this should never trigger — but never lose a paid
+  // order over it: fall back to an unlinked order (the customer_email/name
+  // snapshot keeps the invoice valid) and flag it for the owner.
+  let customerId = md.customer_id || null;
+  if (customerId) {
+    const { data: profile } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("id", customerId)
+      .maybeSingle();
+    if (!profile) {
+      console.error(
+        `[stripe-webhook] PI ${paymentIntent.id}: no customers row for ${customerId} — creating the order unlinked.`,
+      );
+      customerId = null;
+    }
+  }
+
   // 1. Insert the order as pending (numbering trigger fires on the paid transition).
   const { data: order, error: orderErr } = await supabase
     .from("orders")
     .insert({
       stripe_payment_intent_id: paymentIntent.id,
-      customer_id: md.customer_id || null,
+      customer_id: customerId,
       customer_email: md.customer_email || null,
       customer_name: md.customer_name || null,
       total_cents: totalCents,
@@ -452,6 +473,14 @@ async function createOrderFromPaymentIntent(
       `[stripe-webhook] Failed to create order for PI ${paymentIntent.id}:`,
       orderErr,
     );
+    // The customer has been charged but has no order. Leave a durable trace —
+    // a console line alone is invisible after the fact.
+    await logAudit("order_creation_failed", "payment_intent", paymentIntent.id, null, {
+      amount_cents: paymentIntent.amount,
+      customer_email: md.customer_email ?? null,
+      customer_id: md.customer_id ?? null,
+      error: orderErr?.message ?? "unknown",
+    });
     return;
   }
 

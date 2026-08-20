@@ -11,3 +11,6 @@ build/
 *.log
 .venv/
 .vercel
+
+# TypeScript incremental build artifact
+website/tsconfig.tsbuildinfo

@@ -9,9 +9,17 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
 /**
- * Passwordless login with a 6-digit email code — no website hop.
- * enter email → receive code → verify → logged in. Ideal for migrated
- * customers signing in for the first time.
+ * Passwordless sign-in with a 6-digit email code — the primary way into the
+ * app, for new and returning customers alike: enter email → receive code →
+ * verify → signed in. No password, no confirmation link, no website hop.
+ *
+ * Typing the code back proves the address works, so verifying it also confirms
+ * the email (Supabase sets email_confirmed_at) — which is what guarantees the
+ * customer can actually receive their order confirmations and invoices.
+ *
+ * New accounts are created here (shouldCreateUser: true); the database creates
+ * the matching customers profile row (migration 016) with an empty name, and
+ * the auth gate then asks for the name once via /profile-setup.
  */
 export default function CodeLoginScreen() {
   const router = useRouter();
@@ -37,17 +45,18 @@ export default function CodeLoginScreen() {
     setError('');
     setInfo('');
     setLoading(true);
-    // shouldCreateUser: false → login for existing customers only (no account
-    // is silently created on a typo). New customers use "Konto erstellen".
+    // shouldCreateUser: true → one door for everyone. A returning customer is
+    // signed in; a new one gets an account. A typo just means the code never
+    // arrives, and no unconfirmed account can order (the code is never entered).
     const { error: err } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: true },
     });
     setLoading(false);
     if (err) {
       setError(
-        /not allowed|signups/i.test(err.message)
-          ? 'Für diese E-Mail gibt es noch kein Konto. Bitte erstelle zuerst ein Konto.'
+        /rate|limit|seconds/i.test(err.message)
+          ? 'Bitte warte einen Moment, bevor du einen neuen Code anforderst.'
           : err.message,
       );
       return;
@@ -87,7 +96,13 @@ export default function CodeLoginScreen() {
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.title}>Mit Code anmelden</Text>
+            <Text style={styles.title}>Anmelden ohne Passwort</Text>
+            {step === 'email' ? (
+              <Text style={styles.lead}>
+                Gib deine E-Mail-Adresse ein und du bekommst einen 6-stelligen Code.
+                Neu bei Smittenbrot? Dann wird dein Konto dabei gleich angelegt.
+              </Text>
+            ) : null}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {info ? <Text style={styles.info}>{info}</Text> : null}
@@ -144,7 +159,8 @@ const styles = StyleSheet.create({
   brand: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text, fontFamily: theme.fontFamily.display },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: theme.spacing.xs },
   form: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.lg },
-  title: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text, marginBottom: theme.spacing.md },
+  title: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text, marginBottom: theme.spacing.sm },
+  lead: { fontSize: theme.fontSize.sm, color: theme.colors.text, marginBottom: theme.spacing.md, lineHeight: 20 },
   error: { color: theme.colors.error, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
   info: { color: theme.colors.success, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
   sentTo: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: theme.spacing.sm },

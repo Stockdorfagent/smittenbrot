@@ -5,7 +5,7 @@ import type { AuthState } from '@/lib/types';
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, name: string, phone: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -78,22 +78,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
-  const signUp = async (email: string, password: string, name: string, phone: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
-    if (!error && data.user) {
-      const { error: profileError } = await supabase.from('customers').insert({
-        id: data.user.id,
-        email,
-        name,
-        phone,
-      });
-      if (profileError) return { error: profileError.message };
-    }
-    return { error: error?.message ?? null };
+    // The customers profile row is created by the database (migration 016) from
+    // this metadata. Doing it here used to fail: with email confirmation on,
+    // signUp() returns no session, so the insert ran unauthenticated and RLS
+    // refused it — leaving an account with no profile.
+    if (error) return { error: error.message, needsConfirmation: false };
+    // No session ⇒ the address must be confirmed before they can sign in.
+    return { error: null, needsConfirmation: !data.session };
   };
 
   const signInWithMagicLink = async (email: string) => {
