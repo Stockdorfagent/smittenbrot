@@ -350,6 +350,40 @@ export default function AdminOrdersPage() {
                           </button>
                         </>
                       )}
+                      {/* Deliberately outside the status gate above: an order can
+                          be handed over (fulfilled) and still be unpaid — e.g. the
+                          imported Squarespace history, or bread paid in cash. That
+                          combination used to be unreachable, because every action
+                          disappeared once the order was marked fulfilled. */}
+                      {order.payment_status !== 'paid' && order.payment_status !== 'refunded' && (
+                        <button
+                          onClick={async () => {
+                            if (confirm(
+                              'Zahlung als erhalten markieren?\n\n' +
+                              'Nur für Bestellungen, die außerhalb der App bezahlt wurden ' +
+                              '(importierte Bestellungen, Barzahlung, Überweisung). ' +
+                              'Eine Rechnungsnummer wird nur vergeben, falls noch keine existiert.'
+                            )) {
+                              const { error } = await supabase
+                                .from('orders')
+                                .update({ payment_status: 'paid' })
+                                .eq('id', order.id);
+                              if (error) {
+                                alert(error.message);
+                                return;
+                              }
+                              setOrders(prev => prev.map(o =>
+                                o.id === order.id
+                                  ? { ...o, payment_status: 'paid' as Order['payment_status'] }
+                                  : o,
+                              ));
+                            }
+                          }}
+                          className="px-3 py-1.5 border border-smitten-cream text-smitten-text/60 text-xs rounded-lg hover:border-smitten-text/30 transition-colors"
+                        >
+                          Zahlung als erhalten markieren
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
