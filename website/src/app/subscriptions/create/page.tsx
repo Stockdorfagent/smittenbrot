@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Product, PickupLocation, formatPrice } from '@/lib/types';
@@ -8,6 +8,12 @@ import { User } from '@supabase/supabase-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import Link from 'next/link';
+
+const DAY_LABELS: Record<'wednesday' | 'saturday' | 'both', string> = {
+  wednesday: 'Mittwoch',
+  saturday: 'Samstag',
+  both: 'Mittwoch + Samstag',
+};
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -30,8 +36,24 @@ function SubscriptionCreateForm() {
   const [items, setItems] = useState<SubItem[]>([]);
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState('');
-  const [pickupDay, setPickupDay] = useState<'wednesday' | 'saturday'>('wednesday');
+  const [pickupDay, setPickupDay] = useState<'wednesday' | 'saturday' | 'both'>('wednesday');
   const [user, setUser] = useState<User | null>(null);
+
+  // The chosen location decides which days can be picked — only Waldstr. has a
+  // Saturday pickup today, and the flags (migration 018) decide, not a name.
+  const location = locations.find(l => l.id === selectedLocation);
+  const dayOptions = useMemo(() => {
+    const opts: ('wednesday' | 'saturday' | 'both')[] = [];
+    if (location?.available_wed) opts.push('wednesday');
+    if (location?.available_sat) opts.push('saturday');
+    if (location?.available_wed && location?.available_sat) opts.push('both');
+    return opts.length > 0 ? opts : (['wednesday'] as const).slice();
+  }, [location?.available_wed, location?.available_sat]);
+
+  // Never leave an impossible day selected after switching location.
+  useEffect(() => {
+    if (!dayOptions.includes(pickupDay)) setPickupDay(dayOptions[0]);
+  }, [dayOptions, pickupDay]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -353,9 +375,18 @@ function SubscriptionCreateForm() {
 
           <div className="mt-6 space-y-4">
             <div>
+              <label className="block text-sm font-medium text-smitten-text mb-2">Abholort</label>
+              <select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
+                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name} – {loc.address}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-smitten-text mb-2">Abholtag</label>
-              <div className="flex gap-2">
-                {(['wednesday', 'saturday'] as const).map(d => (
+              <div className="flex flex-wrap gap-2">
+                {dayOptions.map(d => (
                   <button key={d}
                     onClick={() => setPickupDay(d)}
                     className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${
@@ -363,20 +394,16 @@ function SubscriptionCreateForm() {
                         ? 'bg-smitten-primary text-white'
                         : 'bg-smitten-cream text-smitten-text hover:bg-smitten-text/5'
                     }`}>
-                    {d === 'wednesday' ? 'Mittwoch' : 'Samstag'}
+                    {DAY_LABELS[d]}
                   </button>
                 ))}
               </div>
+              {dayOptions.length === 1 && (
+                <p className="mt-2 text-xs text-smitten-text/60">
+                  An diesem Abholort wird nur {DAY_LABELS[dayOptions[0]].toLowerCase()} abgeholt.
+                </p>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-smitten-text mb-2">Abholort</label>
-            <select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
-              className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>{loc.name} – {loc.address}</option>
-              ))}
-            </select>
-          </div>
           </div>
 
           <div className="mt-8 flex justify-between">

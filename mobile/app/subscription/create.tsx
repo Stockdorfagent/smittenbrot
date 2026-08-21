@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,13 +13,19 @@ import { LocationDropdown } from '@/components/LocationDropdown';
 import type { Product, PickupLocation, WeekCycle } from '@/lib/types';
 import type { PickupDay } from '@/lib/types';
 
-type Step = 'pickup_day' | 'products' | 'location' | 'review';
+type Step = 'location' | 'pickup_day' | 'products' | 'review';
+
+const DAY_LABELS: Record<PickupDay, string> = {
+  wednesday: 'Mittwoch',
+  saturday: 'Samstag',
+  both: 'Mittwoch + Samstag',
+};
 
 export default function SubscriptionCreateScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const [step, setStep] = useState<Step>('pickup_day');
+  const [step, setStep] = useState<Step>('location');
   const [pickupDay, setPickupDay] = useState<PickupDay>('wednesday');
   const [products, setProducts] = useState<Product[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -27,6 +33,28 @@ export default function SubscriptionCreateScreen() {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [weekCycle, setWeekCycle] = useState<WeekCycle | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Which days this location actually offers. Only Waldstr. has a Saturday
+  // pickup today, so Saturday (and Wed+Sa) must not even be selectable
+  // elsewhere — the location's own flags decide, not a hardcoded name.
+  const location = locations.find((l) => l.id === selectedLocation);
+  const dayOptions = useMemo(() => {
+    const opts: { value: PickupDay; label: string }[] = [];
+    if (location?.available_wed) opts.push({ value: 'wednesday', label: DAY_LABELS.wednesday });
+    if (location?.available_sat) opts.push({ value: 'saturday', label: DAY_LABELS.saturday });
+    if (location?.available_wed && location?.available_sat) {
+      opts.push({ value: 'both', label: DAY_LABELS.both });
+    }
+    return opts.length > 0 ? opts : [{ value: 'wednesday' as PickupDay, label: DAY_LABELS.wednesday }];
+  }, [location?.available_wed, location?.available_sat]);
+
+  // Switching to a location that does not offer the chosen day must not leave
+  // an impossible combination behind.
+  useEffect(() => {
+    if (!dayOptions.some((o) => o.value === pickupDay)) {
+      setPickupDay(dayOptions[0].value);
+    }
+  }, [dayOptions, pickupDay]);
 
   useEffect(() => {
     (async () => {
@@ -70,8 +98,8 @@ export default function SubscriptionCreateScreen() {
     if (!allProducts) return;
 
     const filtered = allProducts.filter((p) => {
-      if (pickupDay === 'wednesday' && !p.available_wed) return false;
-      if (pickupDay === 'saturday' && !p.available_sat) return false;
+      if (pickupDay !== 'saturday' && !p.available_wed) return false;
+      if (pickupDay !== 'wednesday' && !p.available_sat) return false;
       if (p.cycle === 'week_a' && weekCycle?.current_week !== 'A') return false;
       if (p.cycle === 'week_b' && weekCycle?.current_week !== 'B') return false;
       return true;
@@ -226,19 +254,22 @@ export default function SubscriptionCreateScreen() {
         {step === 'pickup_day' && (
           <View>
             <Text style={styles.stepTitle}>Abholtag wählen</Text>
-            <Text style={styles.stepHint}>An welchem Tag möchtest du regelmäßig abholen?</Text>
-            <TouchableOpacity
-              style={[styles.dayOption, pickupDay === 'wednesday' && styles.dayOptionActive]}
-              onPress={() => setPickupDay('wednesday')}
-            >
-              <Text style={[styles.dayOptionText, pickupDay === 'wednesday' && styles.dayOptionTextActive]}>Mittwoch</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.dayOption, pickupDay === 'saturday' && styles.dayOptionActive]}
-              onPress={() => setPickupDay('saturday')}
-            >
-              <Text style={[styles.dayOptionText, pickupDay === 'saturday' && styles.dayOptionTextActive]}>Samstag</Text>
-            </TouchableOpacity>
+            <Text style={styles.stepHint}>
+              {dayOptions.length > 1
+                ? 'An welchem Tag möchtest du regelmäßig abholen?'
+                : `An diesem Abholort wird ${dayOptions[0]?.label ?? 'mittwochs'} abgeholt.`}
+            </Text>
+            {dayOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.dayOption, pickupDay === opt.value && styles.dayOptionActive]}
+                onPress={() => setPickupDay(opt.value)}
+              >
+                <Text style={[styles.dayOptionText, pickupDay === opt.value && styles.dayOptionTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
             <Button title="Weiter" onPress={() => setStep('products')} size="lg" style={styles.nextButton} />
           </View>
         )}
@@ -260,7 +291,7 @@ export default function SubscriptionCreateScreen() {
                 />
               </View>
             ))}
-            <Button title="Weiter" onPress={() => setStep('location')} size="lg" style={styles.nextButton} />
+            <Button title="Weiter" onPress={() => setStep('review')} size="lg" style={styles.nextButton} />
           </View>
         )}
 
@@ -273,7 +304,7 @@ export default function SubscriptionCreateScreen() {
               selectedId={selectedLocation}
               onSelect={setSelectedLocation}
             />
-            <Button title="Weiter" onPress={() => setStep('review')} size="lg" disabled={!selectedLocation} style={styles.nextButton} />
+            <Button title="Weiter" onPress={() => setStep('pickup_day')} size="lg" disabled={!selectedLocation} style={styles.nextButton} />
           </View>
         )}
 
@@ -282,7 +313,7 @@ export default function SubscriptionCreateScreen() {
             <Text style={styles.stepTitle}>Überprüfen & Bestätigen</Text>
             <View style={styles.reviewCard}>
               <Text style={styles.reviewLabel}>Abholtag</Text>
-              <Text style={styles.reviewValue}>{pickupDay === 'wednesday' ? 'Mittwoch' : 'Samstag'}</Text>
+              <Text style={styles.reviewValue}>{DAY_LABELS[pickupDay]}</Text>
             </View>
             <View style={styles.reviewCard}>
               <Text style={styles.reviewLabel}>Abholort</Text>

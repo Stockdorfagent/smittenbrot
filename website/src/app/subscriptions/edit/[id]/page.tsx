@@ -35,8 +35,16 @@ export default function SubscriptionEditPage() {
       ]);
 
       if (!sub) { setError('Abo nicht gefunden.'); setLoading(false); return; }
-      const day = (sub.pickup_day as 'wednesday' | 'saturday') ?? 'wednesday';
-      setLocations(locData ?? []);
+      const day = (sub.pickup_day as 'wednesday' | 'saturday' | 'both') ?? 'wednesday';
+      // Only locations that serve this Abo's day(s) — moving a Saturday Abo to
+      // a Wednesday-only location would silently break it.
+      setLocations(
+        (locData ?? []).filter((l) =>
+          day === 'wednesday' ? l.available_wed
+          : day === 'saturday' ? l.available_sat
+          : l.available_wed && l.available_sat,
+        ),
+      );
       setSelectedLocation(sub.pickup_location_id ?? (locData?.[0]?.id ?? ''));
 
       const q: Record<string, number> = {};
@@ -49,8 +57,8 @@ export default function SubscriptionEditPage() {
       const { data: prodData } = await supabase
         .from('products').select('*').eq('active', true).eq('subscribable', true).order('sort_order', { ascending: true });
       const filtered = (prodData ?? []).filter((p) => {
-        if (day === 'wednesday' && !p.available_wed) return false;
-        if (day === 'saturday' && !p.available_sat) return false;
+        if (day !== 'saturday' && !p.available_wed) return false;
+        if (day !== 'wednesday' && !p.available_sat) return false;
         if (p.cycle === 'week_a') return cycle === 'A';
         if (p.cycle === 'week_b') return cycle === 'B';
         if (p.cycle === 'hidden') return false;

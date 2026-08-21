@@ -33,7 +33,16 @@ export default function SubscriptionEditScreen() {
       ]);
 
       const day = (sub?.pickup_day as PickupDay) ?? 'wednesday';
-      setLocations((locs ?? []) as PickupLocation[]);
+      // Only offer locations that actually serve this Abo's day(s) — moving a
+      // Saturday Abo to a Wednesday-only location would silently break it.
+      const allLocs = (locs ?? []) as PickupLocation[];
+      setLocations(
+        allLocs.filter((l) =>
+          day === 'wednesday' ? l.available_wed
+          : day === 'saturday' ? l.available_sat
+          : l.available_wed && l.available_sat,
+        ),
+      );
       setSelectedLocation(sub?.pickup_location_id ?? null);
 
       const q: Record<string, number> = {};
@@ -51,8 +60,8 @@ export default function SubscriptionEditScreen() {
         .order('sort_order', { ascending: true });
       const wc = cycle as WeekCycle | null;
       const filtered = (allProducts ?? []).filter((p) => {
-        if (day === 'wednesday' && !p.available_wed) return false;
-        if (day === 'saturday' && !p.available_sat) return false;
+        if (day !== 'saturday' && !p.available_wed) return false;
+        if (day !== 'wednesday' && !p.available_sat) return false;
         if (p.cycle === 'week_a' && wc?.current_week !== 'A') return false;
         if (p.cycle === 'week_b' && wc?.current_week !== 'B') return false;
         return true;

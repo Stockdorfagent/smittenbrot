@@ -240,7 +240,7 @@ export default function SubscriptionsPage() {
                     </span>
                     {(sub.status === 'active' || sub.status === 'paused') && (
                       <span className="ml-2 text-xs text-smitten-text/40">
-                        Abholtag: <strong>{sub.pickup_day === 'saturday' ? 'Samstag' : 'Mittwoch'}</strong>
+                        Abholtag: <strong>{sub.pickup_day === 'both' ? 'Mittwoch + Samstag' : sub.pickup_day === 'saturday' ? 'Samstag' : 'Mittwoch'}</strong>
                       </span>
                     )}
                   </div>

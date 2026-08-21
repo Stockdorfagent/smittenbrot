@@ -16,6 +16,8 @@ export default function AdminPickupLocationsPage() {
     cabinet_code: '',
     notification_template: '',
     pickup_instructions: '',
+    available_wed: true,
+    available_sat: false,
     active: true,
     sort_order: 0,
   });
@@ -54,6 +56,8 @@ export default function AdminPickupLocationsPage() {
         cabinet_code: editForm.cabinet_code,
         notification_template: editForm.notification_template,
         pickup_instructions: editForm.pickup_instructions,
+        available_wed: editForm.available_wed,
+        available_sat: editForm.available_sat,
         active: editForm.active,
         sort_order: editForm.sort_order,
       })
@@ -73,12 +77,14 @@ export default function AdminPickupLocationsPage() {
       cabinet_code: addForm.cabinet_code,
       notification_template: addForm.notification_template,
       pickup_instructions: addForm.pickup_instructions,
+      available_wed: addForm.available_wed,
+      available_sat: addForm.available_sat,
       active: addForm.active,
       sort_order: addForm.sort_order,
     });
     if (!error) {
       setShowAdd(false);
-      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', pickup_instructions: '', active: true, sort_order: 0 });
+      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', pickup_instructions: '', available_wed: true, available_sat: false, active: true, sort_order: 0 });
       loadLocations();
     }
   }
@@ -166,6 +172,25 @@ export default function AdminPickupLocationsPage() {
               placeholder="z.B. Selbstbedienung im Abholschrank – deine Bestellnummer steht auf der Verpackung."
               className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
             />
+          </div>
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">
+              Abholtage — an welchen Tagen wird hier abgeholt? (steuert, was Kund:innen im Abo wählen können)
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-smitten-text">
+                <input type="checkbox" checked={addForm.available_wed}
+                  onChange={(e) => setAddForm({ ...addForm, available_wed: e.target.checked })}
+                  className="accent-smitten-primary" />
+                Mittwoch
+              </label>
+              <label className="flex items-center gap-2 text-sm text-smitten-text">
+                <input type="checkbox" checked={addForm.available_sat}
+                  onChange={(e) => setAddForm({ ...addForm, available_sat: e.target.checked })}
+                  className="accent-smitten-primary" />
+                Samstag
+              </label>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">
@@ -263,6 +288,23 @@ export default function AdminPickupLocationsPage() {
                     placeholder="z.B. Selbstbedienung im Abholschrank – deine Bestellnummer steht auf der Verpackung."
                     className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs text-smitten-text/60 mb-1">Abholtage</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm text-smitten-text">
+                      <input type="checkbox" checked={editForm.available_wed ?? true}
+                        onChange={(e) => setEditForm({ ...editForm, available_wed: e.target.checked })}
+                        className="accent-smitten-primary" />
+                      Mittwoch
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-smitten-text">
+                      <input type="checkbox" checked={editForm.available_sat ?? false}
+                        onChange={(e) => setEditForm({ ...editForm, available_sat: e.target.checked })}
+                        className="accent-smitten-primary" />
+                      Samstag
+                    </label>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Benachrichtigungsvorlage</label>

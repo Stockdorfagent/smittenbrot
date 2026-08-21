@@ -150,6 +150,26 @@ function berlinHour(): number {
  * order cutoff (two days before at 22:00) is still in the future. Used when a
  * subscription's order is generated on demand (e.g. at subscription creation).
  */
+/**
+ * For a "both" Abo, the next order is simply whichever of the two days comes
+ * first with its cutoff still open. The Mon/Thu crons then keep generating one
+ * order per day from there on.
+ */
+function getNextDateForSubscription(
+  pickupDay: "wednesday" | "saturday" | "both",
+): string {
+  if (pickupDay !== "both") return getNextDateForPickupDay(pickupDay);
+  const wed = getNextDateForPickupDay("wednesday");
+  const sat = getNextDateForPickupDay("saturday");
+  return wed <= sat ? wed : sat;
+}
+
+/** Which product-availability column applies to a concrete date. */
+function availabilityColumnForDate(dateStr: string): "available_wed" | "available_sat" {
+  const dow = new Date(dateStr + "T12:00:00Z").getUTCDay();
+  return dow === 6 ? "available_sat" : "available_wed";
+}
+
 function getNextDateForPickupDay(pickupDay: "wednesday" | "saturday"): string {
   const targetDow = pickupDay === "wednesday" ? 3 : 6;
   const now = new Date();
@@ -534,7 +554,8 @@ async function process12pmReminders(): Promise<{
       )
     `)
     .eq("status", "active")
-    .eq("pickup_day", dow === 1 ? "wednesday" : "saturday")
+    // A "both" Abo runs on Wednesday AND Saturday, so it belongs to both runs.
+    .in("pickup_day", [dow === 1 ? "wednesday" : "saturday", "both"])
     .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
 
   if (subError) {
@@ -672,7 +693,8 @@ async function process8pmOrderPlacement(): Promise<{
       )
     `)
     .eq("status", "active")
-    .eq("pickup_day", dow === 1 ? "wednesday" : "saturday")
+    // A "both" Abo runs on Wednesday AND Saturday, so it belongs to both runs.
+    .in("pickup_day", [dow === 1 ? "wednesday" : "saturday", "both"])
     .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
 
   if (subError) {
@@ -1459,9 +1481,11 @@ async function processSingleSubscription(
     return { orderId: null, success: false, error: msg };
   }
 
-  const subPickupDay = (sub.pickup_day as "wednesday" | "saturday") ?? "wednesday";
-  const fulfillmentDate = options?.fulfillmentDate ?? getNextDateForPickupDay(subPickupDay);
-  const pickupDayColumn = subPickupDay === "wednesday" ? "available_wed" : "available_sat";
+  const subPickupDay = (sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday";
+  const fulfillmentDate = options?.fulfillmentDate ?? getNextDateForSubscription(subPickupDay);
+  // Derive from the resolved date: for a "both" Abo the pickup_day alone
+  // cannot tell us which day's product availability applies.
+  const pickupDayColumn = availabilityColumnForDate(fulfillmentDate);
   const currentWeek = await getCurrentWeekType();
 
   console.log(
@@ -1796,7 +1820,7 @@ async function updateSubscription(
   //    order when they resume).
   let appliedThisWeek = false;
   if (sub.status === "active") {
-    const nextDate = getNextDateForPickupDay((sub.pickup_day as "wednesday" | "saturday") ?? "wednesday");
+    const nextDate = getNextDateForSubscription((sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday");
     const { data: existing } = await supabase
       .from("orders")
       .select("id, payment_status, status")

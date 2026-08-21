@@ -26,6 +26,10 @@ export interface PickupLocation {
   notification_template: string;
   pickup_instructions: string | null;
   sort_order: number;
+  /** Which pickup days this location serves (migration 018). Only Waldstr.
+   *  has Saturday today; the flags decide, so no location name is hardcoded. */
+  available_wed: boolean;
+  available_sat: boolean;
 }
 
 export interface Order {

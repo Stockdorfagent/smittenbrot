@@ -28,6 +28,10 @@ export interface PickupLocation {
    *  cart and on the order confirmation, and included in the emails. */
   pickup_instructions: string | null;
   cabinet_code: string | null;
+  /** Which pickup days this location serves (migration 018). Only Waldstr.
+   *  has Saturday today; the flags decide, so no location name is hardcoded. */
+  available_wed: boolean;
+  available_sat: boolean;
 }
 
 // --- Products ---
@@ -210,7 +214,9 @@ export interface ProductionSheet {
 // App-specific types
 // ============================================================
 
-export type PickupDay = 'wednesday' | 'saturday';
+/** 'both' = the same basket on Wednesday AND Saturday (two orders, two
+ *  charges per week). Only offered where the location supports both days. */
+export type PickupDay = 'wednesday' | 'saturday' | 'both';
 
 export interface CartItem {
   product_id: string;
