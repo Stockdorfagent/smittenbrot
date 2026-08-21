@@ -47,6 +47,11 @@
         "ascApiKeyPath": "../../.credentials/AuthKey_34SGY4WGML.p8",
         "ascApiKeyId": "34SGY4WGML",
         "ascApiKeyIssuerId": "e19e70b9-c539-41c0-bece-a17bbe76fcfa"
+      },
+      "android": {
+        "serviceAccountKeyPath": "../../.credentials/firebase-service-account.json",
+        "track": "alpha",
+        "releaseStatus": "completed"
       }
     }
   }
