@@ -401,12 +401,15 @@ export async function send_pickup_ready(
           customer_id,
           customer_email,
           customer_name,
+          order_number,
+          fulfillment_date,
           pickup_location_id,
           pickup_locations!inner (
             id,
             name,
             address,
-            notification_template
+            notification_template,
+            cabinet_code
           )
         `)
         .eq("id", orderId)
@@ -426,14 +429,19 @@ export async function send_pickup_ready(
         name: string;
         address: string;
         notification_template: string | null;
+        cabinet_code: string | null;
       };
 
       const locationName = pickupLocation.name;
       let template = pickupLocation.notification_template ?? "";
 
-      // 3. Generate short codes from order ID
-      const orderNumber = orderId.substring(orderId.length - 8).toUpperCase();
-      const code = orderId.substring(orderId.length - 6).toUpperCase();
+      // 3. The number the customer can actually match to the bag. Unpaid
+      //    orders have none (migration 020), so fall back to the pickup date.
+      const isoDate = (order.fulfillment_date as string | null) ?? "";
+      const dateDe = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+      const orderNumber = (order.order_number as string | null) ??
+        (dateDe ? `vom ${dateDe[3]}.${dateDe[2]}.${dateDe[1]}` : "");
+      const code = pickupLocation.cabinet_code ?? "";
 
       // 4. Render the template with placeholders
       if (!template) {
@@ -441,7 +449,15 @@ export async function send_pickup_ready(
         template = "Deine Bestellung {ORDER_NUMBER} ist abholbereit in {PICKUP_LOCATION}.";
       }
 
-      const renderedBody = template
+      // With no number to show, "Bestellnummer vom 26.08.2026" reads wrong, so
+      // rewrite the whole phrase instead of just filling the placeholder. Only
+      // reachable for an unpaid order — which should never be announced as
+      // ready in the first place (no payment, no order, no number).
+      const template2 = (order.order_number as string | null)
+        ? template
+        : template.replace(/Bestellnummer\s*\{ORDER_NUMBER\}/gi, "Bestellung {ORDER_NUMBER}");
+
+      const renderedBody = template2
         .replace(/\{ORDER_NUMBER\}/g, orderNumber)
         .replace(/\{PICKUP_LOCATION\}/g, locationName)
         .replace(/\{CODE\}/g, code)
@@ -452,22 +468,35 @@ export async function send_pickup_ready(
         ? `${renderedBody}\n\n${extraText}`
         : renderedBody;
 
-      // 5. Build a user-friendly HTML email
+      // 5. Build the email. House style: normal body type, brand palette, no
+      //    emojis, and red used sparingly — here only for the order number.
+      const firstName = ((order.customer_name as string | null) ?? "").trim().split(/\s+/)[0];
+      const greeting = firstName ? `Hallo ${firstName},` : "Hallo,";
+      const bodyHtml = renderedBody
+        .replace(/\n/g, "<br>")
+        // the number is the one thing worth emphasising
+        .split(orderNumber)
+        .join(orderNumber
+          ? `<strong style="color: #f8120e;">${orderNumber}</strong>`
+          : "");
+
       const htmlBody = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Abholbereit</h2>
-          <p>${renderedBody.replace(/\n/g, "<br>")}</p>
-          <hr>
-          <p style="color: #666; font-size: 0.9em;">
-            <strong>${locationName}</strong><br>
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1A1A1A; font-size: 15px; line-height: 1.55;">
+          <p style="margin: 0 0 16px;">${greeting}</p>
+          <p style="margin: 0 0 16px;">${bodyHtml}</p>
+          ${extraText ? `<p style="margin: 0 0 16px;">${extraText.replace(/\n/g, "<br>")}</p>` : ""}
+          <p style="margin: 0 0 16px; color: #6B7280;">
+            ${locationName}<br>
             ${pickupLocation.address}
           </p>
-          ${extraText ? `<p style="font-size: 1.1em; font-weight: bold;">${extraText}</p>` : ""}
-          <p style="color: #999; font-size: 0.8em;">Smittenbrot – Handgemachtes Brot aus Stockdorf</p>
+          <p style="margin: 0;">Liebe Grüße<br>Sophia</p>
         </div>
       `.trim();
 
       const pushTitle = "Abholbereit";
+      const emailSubject = orderNumber
+        ? `Deine Bestellung ${orderNumber} ist abholbereit`
+        : "Deine Bestellung ist abholbereit";
 
       // 6. Look up customer for push token
       const { data: customer } = await supabase
@@ -493,7 +522,7 @@ export async function send_pickup_ready(
       if (recipientEmail) {
         emailResult = await send_email(
           recipientEmail,
-          pushTitle,
+          emailSubject,
           htmlBody,
         );
       }

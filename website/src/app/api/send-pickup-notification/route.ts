@@ -8,76 +8,60 @@ function getSupabaseAdmin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
-const BREVO_API_KEY = process.env.BREVO_API_KEY!;
 
+/**
+ * Mark an order ready for pickup: notify the customer, then mark it fulfilled.
+ *
+ * This used to build its own Brevo email — which meant two different pickup
+ * emails existed, the customer got NO push (the route only emailed), and the
+ * message was rendered as one big red <h2>. It now delegates to
+ * notification-dispatch/send-pickup-ready, the one implementation that sends
+ * push AND email, uses the real order number, and logs the channel correctly.
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireAdmin(req);
     if ('response' in auth) return auth.response;
 
-    const { order_id } = await req.json();
+    const { order_id, extra_text } = await req.json();
     if (!order_id) return NextResponse.json({ error: 'missing order_id' }, { status: 400 });
 
-    // Fetch order with pickup location
-    const supabase = getSupabaseAdmin();
-    const { data: order } = await supabase
-      .from('orders')
-      .select('*, pickup_locations!inner(name, address, notification_template, cabinet_code)')
-      .eq('id', order_id)
-      .single();
-
-    if (!order) return NextResponse.json({ error: 'order not found' }, { status: 404 });
-
-    const location = order.pickup_locations;
-    const template = location?.notification_template || 'Deine Bestellung {ORDER_NUMBER} ist abholbereit bei {PICKUP_LOCATION}.';
-    const orderNum = order.order_number?.replace(/^0+/, '') || '---';
-
-    const message = template
-      .replace('{ORDER_NUMBER}', orderNum)
-      .replace('{PICKUP_LOCATION}', location?.name || '')
-      .replace('{CODE}', location?.cabinet_code || '')
-      .replace('{PICKUP_TIME}', '');
-
-    const recipientEmail = order.customer_email;
-    if (!recipientEmail) return NextResponse.json({ error: 'no customer email' }, { status: 400 });
-
-    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const dispatchUrl =
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/notification-dispatch/send-pickup-ready`;
+    const res = await fetch(dispatchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'Accept': 'application/json',
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
       },
       body: JSON.stringify({
-        sender: { email: 'info@smittenbrot.de', name: 'Smittenbrot' },
-        to: [{ email: recipientEmail }],
-        subject: `Deine Smittenbrot Bestellung #${orderNum} ist abholbereit!`,
-        textContent: message,
-        htmlContent: `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px">
-          <h2 style="color:#f8120e;font-size:20px;">${message.replace(/\n/g, '<br>')}</h2>
-          <p style="color:#555;margin-top:16px;font-size:14px;">Liebe Grüße aus Stockdorf<br>Sophia</p>
-        </div>`,
+        order_ids: [order_id],
+        ...(extra_text ? { extra_text } : {}),
       }),
     });
 
-    if (!brevoRes.ok) {
-      const brevoBody = await brevoRes.json().catch(() => ({}));
-      console.error('[pickup-notification] Brevo API error:', brevoRes.status, JSON.stringify(brevoBody));
-      return NextResponse.json({ error: 'E-Mail konnte nicht gesendet werden. Brevo Fehler: ' + brevoRes.status }, { status: 502 });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[pickup-notification] dispatch failed:', res.status, JSON.stringify(body));
+      return NextResponse.json(
+        { error: 'Benachrichtigung konnte nicht gesendet werden.' },
+        { status: 502 },
+      );
     }
 
-    // Mark as fulfilled
-    await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order_id);
+    // Only mark it off once the customer has actually been told.
+    const supabase = getSupabaseAdmin();
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'fulfilled' })
+      .eq('id', order_id);
+    if (updateError) {
+      console.error('[pickup-notification] could not mark fulfilled:', updateError);
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
 
-    // Log notification as delivered
-    await supabase.from('notifications').insert({
-      customer_id: order.customer_id,
-      type: 'pickup_ready',
-      channel: 'email',
-      sent_at: new Date().toISOString(),
-      delivered: true,
-    });
-
+    // notification-dispatch already logged the notification row (with the real
+    // channel: push, email or both) — deliberately not duplicated here.
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Pickup notification error:', err);
