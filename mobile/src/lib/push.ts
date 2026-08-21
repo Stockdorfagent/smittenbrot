@@ -15,6 +15,32 @@ Notifications.setNotificationHandler({
 });
 
 /**
+ * Clear the icon badge (and the notification shade) when the app is opened.
+ *
+ * Nothing did this, so the launcher kept showing "2" long after the app had
+ * been opened — implying unread content that does not exist, since the app has
+ * no notification inbox. `shouldSetBadge: false` above only covers
+ * notifications arriving while the app is in the foreground; it says nothing
+ * about ones delivered while it was closed. On Android the launcher count comes
+ * from the notifications still in the shade, which is why the badge has to be
+ * dismissed there rather than merely zeroed.
+ *
+ * Best-effort: badge APIs are unsupported on some launchers and on web.
+ */
+export async function clearNotificationBadge(): Promise<void> {
+  try {
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    // unsupported launcher — ignore
+  }
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Request notification permission, obtain the Expo push token, and save it
  * to the customer's `push_token` so the backend (subscription engine /
  * notification dispatch) can reach this device. Safe to call repeatedly.

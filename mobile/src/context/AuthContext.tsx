@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { registerAndSavePushToken } from '@/lib/push';
+import { registerAndSavePushToken, clearNotificationBadge } from '@/lib/push';
 import type { AuthState } from '@/lib/types';
 
 interface AuthContextType extends AuthState {
@@ -72,6 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerAndSavePushToken(state.user.id);
     }
   }, [state.user?.id]);
+
+  // Opening the app clears the icon badge. Without this the launcher kept
+  // showing a count for notifications that had already been read, and the app
+  // has no inbox screen to explain it.
+  useEffect(() => {
+    clearNotificationBadge();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') clearNotificationBadge();
+    });
+    return () => sub.remove();
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
