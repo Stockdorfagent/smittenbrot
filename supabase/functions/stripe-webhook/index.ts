@@ -119,6 +119,41 @@ async function logReceiptOutcome(
 }
 
 /**
+ * Tell the owner a paid order just landed — email + push to the admin phones.
+ *
+ * Nothing here alerted the admin at all before: the in-app "ka-ching" listens
+ * on Supabase Realtime, which only reaches an app that is currently open, so a
+ * closed phone stayed silent. Best-effort; never blocks the order.
+ */
+async function alertAdminNewOrder(order: Record<string, unknown>): Promise<void> {
+  const ref = (order.order_number as string | null) ?? (order.id as string);
+  const eur = (((order.total_cents as number) ?? 0) / 100).toFixed(2).replace(".", ",");
+  const who = (order.customer_name as string | null) ?? "Kunde";
+  const day = (order.fulfillment_date as string | null) ?? "";
+  const message = `Neue Bestellung ${ref}: ${eur} EUR von ${who}, Abholung ${day}.`;
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/functions/v1/notification-dispatch/send-admin-alert`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ message }),
+      },
+    );
+    if (!resp.ok) {
+      console.error(
+        `[stripe-webhook] Admin alert failed for ${ref}: ${resp.status} ${await resp.text()}`,
+      );
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] Admin alert threw for ${ref}:`, err);
+  }
+}
+
+/**
  * Send a receipt email for a paid one-time order via Brevo.
  * Errors are logged but never thrown — non-blocking.
  */
@@ -596,6 +631,7 @@ async function createOrderFromPaymentIntent(
     .single();
   if (full) {
     await sendReceiptEmail(full);
+    await alertAdminNewOrder(full);
   }
 
   console.log(
@@ -674,8 +710,10 @@ async function handlePaymentIntentSucceeded(
     .single();
   if (updatedOrder) {
     await sendReceiptEmail(updatedOrder);
+    await alertAdminNewOrder(updatedOrder);
   } else {
     await sendReceiptEmail(order);
+    await alertAdminNewOrder(order);
   }
 }
 

@@ -36,19 +36,33 @@ export function AdminOrderAlerts() {
       if (session?.access_token) supabase.realtime.setAuth(session.access_token);
       if (!active) return;
 
+      // Listen to INSERT *and* UPDATE. An order is never inserted as paid:
+      // stripe-webhook inserts it as 'pending' and then updates it to 'paid'
+      // so the numbering trigger fires. Watching INSERT alone therefore never
+      // saw a paid order and the ka-ching never rang, even in the foreground.
+      const alreadySeen = new Set<string>();
+
       channel = supabase
         .channel('admin-order-alerts')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'orders' },
+          { event: '*', schema: 'public', table: 'orders' },
           (payload) => {
+            if (payload.eventType !== 'INSERT' && payload.eventType !== 'UPDATE') return;
             const row = payload.new as {
+              id?: string;
               payment_status?: string;
               order_number?: string;
               total_cents?: number;
             };
-            // "Money in" = a paid order. Ignore un-charged/pending inserts.
+            // "Money in" = a paid order. Ignore un-charged/pending rows.
             if (row?.payment_status !== 'paid') return;
+            // An order can be updated more than once after payment (status
+            // changes, fulfilment) — ring once per order.
+            if (row.id) {
+              if (alreadySeen.has(row.id)) return;
+              alreadySeen.add(row.id);
+            }
 
             try {
               player.seekTo(0);

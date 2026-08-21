@@ -585,12 +585,37 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
 
   const result = await send_email(ADMIN_EMAIL, subject, htmlBody);
 
+  // Push to the admins' phones as well as emailing. The in-app "ka-ching"
+  // rides on Supabase Realtime, so it can only fire while the app is open —
+  // a closed phone hears nothing without a real push. Best-effort: never let
+  // a push failure mask a delivered email.
+  let pushed = 0;
+  try {
+    const { data: admins } = await supabase
+      .from("customers")
+      .select("push_token")
+      .eq("is_admin", true)
+      .not("push_token", "is", null);
+    const tokens = (admins ?? [])
+      .map((a: { push_token: string | null }) => a.push_token as string)
+      .filter(Boolean);
+    if (tokens.length > 0) {
+      const push = await send_push(tokens, "Smittenbrot", message);
+      pushed = push.success ? tokens.length : 0;
+      log("info", `Admin alert pushed to ${pushed}/${tokens.length} device(s)`);
+    } else {
+      log("warn", "Admin alert: no admin push tokens registered");
+    }
+  } catch (err) {
+    log("error", `Admin alert push failed: ${err instanceof Error ? err.message : err}`);
+  }
+
   // Also log to notifications table as an admin_alert
-  if (result.success) {
+  if (result.success || pushed > 0) {
     await supabase.from("notifications").insert({
       customer_id: null,
       type: "admin_alert",
-      channel: "email",
+      channel: pushed > 0 ? (result.success ? "both" : "push") : "email",
       sent_at: new Date().toISOString(),
       delivered: true,
     });
