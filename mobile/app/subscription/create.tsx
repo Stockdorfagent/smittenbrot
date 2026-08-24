@@ -15,6 +15,15 @@ import type { PickupDay } from '@/lib/types';
 
 type Step = 'location' | 'pickup_day' | 'products' | 'review';
 
+/** The single source of truth for the order. The progress dots used to carry
+ *  their own hardcoded list, which still had the pre-reorder sequence in it. */
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'location', label: 'Abholort' },
+  { key: 'pickup_day', label: 'Abholtag' },
+  { key: 'products', label: 'Produkte' },
+  { key: 'review', label: 'Prüfen' },
+];
+
 const DAY_LABELS: Record<PickupDay, string> = {
   wednesday: 'Mittwoch',
   saturday: 'Samstag',
@@ -26,6 +35,15 @@ export default function SubscriptionCreateScreen() {
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [step, setStep] = useState<Step>('location');
+  // Steps already completed stay tappable — going back to change one product
+  // should not mean starting over.
+  const [maxStep, setMaxStep] = useState(0);
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const goToStep = (next: Step) => {
+    const i = STEPS.findIndex((s) => s.key === next);
+    setMaxStep((m) => Math.max(m, i));
+    setStep(next);
+  };
   const [pickupDay, setPickupDay] = useState<PickupDay>('wednesday');
   const [products, setProducts] = useState<Product[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -241,13 +259,29 @@ export default function SubscriptionCreateScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.progressBar}>
-        {['pickup_day', 'products', 'location', 'review'].map((s, i) => (
-          <View key={s} style={styles.progressStep}>
-            <View style={[styles.progressDot, step === s && styles.progressDotActive, ['products', 'location', 'review'].indexOf(step) >= i && styles.progressDotCompleted]}>
-              <Text style={styles.progressNum}>{i + 1}</Text>
-            </View>
-          </View>
-        ))}
+        {STEPS.map((s, i) => {
+          const reachable = i <= maxStep;
+          return (
+            <TouchableOpacity
+              key={s.key}
+              style={styles.progressStep}
+              disabled={!reachable}
+              onPress={() => goToStep(s.key)}
+              accessibilityLabel={`Schritt ${i + 1}: ${s.label}`}
+            >
+              <View style={[
+                styles.progressDot,
+                i === stepIndex && styles.progressDotActive,
+                i < stepIndex && styles.progressDotCompleted,
+              ]}>
+                <Text style={styles.progressNum}>{i + 1}</Text>
+              </View>
+              <Text style={[styles.progressLabel, i === stepIndex && styles.progressLabelActive]}>
+                {s.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -270,7 +304,8 @@ export default function SubscriptionCreateScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
-            <Button title="Weiter" onPress={() => setStep('products')} size="lg" style={styles.nextButton} />
+            <Button title="Weiter" onPress={() => goToStep('products')} size="lg" style={styles.nextButton} />
+            <Button title="Zurück" onPress={() => goToStep('location')} variant="ghost" size="sm" style={styles.backButton} />
           </View>
         )}
 
@@ -291,7 +326,8 @@ export default function SubscriptionCreateScreen() {
                 />
               </View>
             ))}
-            <Button title="Weiter" onPress={() => setStep('review')} size="lg" style={styles.nextButton} />
+            <Button title="Weiter" onPress={() => goToStep('review')} size="lg" style={styles.nextButton} />
+            <Button title="Zurück" onPress={() => goToStep('pickup_day')} variant="ghost" size="sm" style={styles.backButton} />
           </View>
         )}
 
@@ -304,7 +340,7 @@ export default function SubscriptionCreateScreen() {
               selectedId={selectedLocation}
               onSelect={setSelectedLocation}
             />
-            <Button title="Weiter" onPress={() => setStep('pickup_day')} size="lg" disabled={!selectedLocation} style={styles.nextButton} />
+            <Button title="Weiter" onPress={() => goToStep('pickup_day')} size="lg" disabled={!selectedLocation} style={styles.nextButton} />
           </View>
         )}
 
@@ -341,6 +377,7 @@ export default function SubscriptionCreateScreen() {
               Wird bei jeder Lieferung berechnet. Enthält 7 % MwSt.
             </Text>
             <Button title="Abonnement erstellen" onPress={handleConfirm} loading={loading} size="lg" style={styles.nextButton} />
+            <Button title="Zurück" onPress={() => goToStep('products')} variant="ghost" size="sm" style={styles.backButton} />
           </View>
         )}
       </ScrollView>
@@ -524,5 +561,18 @@ const styles = StyleSheet.create({
   reviewHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginBottom: theme.spacing.sm, marginTop: theme.spacing.xs },
   nextButton: {
     marginTop: theme.spacing.lg,
+  },
+  backButton: {
+    marginTop: theme.spacing.sm,
+  },
+  progressLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textLight,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  progressLabelActive: {
+    color: theme.colors.text,
+    fontWeight: '600',
   },
 });
