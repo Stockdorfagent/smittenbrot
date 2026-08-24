@@ -980,6 +980,10 @@ async function process10pmLock(): Promise<{
         email,
         name,
         push_token
+      ),
+      subscriptions (
+        id,
+        status
       )
     `)
     // Charge the subscription orders whose cutoff is NOW — i.e. those for the
@@ -1010,6 +1014,18 @@ async function process10pmLock(): Promise<{
 
   for (const order of orders) {
     try {
+      // Never charge an order whose subscription is no longer active. The
+      // cancellation trigger (migration 021) normally removes such an order
+      // outright, but this is the guarantee: cancelling before the 22:00
+      // charge must mean no charge, exactly as the 12:00 reminder promises.
+      const sub = order.subscriptions as unknown as { status?: string } | null;
+      if (sub && sub.status !== "active") {
+        console.log(
+          `[subscription-engine] Skipping order ${order.id}: subscription is '${sub.status}', not active.`,
+        );
+        continue;
+      }
+
       const customer = order.customers as unknown as {
         id: string;
         email: string;
