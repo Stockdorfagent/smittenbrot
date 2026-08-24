@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { supabase, recoverStoredSession } from '@/lib/supabase';
+import type { Session } from '@supabase/supabase-js';
 import { registerAndSavePushToken, clearNotificationBadge } from '@/lib/push';
 import type { AuthState } from '@/lib/types';
 
@@ -15,17 +16,19 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/** Backoff between attempts to recover a stored session (ms). */
+const RECOVERY_DELAYS = [1000, 3000, 6000];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, loading: true });
 
-  const refreshUser = useCallback(async () => {
+  /** Resolve a session into the app's user state (profile row + admin flag). */
+  const applySession = useCallback(async (session: Session | null) => {
+    if (!session?.user) {
+      setState({ user: null, loading: false });
+      return;
+    }
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        setState({ user: null, loading: false });
-        return;
-      }
-
       const { data: profile } = await supabase
         .from('customers')
         .select('*')
@@ -54,17 +57,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch {
-      setState({ user: null, loading: false });
+      // A failed profile fetch must NOT look like "logged out" — the session is
+      // valid, so keep the user signed in with what the token already tells us.
+      setState({
+        user: {
+          id: session.user.id,
+          email: session.user.email ?? '',
+          name: session.user.user_metadata?.name ?? '',
+          is_admin: false,
+        },
+        loading: false,
+      });
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    await applySession(session);
+  }, [applySession]);
+
   useEffect(() => {
-    refreshUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      refreshUser();
+    let cancelled = false;
+
+    // Drive everything from onAuthStateChange. supabase-js emits
+    // INITIAL_SESSION once it has read (and if necessary refreshed) the stored
+    // session, so that — not an eager getSession() — is the authoritative
+    // "are we logged in" signal.
+    //
+    // The bug this fixes: refreshUser() ran on mount and a null getSession()
+    // was treated as logged out. On a cold start that could resolve before the
+    // AsyncStorage read finished, so the auth gate redirected to /login while
+    // the session appeared moments later — which is why closing the app and
+    // opening it again always worked.
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+      if (session?.user) {
+        applySession(session);
+      } else {
+        // Do NOT conclude "logged out" here — see attemptRecovery.
+        attemptRecovery(0);
+      }
     });
-    return () => subscription?.unsubscribe();
-  }, [refreshUser]);
+
+    /**
+     * A null session can mean two very different things: really logged out, or
+     * the access token expired and the refresh call could not be made (no
+     * signal yet at launch). In the second case the refresh token is still on
+     * disk, so we keep the user logged in and retry instead of throwing them
+     * at the login screen — which is what made the first launch ask for a
+     * password while the second launch worked.
+     */
+    const attemptRecovery = async (attempt: number) => {
+      if (cancelled) return;
+      const { session, rejected } = await recoverStoredSession();
+      if (cancelled) return;
+
+      if (session?.user) {
+        applySession(session);
+        return;
+      }
+      if (rejected) {
+        // The server refused the refresh token, or there is nothing stored:
+        // a genuine logout.
+        setState({ user: null, loading: false });
+        return;
+      }
+      if (attempt < RECOVERY_DELAYS.length) {
+        timers.push(setTimeout(() => attemptRecovery(attempt + 1), RECOVERY_DELAYS[attempt]));
+        return;
+      }
+      // Out of retries: show the login screen, but the stored token is left
+      // untouched so the next launch can still recover.
+      setState({ user: null, loading: false });
+    };
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      subscription?.unsubscribe();
+    };
+  }, [applySession]);
 
   // Once a user is signed in, register this device for push notifications
   // and save the token so the backend can reach it. Best-effort.
