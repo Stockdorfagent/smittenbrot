@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import { FunctionsHttpError } from '@supabase/supabase-js';
@@ -39,6 +39,31 @@ export default function SubscriptionCreateScreen() {
   // should not mean starting over.
   const [maxStep, setMaxStep] = useState(0);
   const stepIndex = STEPS.findIndex((s) => s.key === step);
+  // Set once an Abo has been created, so a re-focus can clean up even if the
+  // screen was never unmounted.
+  const completedRef = useRef(false);
+
+  const resetWizard = useCallback(() => {
+    completedRef.current = true;
+    setStep('location');
+    setMaxStep(0);
+    setQuantities({});
+    setPickupDay('wednesday');
+  }, []);
+
+  // Reopening after a completed Abo starts fresh; reopening a half-finished one
+  // resumes where it left off.
+  useFocusEffect(
+    useCallback(() => {
+      if (completedRef.current) {
+        completedRef.current = false;
+        setStep('location');
+        setMaxStep(0);
+        setQuantities({});
+        setPickupDay('wednesday');
+      }
+    }, []),
+  );
   const goToStep = (next: Step) => {
     const i = STEPS.findIndex((s) => s.key === next);
     setMaxStep((m) => Math.max(m, i));
@@ -233,7 +258,16 @@ export default function SubscriptionCreateScreen() {
       }
 
       Alert.alert('Abonnement erstellt', 'Dein Abonnement ist aktiv. Deine erste Bestellung ist bereits vorgemerkt.', [
-        { text: 'OK', onPress: () => router.back() },
+        {
+          text: 'OK',
+          onPress: () => {
+            // Finished: the next "Neues Abo" must start from the beginning.
+            // Leaving mid-way and coming back still resumes — that is wanted —
+            // but a completed one must not linger.
+            resetWizard();
+            router.back();
+          },
+        },
       ]);
     } finally {
       setLoading(false);
