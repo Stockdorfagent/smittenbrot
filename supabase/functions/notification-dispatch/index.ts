@@ -255,7 +255,10 @@ export async function send_notification(
   type: string,
   channel: string,
   title: string,
+  /** Plain text. Used for push, and for email when no html is supplied. */
   body: string,
+  /** Optional rich version for email only — never sent to a push. */
+  html?: string,
 ): Promise<SendNotificationResult> {
   if (!customerId) {
     const msg = "customerId is required";
@@ -295,7 +298,7 @@ export async function send_notification(
   // Send email
   if (effectiveChannel === "email" || effectiveChannel === "both") {
     if (customer.email) {
-      emailResult = await send_email(customer.email, title, body);
+      emailResult = await send_email(customer.email, title, html ?? body);
     } else {
       log("warn", `Customer ${customerId} has no email — skipping email channel`);
     }
@@ -877,7 +880,7 @@ function jsonResponse(body: unknown, status = 200): Response {
  */
 const NOTIFICATION_TEMPLATES: Record<
   string,
-  (data: Record<string, unknown>) => { title: string; body: string }
+  (data: Record<string, unknown>) => { title: string; body: string; html?: string }
 > = {
   subscription_reminder: (d) => {
     const text =
@@ -901,9 +904,16 @@ const NOTIFICATION_TEMPLATES: Record<
           `<a href="${SITE_URL}/abmelden?c=${d.customer_id}&t=${d.unsubscribe_token}" style="color:#6B7280;text-decoration:underline">Hier abmelden</a>.` +
           `</p>`
         : "";
+    // A push notification is plain text — it cannot render markup, and sending
+    // HTML made the phone display "<p style=..." to the customer. Email keeps
+    // the rich version; push gets a readable sentence.
+    const itemsText = list.length
+      ? ` Diese Woche dabei: ${list.map((i) => `${i.quantity}x ${i.name}`).join(", ")}.`
+      : "";
     return {
       title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
-      body: `<p style="margin:0">${text}</p>${itemsHtml}${unsub}`,
+      body: `${text}${itemsText}`,
+      html: `<p style="margin:0">${text}</p>${itemsHtml}${unsub}`,
     };
   },
   order_placed: (d) => ({
@@ -964,12 +974,14 @@ serve(async (req: Request): Promise<Response> => {
         }
         let title = body.title as string | undefined;
         let text = body.body as string | undefined;
+        let html = body.html as string | undefined;
         if ((!title || !text) && NOTIFICATION_TEMPLATES[type]) {
           const rendered = NOTIFICATION_TEMPLATES[type](
             (body.data as Record<string, unknown>) ?? {},
           );
           title = title ?? rendered.title;
           text = text ?? rendered.body;
+          html = html ?? rendered.html;
         }
         const result = await send_notification(
           customerId,
@@ -977,6 +989,7 @@ serve(async (req: Request): Promise<Response> => {
           channel,
           title ?? "Smittenbrot",
           text ?? "",
+          html,
         );
         return jsonResponse(result, result.success ? 200 : 502);
       }
