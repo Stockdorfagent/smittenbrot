@@ -1786,12 +1786,27 @@ async function resumeSubscription(
  * when that order isn't locked yet, otherwise it applies from the next
  * delivery (no refund/recharge, no second transaction).
  */
+/**
+ * `reason` explains an applied_this_week === false, so the client can say
+ * something useful instead of a bare "saved":
+ *   'no_items_this_week' — nothing in the basket is baked this week (A/B
+ *                          cycle or day availability), so there is no order
+ *   'already_charged'    — this week's order is paid/locked; change applies next time
+ *   'paused'             — a paused Abo gets its order when it resumes
+ */
+type UpdateResult = {
+  success: boolean;
+  applied_this_week: boolean;
+  reason?: "no_items_this_week" | "already_charged" | "paused";
+  error: string | null;
+};
+
 async function updateSubscription(
   userId: string,
   subscriptionId: string,
   items: { product_id: string; quantity: number }[],
   pickupLocationId: string | null,
-): Promise<{ success: boolean; applied_this_week: boolean; error: string | null }> {
+): Promise<UpdateResult> {
   // 1. Ownership + editable status
   const { data: sub, error: subErr } = await supabase
     .from("subscriptions")
@@ -1822,8 +1837,14 @@ async function updateSubscription(
       .from("pickup_locations").select("id").eq("id", pickupLocationId).eq("active", true).maybeSingle();
     if (!loc) return { success: false, applied_this_week: false, error: "Invalid pickup location" };
     locId = pickupLocationId;
-    await supabase.from("subscriptions")
+    const { error: locErr } = await supabase.from("subscriptions")
       .update({ pickup_location_id: locId, updated_at: new Date().toISOString() }).eq("id", sub.id);
+    if (locErr) {
+      // e.g. the day/location guard (migration 019): a Saturday Abo cannot move
+      // to a Wednesday-only location. Never report success for a change that
+      // did not happen.
+      return { success: false, applied_this_week: false, error: locErr.message };
+    }
   }
 
   // 4. Replace the subscription's items
@@ -1835,6 +1856,7 @@ async function updateSubscription(
   // 5. Rebuild the upcoming order (active subs only; paused subs get a fresh
   //    order when they resume).
   let appliedThisWeek = false;
+  let reason: UpdateResult["reason"];
   if (sub.status === "active") {
     const nextDate = getNextDateForSubscription((sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday");
     const { data: existing } = await supabase
@@ -1853,15 +1875,24 @@ async function updateSubscription(
         await supabase.from("orders").delete().eq("id", existing.id);
         const r = await processSingleSubscription(sub.id, { skipIfExisting: false });
         appliedThisWeek = r.success;
+        // The rebuild can legitimately produce nothing — e.g. the basket now
+        // holds only a week_a bread and this is week B. Correct, but the
+        // customer must be told, or they simply get no bread with no
+        // explanation after being shown "saved".
+        if (!r.success) reason = "no_items_this_week";
+      } else {
+        reason = "already_charged";
       }
-      // charged/locked → leave it untouched; change applies from next delivery.
     } else {
       const r = await processSingleSubscription(sub.id, { skipIfExisting: true });
       appliedThisWeek = r.success;
+      if (!r.success) reason = "no_items_this_week";
     }
+  } else if (sub.status === "paused") {
+    reason = "paused";
   }
 
-  return { success: true, applied_this_week: appliedThisWeek, error: null };
+  return { success: true, applied_this_week: appliedThisWeek, reason, error: null };
 }
 
 // ── HTTP Router ──────────────────────────────────────────────

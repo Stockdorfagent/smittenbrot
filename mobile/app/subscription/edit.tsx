@@ -92,14 +92,27 @@ export default function SubscriptionEditScreen() {
       Alert.alert('Fehler', 'Änderung fehlgeschlagen. Bitte später erneut versuchen.');
       return;
     }
-    const appliedThisWeek = (data as { applied_this_week?: boolean } | null)?.applied_this_week;
-    Alert.alert(
-      'Abo aktualisiert',
-      appliedThisWeek
-        ? 'Deine anstehende, noch nicht berechnete Bestellung wurde bereits angepasst.'
-        : 'Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.',
-      [{ text: 'OK', onPress: () => router.back() }],
-    );
+    const result = data as {
+      applied_this_week?: boolean;
+      reason?: 'no_items_this_week' | 'already_charged' | 'paused';
+    } | null;
+
+    // Say what actually happened. The old fallback claimed the next delivery
+    // was "already fixed" even when the real reason was that nothing in the
+    // basket is baked this week (A/B cycle) — so the customer was told their
+    // change lands next time, then simply received no bread.
+    let message: string;
+    if (result?.applied_this_week) {
+      message = 'Deine anstehende, noch nicht berechnete Bestellung wurde bereits angepasst.';
+    } else if (result?.reason === 'no_items_this_week') {
+      message = 'Gespeichert. Diese Woche ist allerdings nichts aus deinem Abo dabei — es geht ab der nächsten Lieferung weiter.';
+    } else if (result?.reason === 'paused') {
+      message = 'Gespeichert. Dein Abo ist pausiert — die Änderung gilt, sobald du es fortsetzt.';
+    } else {
+      message = 'Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.';
+    }
+
+    Alert.alert('Abo aktualisiert', message, [{ text: 'OK', onPress: () => router.back() }]);
   };
 
   const total = Object.entries(quantities).reduce(
