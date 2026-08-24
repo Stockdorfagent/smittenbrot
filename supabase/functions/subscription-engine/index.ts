@@ -1351,6 +1351,22 @@ async function resumeExpiredPauses(): Promise<{ resumed: number }> {
     console.log(
       `[subscription-engine] Resumed ${resumed} subscription(s) whose pause ended on or before ${today}.`,
     );
+    // Generate the upcoming order straight away, exactly as tapping
+    // "Fortsetzen" does. Without this an auto-resumed Abo showed as active
+    // with no upcoming order until the next Mon/Thu run — which reads as
+    // "my resume did not work". skipIfExisting (default) prevents duplicates,
+    // and if the imminent cutoff has passed this simply targets the next
+    // delivery, which the weekly run will then skip.
+    for (const row of data ?? []) {
+      try {
+        await processSingleSubscription(row.id as string);
+      } catch (err) {
+        console.error(
+          `[subscription-engine] Auto-resume: could not generate an order for ${row.id}:`,
+          err,
+        );
+      }
+    }
   }
   return { resumed };
 }
