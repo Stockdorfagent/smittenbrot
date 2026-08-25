@@ -1312,6 +1312,28 @@ async function process10pmLock(): Promise<{
     }
   }
 
+  // One-time orders are paid the moment they are placed, so there is nothing
+  // to charge — but they were never moved out of 'scheduled' either, which the
+  // app shows as "Vorgemerkt". A customer whose bread is being baked tomorrow
+  // saw their paid order labelled as merely pencilled in, next to a
+  // subscription order for the same day reading "In Produktion". Same pickup,
+  // same oven, two different words. They now converge at the cutoff.
+  const { data: onetime, error: onetimeErr } = await supabase
+    .from("orders")
+    .update({ status: "locked_for_production", updated_at: new Date().toISOString() })
+    .eq("order_type", "one_time")
+    .eq("payment_status", "paid")
+    .in("status", ["scheduled", "grace_period_open"])
+    .eq("fulfillment_date", getNextFulfillmentDate())
+    .select("id");
+  if (onetimeErr) {
+    errors.push(`one-time lock: ${onetimeErr.message}`);
+    console.error("[subscription-engine] Failed to lock one-time orders:", onetimeErr);
+  } else if (onetime && onetime.length > 0) {
+    locked += onetime.length;
+    console.log(`[subscription-engine] Locked ${onetime.length} paid one-time order(s) for production.`);
+  }
+
   console.log(
     `[subscription-engine] process10pmLock done: ` +
       `${locked} locked, ${paid} paid, ${failed} failed, ${errors.length} errors`,
