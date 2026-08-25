@@ -68,7 +68,7 @@ export default function ProfileSetupScreen() {
               label="Vor- und Nachname"
               value={name}
               onChangeText={setName}
-              placeholder="z. B. Sophia Smittenberg"
+              placeholder="z. B. Brot Pitt"
               autoCapitalize="words"
             />
             <Button title="Weiter" onPress={save} loading={loading} size="lg" style={{ marginTop: theme.spacing.sm }} />

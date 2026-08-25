@@ -95,7 +95,7 @@ export default function ProfilePage() {
           <label className="block text-sm font-medium text-smitten-text/70">Vor- und Nachname</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
             className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
-            placeholder="z. B. Sophia Smittenberg" />
+            placeholder="z. B. Brot Pitt" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Telefon (optional)</label>
