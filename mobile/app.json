@@ -30,7 +30,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/kaching.wav"
+          ]
+        }
+      ],
       [
         "expo-splash-screen",
         {

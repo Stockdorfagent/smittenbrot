@@ -15,6 +15,27 @@ Notifications.setNotificationHandler({
 });
 
 /**
+ * Android 8.0+ ignores a per-notification sound: it comes from the channel.
+ * So the ka-ching needs its own channel, created before any push arrives.
+ * iOS takes the sound straight from the payload and needs no channel.
+ */
+export const KACHING_CHANNEL = 'orders';
+
+export async function ensureOrderChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(KACHING_CHANNEL, {
+      name: 'Bestellungen',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'kaching.wav',
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  } catch {
+    // best effort — a missing channel only costs the custom sound
+  }
+}
+
+/**
  * Clear the icon badge (and the notification shade) when the app is opened.
  *
  * Nothing did this, so the launcher kept showing "2" long after the app had

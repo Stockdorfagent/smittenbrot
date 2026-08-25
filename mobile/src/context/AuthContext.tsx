@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { AppState } from 'react-native';
 import { supabase, recoverStoredSession } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { registerAndSavePushToken, clearNotificationBadge } from '@/lib/push';
+import { registerAndSavePushToken, clearNotificationBadge, ensureOrderChannel } from '@/lib/push';
 import type { AuthState } from '@/lib/types';
 
 interface AuthContextType extends AuthState {
@@ -145,6 +145,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (state.user?.id) {
       registerAndSavePushToken(state.user.id);
+      // The ka-ching channel must exist before a push arrives, or Android
+      // falls back to the default sound for good.
+      ensureOrderChannel();
     }
   }, [state.user?.id]);
 

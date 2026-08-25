@@ -165,6 +165,11 @@ export async function send_push(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  /** Base filename of a sound bundled in the app, e.g. "kaching.wav".
+   *  Defaults to the device's standard notification sound. */
+  sound: string = "default",
+  /** Android 8.0+ takes the sound from the channel, not the payload. */
+  channelId?: string,
 ): Promise<SendPushResult> {
   if (!pushTokens || pushTokens.length === 0) {
     const msg = "No push tokens provided";
@@ -183,9 +188,10 @@ export async function send_push(
   // Build the messages array — one per token
   const messages = validTokens.map((token) => ({
     to: token,
-    sound: "default" as const,
+    sound,
     title,
     body,
+    ...(channelId ? { channelId } : {}),
     ...(data ? { data } : {}),
   }));
 
@@ -637,7 +643,11 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
       .map((a: { push_token: string | null }) => a.push_token as string)
       .filter(Boolean);
     if (tokens.length > 0) {
-      const push = await send_push(tokens, "Smittenbrot", message);
+      // The owner's cash-register sound, bundled in the app. Android needs the
+      // matching channel, which the app creates on sign-in.
+      const push = await send_push(
+        tokens, "Smittenbrot", message, undefined, "kaching.wav", "orders",
+      );
       pushed = push.success ? tokens.length : 0;
       log("info", `Admin alert pushed to ${pushed}/${tokens.length} device(s)`);
     } else {
