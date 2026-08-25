@@ -104,7 +104,7 @@ export default function LoginScreen() {
             )}
 
             {isRegister && (
-              <Input label="Vor- und Nachname" value={name} onChangeText={setName} placeholder="z. B. Brot Pitt" autoCapitalize="words" />
+              <Input label="Vor- und Nachname" value={name} onChangeText={setName} placeholder="z. B. Brotney Spears" autoCapitalize="words" />
             )}
             <Input label="E-Mail" value={email} onChangeText={setEmail} placeholder="hallo@example.de" keyboardType="email-address" autoCapitalize="none" />
             <Input label="Passwort" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />

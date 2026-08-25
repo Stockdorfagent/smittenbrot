@@ -121,7 +121,7 @@ export default function ProfileScreen() {
             <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.md }} />
           ) : (
             <View style={{ marginTop: theme.spacing.md }}>
-              <Input label="Vor- und Nachname" value={name} onChangeText={setName} placeholder="z. B. Brot Pitt" />
+              <Input label="Vor- und Nachname" value={name} onChangeText={setName} placeholder="z. B. Brotney Spears" />
               <Input label="Telefon (optional)" value={phone} onChangeText={setPhone}
                 placeholder="Für Rückfragen zur Abholung" keyboardType="phone-pad" />
               <Text style={styles.fieldLabel}>Bevorzugter Abholort</Text>
