@@ -533,7 +533,7 @@ function CheckoutForm() {
           disabled={loading}
           className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Wird verarbeitet...' : `€${(totalAfterDiscount / 100).toFixed(2)} bezahlen`}
+          {loading ? 'Wird verarbeitet...' : `${formatPrice(totalAfterDiscount)} bezahlen`}
         </button>
 
         <p className="text-xs text-center text-smitten-text/40">

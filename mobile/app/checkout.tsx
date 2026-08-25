@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
+import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -114,7 +115,6 @@ export default function CheckoutScreen() {
   // All products are 7% VAT; prices are gross (brutto).
   const netCents = Math.round(totalCents / 1.07);
   const vatCents = totalCents - netCents;
-  const fmt = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -127,7 +127,7 @@ export default function CheckoutScreen() {
                 {item.quantity}× {item.product_name}
               </Text>
               <Text style={styles.summaryPrice}>
-                {((item.unit_price_cents * item.quantity) / 100).toFixed(2)}€
+                {fmt(item.unit_price_cents * item.quantity)}
               </Text>
             </View>
           ))}
@@ -157,7 +157,7 @@ export default function CheckoutScreen() {
         </View>
 
         <Button
-          title={`${(totalCents / 100).toFixed(2)}€ bezahlen`}
+          title={`${fmt(totalCents)} bezahlen`}
           onPress={handlePlaceOrder}
           loading={loading}
           size="lg"

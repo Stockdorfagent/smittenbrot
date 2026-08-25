@@ -15,6 +15,11 @@ import Stripe from "stripe";
 import { serve } from "std/http/server";
 import { createClient } from "@supabase/supabase-js";
 
+/** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
+function eur(cents: number): string {
+  return `${((cents ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
+}
+
 // ── Environment Variables ────────────────────────────────────
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -188,7 +193,7 @@ async function sendReceiptEmail(
     const orderPrefix = orderId.substring(orderId.length - 8).toUpperCase();
     const customerName = (order.customer_name as string) ?? "Kunde";
     const totalCents = order.total_cents as number;
-    const totalEur = (totalCents / 100).toFixed(2);
+    const totalEur = eur(totalCents);
     const discountCents = (order.discount_cents as number | null) ?? 0;
     const discountCode = (order.discount_code as string | null) ?? null;
 
@@ -239,7 +244,7 @@ async function sendReceiptEmail(
         itemsHtml += `
           <tr>
             <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${item.quantity}× ${productName}</td>
-            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">${(lineTotal / 100).toFixed(2)}€</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">${eur(lineTotal)}</td>
           </tr>`;
       }
     }
@@ -321,23 +326,23 @@ async function sendReceiptEmail(
             ${discountCents > 0 ? `
             <tr>
               <td style="padding: 6px 0 2px; font-size: 14px;">Zwischensumme</td>
-              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px;">${(subtotalCents / 100).toFixed(2)}€</td>
+              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px;">${eur(subtotalCents)}</td>
             </tr>
             <tr>
               <td style="padding: 2px 0; font-size: 14px;">Rabatt${discountCode ? ` (${discountCode})` : ""}</td>
-              <td style="padding: 2px 0; text-align: right; font-size: 14px;">-${(discountCents / 100).toFixed(2)}€</td>
+              <td style="padding: 2px 0; text-align: right; font-size: 14px;">-${eur(discountCents)}</td>
             </tr>` : ""}
             <tr>
               <td style="padding: 6px 0 2px; font-size: 14px; color: #6B7280;">Nettobetrag</td>
-              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${(netCents / 100).toFixed(2)}€</td>
+              <td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${eur(netCents)}</td>
             </tr>
             <tr>
               <td style="padding: 2px 0; font-size: 14px; color: #6B7280;">MwSt. (7 %)</td>
-              <td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${(vatCents / 100).toFixed(2)}€</td>
+              <td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${eur(vatCents)}</td>
             </tr>
             <tr>
               <td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td>
-              <td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${totalEur}€</td>
+              <td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${totalEur}</td>
             </tr>
           </tfoot>
         </table>

@@ -88,6 +88,7 @@ export interface Customer {
   created_at: string;
 }
 
+/** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
 export function formatPrice(cents: number): string {
-  return `€${(cents / 100).toFixed(2).replace('.', ',')}`;
+  return `${((cents ?? 0) / 100).toFixed(2).replace('.', ',')} €`;
 }

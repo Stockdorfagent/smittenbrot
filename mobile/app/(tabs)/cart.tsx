@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
+import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -63,7 +64,6 @@ export default function CartScreen() {
   const grossCents = totalCents;
   const netCents = Math.round(grossCents / 1.07);
   const vatCents = grossCents - netCents;
-  const fmt = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
   if (items.length === 0) {
     return (

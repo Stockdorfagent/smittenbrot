@@ -14,6 +14,11 @@ import Stripe from "stripe";
 import { serve } from "std/http/server";
 import { createClient } from "@supabase/supabase-js";
 
+/** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
+function eur(cents: number): string {
+  return `${((cents ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
+}
+
 // ── Environment Variables ────────────────────────────────────
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -274,7 +279,7 @@ function buildReceiptHtml(
   const itemsHtml = items.map((it) => `
           <tr>
             <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">${it.quantity}× ${it.name}</td>
-            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">${((it.unit_price_cents * it.quantity) / 100).toFixed(2)}€</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">${eur(it.unit_price_cents * it.quantity)}</td>
           </tr>`).join("");
 
   return `
@@ -311,9 +316,9 @@ function buildReceiptHtml(
         </thead>
         <tbody>${itemsHtml}</tbody>
         <tfoot>
-          <tr><td style="padding: 6px 0 2px; font-size: 14px; color: #6B7280;">Nettobetrag</td><td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${(netCents / 100).toFixed(2)}€</td></tr>
-          <tr><td style="padding: 2px 0; font-size: 14px; color: #6B7280;">MwSt. (7 %)</td><td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${(vatCents / 100).toFixed(2)}€</td></tr>
-          <tr><td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td><td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${(totalCents / 100).toFixed(2)}€</td></tr>
+          <tr><td style="padding: 6px 0 2px; font-size: 14px; color: #6B7280;">Nettobetrag</td><td style="padding: 6px 0 2px; text-align: right; font-size: 14px; color: #6B7280;">${eur(netCents)}</td></tr>
+          <tr><td style="padding: 2px 0; font-size: 14px; color: #6B7280;">MwSt. (7 %)</td><td style="padding: 2px 0; text-align: right; font-size: 14px; color: #6B7280;">${eur(vatCents)}</td></tr>
+          <tr><td style="padding: 10px 0 4px; font-size: 14px;"><strong>Gesamtsumme</strong></td><td style="padding: 10px 0 4px; text-align: right; font-size: 16px; font-weight: bold; color: #f8120e;">${eur(totalCents)}</td></tr>
         </tfoot>
       </table>
 

@@ -18,6 +18,11 @@ import Stripe from "stripe";
 import { serve } from "std/http/server";
 import { createClient } from "@supabase/supabase-js";
 
+/** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
+function eur(cents: number): string {
+  return `${((cents ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
+}
+
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -188,7 +193,7 @@ serve(async (req: Request): Promise<Response> => {
         message:
           `Stornierung: Bestellung ${order.order_number ?? orderId.substring(0, 8)} ` +
           `(${order.customer_email ?? "?"}) über ` +
-          `€${(order.total_cents / 100).toFixed(2)} wurde storniert und zurückerstattet.`,
+          `${eur(order.total_cents)} wurde storniert und zurückerstattet.`,
       }),
     });
   } catch {

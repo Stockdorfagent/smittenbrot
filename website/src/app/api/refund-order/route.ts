@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
             htmlContent: `<p>Eine Bestellung wurde storniert und der Betrag zurückerstattet.</p>
               <p><strong>Bestellung:</strong> ${orderId}</p>
               <p><strong>Kunde:</strong> ${order.customers?.email || order.customer_email || 'Unbekannt'}</p>
-              <p><strong>Betrag:</strong> €${(order.total_cents / 100).toFixed(2)}</p>`,
+              <p><strong>Betrag:</strong> ${((order.total_cents ?? 0) / 100).toFixed(2).replace('.', ',')} €</p>`,
           }),
         });
       }

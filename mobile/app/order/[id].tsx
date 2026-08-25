@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
+import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -42,7 +43,6 @@ interface OrderRow {
   pickup_location: { name: string; address: string; pickup_instructions: string | null } | null;
 }
 
-const fmt = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

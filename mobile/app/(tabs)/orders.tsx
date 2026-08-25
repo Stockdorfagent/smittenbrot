@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, t
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
+import { formatPrice } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { Order, OrderWithItems, PickupLocation } from '@/lib/types';
@@ -88,7 +89,7 @@ export default function OrdersScreen() {
                 </View>
               </View>
               <Text style={styles.orderLocation}>{order.pickup_location?.name}</Text>
-              <Text style={styles.orderTotal}>{(order.total_cents / 100).toFixed(2)}€</Text>
+              <Text style={styles.orderTotal}>{formatPrice(order.total_cents)}</Text>
               {order.items && (
                 <Text style={styles.orderItems} numberOfLines={1}>
                   {order.items.map((i) => `${i.quantity}× ${i.product?.name}`).join(', ')}

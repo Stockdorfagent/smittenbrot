@@ -15,6 +15,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { serve } from "std/http/server";
 
+/** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
+function eur(cents: number): string {
+  return `${((cents ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
+}
+
 // ── Environment Variables ────────────────────────────────────
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
@@ -721,11 +726,11 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
         <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${i + 1}</td>
         <td style="padding: 6px 4px; border-bottom: 1px solid #ddd;">${item.product_name ?? ""}</td>
         <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${item.quantity ?? 0}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">€${((item.unit_price_gross as number ?? 0) / 100).toFixed(2)}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">€${((item.unit_price_net as number ?? 0) / 100).toFixed(2)}</td>
+        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.unit_price_gross as number ?? 0)}</td>
+        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.unit_price_net as number ?? 0)}</td>
         <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${((item.vat_rate as number ?? 0) * 100).toFixed(0)}%</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">€${((item.vat_cents as number ?? 0) * (item.quantity as number ?? 1) / 100).toFixed(2)}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">€${((item.line_total_gross as number ?? 0) / 100).toFixed(2)}</td>
+        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur((item.vat_cents as number ?? 0) * (item.quantity as number ?? 1))}</td>
+        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.line_total_gross as number ?? 0)}</td>
       </tr>`;
   }
 
@@ -810,9 +815,9 @@ export async function send_order_receipt(orderId: string): Promise<SendReceiptRe
       </table>
 
       <div style="border-top: 2px solid #1A1A1A; padding-top: 10px; margin-top: 5px; text-align: right; font-size: 13px;">
-        <p style="margin: 2px 0;">Nettobetrag: <strong>€${((ord.total_net as number ?? 0) / 100).toFixed(2)}</strong></p>
-        <p style="margin: 2px 0;">Enthaltene MwSt. 7%: <strong>€${((ord.total_vat as number ?? 0) / 100).toFixed(2)}</strong></p>
-        <p style="margin: 2px 0; font-size: 16px; color: #1A1A1A;">Rechnungsbetrag (brutto): <strong>€${((ord.total_gross as number ?? 0) / 100).toFixed(2)}</strong></p>
+        <p style="margin: 2px 0;">Nettobetrag: <strong>${eur(ord.total_net as number ?? 0)}</strong></p>
+        <p style="margin: 2px 0;">Enthaltene MwSt. 7%: <strong>${eur(ord.total_vat as number ?? 0)}</strong></p>
+        <p style="margin: 2px 0; font-size: 16px; color: #1A1A1A;">Rechnungsbetrag (brutto): <strong>${eur(ord.total_gross as number ?? 0)}</strong></p>
       </div>
 
       <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">

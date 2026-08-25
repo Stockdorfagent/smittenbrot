@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
+import { formatPrice } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
@@ -351,7 +352,7 @@ export default function SubscriptionCreateScreen() {
               <View key={product.id} style={styles.productRow}>
                 <View style={styles.productInfo}>
                   <Text style={styles.productName}>{product.name}</Text>
-                  <Text style={styles.productPrice}>{(product.price_cents / 100).toFixed(2)}€</Text>
+                  <Text style={styles.productPrice}>{formatPrice(product.price_cents)}</Text>
                 </View>
                 <QuantitySelector
                   quantity={quantities[product.id] || 0}
