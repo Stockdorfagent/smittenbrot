@@ -7,6 +7,11 @@ import Link from 'next/link';
  * asked for English, and this answers the questions a newcomer actually has
  * (when to order, where to collect, how to pay) without the cost and risk of
  * internationalising the whole app, website, emails and product catalogue.
+ *
+ * Pickup is presented as Waldstraße only, deliberately. That is the story for
+ * someone discovering the bakery: order online, collect in the neighbourhood.
+ * The other pickup points serve people who already know they are a special
+ * case, and naming them here would only confuse a newcomer.
  */
 export const metadata = {
   title: 'Smittenbrot — English information',
@@ -24,7 +29,7 @@ const faqs: { q: string; a: string }[] = [
   },
   {
     q: 'Where do I collect my order?',
-    a: 'At the pickup point you choose during checkout. The main one is the self-service cabinet at Waldstraße 1 in Stockdorf, diagonally opposite Café Bar lumbono. You will receive an email when your order is ready, usually in the early afternoon.',
+    a: 'From the self-service cabinet at Waldstraße 1 in Stockdorf, diagonally opposite Café Bar lumbono. You will receive an email when your order is ready, usually in the early afternoon.',
   },
   {
     q: 'When is the bread baked?',
@@ -82,7 +87,7 @@ export default function EnglishPage() {
       <ul className="mt-3 space-y-2 leading-relaxed">
         <li>· Order by <strong>Monday 22:00</strong> for Wednesday, or <strong>Thursday 22:00</strong> for Saturday.</li>
         <li>· Pay in advance by card (Google Pay on Android).</li>
-        <li>· Collect at the pickup point you chose — the main one is the self-service cabinet at Waldstraße 1, Stockdorf.</li>
+        <li>· Collect from the self-service cabinet at Waldstraße 1, Stockdorf.</li>
         <li>· You get an email when your order is ready.</li>
       </ul>
 
