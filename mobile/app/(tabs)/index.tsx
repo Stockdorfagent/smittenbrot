@@ -13,6 +13,13 @@ import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailModal } from '@/components/ProductDetailModal';
 import type { Product, Subscription, Order, WeekCycle } from '@/lib/types';
 
+/** "Mittwoch, 26. August" */
+function pickupLabel(order: { fulfillment_date: string }): string {
+  return new Date(order.fulfillment_date + 'T12:00:00').toLocaleDateString('de-DE', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -26,6 +33,14 @@ export default function HomeScreen() {
   const [upcomingOrder, setUpcomingOrder] = useState<Order | null>(null);
 
   const pickup = useMemo(() => getNextPickup(), []);
+
+  // Is the upcoming pickup this Abo's own order? If so it belongs inside the
+  // subscription card rather than beside it — two cards read as two Abos.
+  const subscriptionOrder =
+    activeSubscription && upcomingOrder?.subscription_id === activeSubscription.id
+      ? upcomingOrder
+      : null;
+  const standaloneOrder = upcomingOrder && !subscriptionOrder ? upcomingOrder : null;
 
   const fetchData = useCallback(async () => {
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
@@ -162,21 +177,31 @@ export default function HomeScreen() {
               <Text style={styles.infoTitle}>
                 {activeSubscription.status === 'paused' ? 'Abonnement pausiert' : 'Aktives Abonnement'}
               </Text>
-              <Text style={styles.infoAction}>Verwalten ›</Text>
+              {/* The next pickup lives INSIDE this card when it is this Abo's
+                  own order. Two separate cards read as two subscriptions — a
+                  tester counted them that way. */}
+              {subscriptionOrder ? (
+                <>
+                  <Text style={styles.infoSub}>Nächste Abholung: {pickupLabel(subscriptionOrder)}</Text>
+                  <TouchableOpacity onPress={() => router.push(`/order/${subscriptionOrder.id}`)}>
+                    <Text style={styles.infoLink}>Bestellung ansehen ›</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={styles.infoAction}>Verwalten ›</Text>
+              )}
             </View>
           </TouchableOpacity>
         )}
 
-        {upcomingOrder && (
-          <TouchableOpacity style={styles.infoCard} onPress={() => router.push(`/order/${upcomingOrder.id}`)}>
+        {/* A pickup that is NOT from the Abo — a one-off order — still deserves
+            its own card. */}
+        {standaloneOrder && (
+          <TouchableOpacity style={styles.infoCard} onPress={() => router.push(`/order/${standaloneOrder.id}`)}>
             <View style={[styles.infoDot, { backgroundColor: theme.colors.success }]} />
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoTitle}>Nächste Abholung</Text>
-              <Text style={styles.infoSub}>
-                {new Date(upcomingOrder.fulfillment_date + 'T12:00:00').toLocaleDateString('de-DE', {
-                  weekday: 'long', day: 'numeric', month: 'long',
-                })}
-              </Text>
+              <Text style={styles.infoSub}>{pickupLabel(standaloneOrder)}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -252,6 +277,7 @@ const styles = StyleSheet.create({
   infoTitle: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
   infoSub: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
   infoAction: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  infoLink: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
