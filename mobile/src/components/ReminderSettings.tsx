@@ -5,12 +5,16 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { theme } from '@/lib/theme';
 import {
   ReminderPrefs,
+  ReminderSlot,
   DEFAULT_REMINDER,
+  DEFAULT_SLOT,
+  SECOND_SLOT,
   WEEKDAY_OPTIONS,
   weekdayLabel,
   formatTime,
   loadReminderPrefs,
-  applyReminder,
+  applyReminders,
+  makeSlot,
 } from '@/lib/reminder';
 
 function dateFromHM(hour: number, minute: number): Date {
@@ -22,8 +26,9 @@ function dateFromHM(hour: number, minute: number): Date {
 export function ReminderSettings() {
   const [prefs, setPrefs] = useState<ReminderPrefs>(DEFAULT_REMINDER);
   const [ready, setReady] = useState(false);
-  const [dayOpen, setDayOpen] = useState(false);
-  const [showTime, setShowTime] = useState(false);
+  // Which slot a picker is currently editing (null = closed).
+  const [dayFor, setDayFor] = useState<string | null>(null);
+  const [timeFor, setTimeFor] = useState<string | null>(null);
 
   useEffect(() => {
     loadReminderPrefs().then((p) => {
@@ -36,10 +41,10 @@ export function ReminderSettings() {
   // user enabled reminders but denied notification permission.
   const commit = async (next: ReminderPrefs) => {
     setPrefs(next);
-    const ok = await applyReminder(next);
+    const ok = await applyReminders(next);
     if (!ok) {
       setPrefs({ ...next, enabled: false });
-      await applyReminder({ ...next, enabled: false });
+      await applyReminders({ ...next, enabled: false });
       Alert.alert(
         'Benachrichtigungen deaktiviert',
         'Erlaube Smittenbrot in den Einstellungen deines Geräts, dir Mitteilungen zu senden, um Erinnerungen zu erhalten.',
@@ -47,15 +52,34 @@ export function ReminderSettings() {
     }
   };
 
+  const updateSlot = (id: string, patch: Partial<ReminderSlot>) =>
+    commit({ ...prefs, slots: prefs.slots.map((sl) => (sl.id === id ? { ...sl, ...patch } : sl)) });
+
+  const addSlot = () => {
+    // Offer Thursday for the second one — the other cutoff — then Monday again.
+    const base = prefs.slots.length === 1 ? SECOND_SLOT : DEFAULT_SLOT;
+    commit({ ...prefs, slots: [...prefs.slots, makeSlot(base)] });
+  };
+
+  const removeSlot = (id: string) =>
+    commit({ ...prefs, slots: prefs.slots.filter((sl) => sl.id !== id) });
+
   const onTimeChange = (event: DateTimePickerEvent, date?: Date) => {
+    if (!timeFor) return;
     if (Platform.OS === 'android') {
-      setShowTime(false);
+      const id = timeFor;
+      setTimeFor(null);
       if (event.type === 'set' && date) {
-        commit({ ...prefs, hour: date.getHours(), minute: date.getMinutes() });
+        updateSlot(id, { hour: date.getHours(), minute: date.getMinutes() });
       }
     } else if (date) {
       // iOS spinner updates live; commit happens when the user taps "Fertig".
-      setPrefs({ ...prefs, hour: date.getHours(), minute: date.getMinutes() });
+      setPrefs({
+        ...prefs,
+        slots: prefs.slots.map((sl) =>
+          sl.id === timeFor ? { ...sl, hour: date.getHours(), minute: date.getMinutes() } : sl,
+        ),
+      });
     }
   };
 
@@ -68,11 +92,21 @@ export function ReminderSettings() {
       <View style={styles.toggleRow}>
         <View style={{ flex: 1, paddingRight: theme.spacing.md }}>
           <Text style={styles.rowLabel}>Bestell-Erinnerung</Text>
-          <Text style={styles.hint}>Wöchentliche Push-Benachrichtigung – Tag und Uhrzeit wählbar.</Text>
+          <Text style={styles.hint}>
+            Wöchentliche Erinnerung – Tag und Uhrzeit wählbar, auch mehrfach.
+          </Text>
         </View>
         <Switch
           value={prefs.enabled}
-          onValueChange={(v) => commit({ ...prefs, enabled: v })}
+          onValueChange={(v) =>
+            // Turning it on with no slots yet would schedule nothing, so seed
+            // the first one (Monday 09:00, before the Wednesday cutoff).
+            commit({
+              ...prefs,
+              enabled: v,
+              slots: v && prefs.slots.length === 0 ? [makeSlot(DEFAULT_SLOT)] : prefs.slots,
+            })
+          }
           trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
           thumbColor={theme.colors.white}
         />
@@ -80,49 +114,71 @@ export function ReminderSettings() {
 
       {prefs.enabled && (
         <>
-          <TouchableOpacity style={styles.pickRow} onPress={() => setDayOpen(true)}>
-            <Text style={styles.rowLabel}>Tag</Text>
-            <View style={styles.pickValue}>
-              <Text style={styles.pickValueText}>{weekdayLabel(prefs.weekday)}</Text>
-              <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
-            </View>
-          </TouchableOpacity>
+          {prefs.slots.map((slot, i) => (
+            <View key={slot.id}>
+              <View style={styles.slotHeader}>
+                <Text style={styles.slotTitle}>
+                  {prefs.slots.length > 1 ? `Erinnerung ${i + 1}` : 'Erinnerung'}
+                </Text>
+                {prefs.slots.length > 1 && (
+                  <TouchableOpacity onPress={() => removeSlot(slot.id)} hitSlop={8}>
+                    <Text style={styles.remove}>Entfernen</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          <TouchableOpacity style={styles.pickRow} onPress={() => setShowTime(true)}>
-            <Text style={styles.rowLabel}>Uhrzeit</Text>
-            <View style={styles.pickValue}>
-              <Text style={styles.pickValueText}>{formatTime(prefs.hour, prefs.minute)} Uhr</Text>
-              <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
-            </View>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.pickRow} onPress={() => setDayFor(slot.id)}>
+                <Text style={styles.rowLabel}>Tag</Text>
+                <View style={styles.pickValue}>
+                  <Text style={styles.pickValueText}>{weekdayLabel(slot.weekday)}</Text>
+                  <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
+                </View>
+              </TouchableOpacity>
 
-          {showTime && (
-            <View>
-              <DateTimePicker
-                value={dateFromHM(prefs.hour, prefs.minute)}
-                mode="time"
-                is24Hour
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onTimeChange}
-              />
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  style={styles.done}
-                  onPress={() => {
-                    setShowTime(false);
-                    commit(prefs);
-                  }}
-                >
-                  <Text style={styles.doneText}>Fertig</Text>
-                </TouchableOpacity>
+              <TouchableOpacity style={styles.pickRow} onPress={() => setTimeFor(slot.id)}>
+                <Text style={styles.rowLabel}>Uhrzeit</Text>
+                <View style={styles.pickValue}>
+                  <Text style={styles.pickValueText}>{formatTime(slot.hour, slot.minute)} Uhr</Text>
+                  <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
+                </View>
+              </TouchableOpacity>
+
+              {timeFor === slot.id && (
+                <View>
+                  <DateTimePicker
+                    value={dateFromHM(slot.hour, slot.minute)}
+                    mode="time"
+                    is24Hour
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onTimeChange}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      style={styles.done}
+                      onPress={() => {
+                        setTimeFor(null);
+                        commit(prefs);
+                      }}
+                    >
+                      <Text style={styles.doneText}>Fertig</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
-          )}
+          ))}
+
+          {/* Someone who orders single loaves may want reminding before BOTH
+              cutoffs — Monday for Wednesday, Thursday for Saturday. */}
+          <TouchableOpacity style={styles.addRow} onPress={addSlot}>
+            <Ionicons name="add-circle-outline" size={18} color={theme.colors.primary} />
+            <Text style={styles.addText}>Weitere Erinnerung hinzufügen</Text>
+          </TouchableOpacity>
         </>
       )}
 
-      <Modal visible={dayOpen} transparent animationType="fade" onRequestClose={() => setDayOpen(false)}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setDayOpen(false)}>
+      <Modal visible={!!dayFor} transparent animationType="fade" onRequestClose={() => setDayFor(null)}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setDayFor(null)}>
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Tag wählen</Text>
             {WEEKDAY_OPTIONS.map((opt) => (
@@ -130,12 +186,13 @@ export function ReminderSettings() {
                 key={opt.value}
                 style={styles.option}
                 onPress={() => {
-                  setDayOpen(false);
-                  commit({ ...prefs, weekday: opt.value });
+                  const id = dayFor;
+                  setDayFor(null);
+                  if (id) updateSlot(id, { weekday: opt.value });
                 }}
               >
                 <Text style={styles.optionText}>{opt.label}</Text>
-                {opt.value === prefs.weekday && (
+                {opt.value === prefs.slots.find((sl) => sl.id === dayFor)?.weekday && (
                   <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
                 )}
               </TouchableOpacity>
@@ -180,6 +237,18 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border,
   },
   pickValue: { flexDirection: 'row', alignItems: 'center' },
+  slotHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: theme.spacing.md,
+  },
+  slotTitle: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight },
+  remove: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
+  addRow: {
+    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs,
+    paddingTop: theme.spacing.md, marginTop: theme.spacing.md,
+    borderTopWidth: 1, borderTopColor: theme.colors.border,
+  },
+  addText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.primary },
   pickValueText: { fontSize: theme.fontSize.md, color: theme.colors.text, marginRight: theme.spacing.xs },
   done: { alignSelf: 'flex-end', paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md },
   doneText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.primary },
