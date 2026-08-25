@@ -48,9 +48,14 @@ export default function FAQPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-display font-bold text-smitten-text">
-        Häufige Fragen
-      </h1>
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="text-3xl font-display font-bold text-smitten-text">
+          Häufige Fragen
+        </h1>
+        <a href="/en" className="text-sm text-smitten-text/60 underline hover:text-smitten-primary">
+          English
+        </a>
+      </div>
 
       <div className="mt-8 space-y-4">
         {faqs.map((faq, i) => (
