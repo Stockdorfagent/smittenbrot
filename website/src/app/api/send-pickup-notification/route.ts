@@ -26,6 +26,41 @@ export async function POST(req: NextRequest) {
     const { order_id, extra_text } = await req.json();
     if (!order_id) return NextResponse.json({ error: 'missing order_id' }, { status: 400 });
 
+    // Refuse to announce an unpaid order.
+    //
+    // This action does two irreversible things at once: it tells the customer
+    // their bread is waiting, and it marks the order fulfilled. The second one
+    // takes the order out of the 22:00 charge run, which only picks up
+    // `scheduled` and `grace_period_open` — so announcing an unpaid order means
+    // the customer is promised bread that will never be charged for.
+    //
+    // It has happened: one subscription order was announced seven days before
+    // its pickup date and never paid, then survived its subscription's
+    // cancellation because the cleanup trigger skips fulfilled orders.
+    //
+    // For anything paid outside the app (cash, transfer, Squarespace import),
+    // use "Zahlung als erhalten markieren" first — that is what it is for.
+    const supabase = getSupabaseAdmin();
+    const { data: order, error: loadError } = await supabase
+      .from('orders')
+      .select('payment_status, status, customer_name')
+      .eq('id', order_id)
+      .single();
+
+    if (loadError || !order) {
+      return NextResponse.json({ error: 'Bestellung nicht gefunden.' }, { status: 404 });
+    }
+    if (order.payment_status !== 'paid') {
+      return NextResponse.json(
+        {
+          error:
+            'Diese Bestellung ist noch nicht bezahlt. Markiere zuerst die Zahlung ' +
+            'als erhalten — sonst wird sie nie belastet.',
+        },
+        { status: 409 },
+      );
+    }
+
     const dispatchUrl =
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/notification-dispatch/send-pickup-ready`;
     const res = await fetch(dispatchUrl, {
@@ -50,7 +85,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Only mark it off once the customer has actually been told.
-    const supabase = getSupabaseAdmin();
     const { error: updateError } = await supabase
       .from('orders')
       .update({ status: 'fulfilled' })

@@ -27,6 +27,62 @@ const paymentLabels: Record<string, string> = {
   refunded: 'Rückerstattet',
 };
 
+/** Today in Berlin as YYYY-MM-DD (the shop is Germany-only). */
+function todayISO(): string {
+  const now = new Date();
+  return (
+    `${now.getFullYear()}-` +
+    `${String(now.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(now.getDate()).padStart(2, '0')}`
+  );
+}
+
+/**
+ * Guard against ticking off an order that is not ready to be ticked off.
+ *
+ * Marking an order fulfilled removes it from the 22:00 charge run, which only
+ * looks at `scheduled` and `grace_period_open`. So doing it to an unpaid order
+ * means that order will never be charged — quietly, with no error anywhere.
+ * It has already happened once, to a subscription order announced seven days
+ * before its pickup date.
+ *
+ * Unpaid is a hard stop for the notification button (also enforced server-side)
+ * and a loud confirmation for the silent one, because handing over unpaid bread
+ * is a thing that legitimately happens now and then. A pickup date in the
+ * future is always worth a second look: it is the shape of a misclick on the
+ * wrong row.
+ */
+function confirmTickOff(
+  order: { payment_status: string; fulfillment_date: string; customer_name: string | null },
+  { allowUnpaid }: { allowUnpaid: boolean },
+): boolean {
+  if (order.payment_status !== 'paid') {
+    if (!allowUnpaid) {
+      alert(
+        'Diese Bestellung ist noch nicht bezahlt.\n\n' +
+        'Markiere zuerst die Zahlung als erhalten. Sonst wird die Bestellung ' +
+        'nie belastet, denn abgehakte Bestellungen werden vom Einzug übersprungen.',
+      );
+      return false;
+    }
+    if (!confirm(
+      'ACHTUNG: Diese Bestellung ist nicht bezahlt.\n\n' +
+      'Wenn du sie als abgeholt markierst, wird sie nie belastet. ' +
+      'Trotzdem abhaken?',
+    )) return false;
+  }
+
+  if (order.fulfillment_date > todayISO()) {
+    const datum = new Date(order.fulfillment_date + 'T12:00:00')
+      .toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!confirm(
+      `Der Abholtag dieser Bestellung ist erst ${datum}.\n\n` +
+      'Hast du die richtige Bestellung erwischt?',
+    )) return false;
+  }
+  return true;
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [locations, setLocations] = useState<PickupLocation[]>([]);
@@ -317,6 +373,7 @@ export default function AdminOrdersPage() {
                         <>
                           <button
                             onClick={async () => {
+                              if (!confirmTickOff(order, { allowUnpaid: false })) return;
                               if (confirm('Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' senden und Bestellung als abgeholt markieren?')) {
                                 setSending(prev => ({ ...prev, [order.id]: true }));
                                 const { data: { session } } = await supabase.auth.getSession();
@@ -328,6 +385,10 @@ export default function AdminOrdersPage() {
                                 const data = await res.json();
                                 if (data.success) {
                                   setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
+                                } else {
+                                  // Used to fail silently: the button just stopped
+                                  // spinning and nothing said why.
+                                  alert(data.error ?? 'Benachrichtigung konnte nicht gesendet werden.');
                                 }
                                 setSending(prev => ({ ...prev, [order.id]: false }));
                               }
@@ -339,6 +400,7 @@ export default function AdminOrdersPage() {
                           </button>
                           <button
                             onClick={async () => {
+                              if (!confirmTickOff(order, { allowUnpaid: true })) return;
                               if (confirm('Bestellung als abgeholt markieren (ohne Benachrichtigung)?')) {
                                 await supabase.from('orders').update({ status: 'fulfilled' }).eq('id', order.id);
                                 setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
