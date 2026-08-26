@@ -631,6 +631,7 @@ async function process12pmReminders(): Promise<{
           customer_id: customer.id,
           unsubscribe_token: customer.unsubscribe_token,
           items,
+          subscription_id: sub.id,
         },
       );
 
@@ -748,7 +749,9 @@ async function process8pmOrderPlacement(): Promise<{
           customer.id,
           "order_placed",
           customer.push_token ? "both" : "email",
-          { fulfillment_date: fulfillmentDate },
+          // order_id rides along purely so tapping the push opens THIS order
+          // instead of the start page.
+          { fulfillment_date: fulfillmentDate, order_id: existingOrder.id },
         );
         skippedSubscriptions++;
         continue;
@@ -912,7 +915,7 @@ async function process8pmOrderPlacement(): Promise<{
         customer.id,
         "order_placed",
         customer.push_token ? "both" : "email",
-        { fulfillment_date: fulfillmentDate },
+        { fulfillment_date: fulfillmentDate, order_id: order.id },
       );
 
       // Audit log
@@ -1282,7 +1285,9 @@ async function process10pmLock(): Promise<{
         }
 
         // Send payment_failed notification to customer
-        await dispatchNotification(customer.id, "payment_failed", "both");
+        await dispatchNotification(customer.id, "payment_failed", "both", {
+          subscription_id: order.subscription_id,
+        });
 
         // Send admin alert about payment failure
         await dispatchNotification(null, "admin_alert", "both", {
@@ -1458,7 +1463,9 @@ async function processCancellations(): Promise<{
       cancelled++;
 
       // Send cancellation notification to customer
-      await dispatchNotification(sub.customer_id, "subscription_cancelled", "both");
+      await dispatchNotification(sub.customer_id, "subscription_cancelled", "both", {
+        subscription_id: sub.id,
+      });
 
       // Audit log
       await logAudit(

@@ -281,6 +281,8 @@ export async function send_notification(
   body: string,
   /** Optional rich version for email only — never sent to a push. */
   html?: string,
+  /** Attached to the push so the app can open the screen the message is about. */
+  data?: Record<string, unknown>,
 ): Promise<SendNotificationResult> {
   if (!customerId) {
     const msg = "customerId is required";
@@ -330,7 +332,13 @@ export async function send_notification(
   // below), which is the Bestellbestätigung/invoice and must always be emailed.
   if (effectiveChannel === "push" || effectiveChannel === "both") {
     if (hasPush) {
-      pushResult = await send_push([customer.push_token!], title, body);
+      // Always carry the type, so a tap can open something better than the
+      // start page. A tester pointed out that every notification landed there,
+      // whatever it was about.
+      pushResult = await send_push([customer.push_token!], title, body, {
+        type,
+        ...(data ?? {}),
+      });
     } else {
       log("warn", `Customer ${customerId} has no push token — skipping push channel`);
     }
@@ -559,7 +567,7 @@ export async function send_pickup_ready(
           [customer.push_token],
           pushTitle,
           finalBody,
-          { orderId, type: "pickup_ready" },
+          { type: "pickup_ready", order_id: orderId },
         );
       }
 
@@ -701,7 +709,7 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
       // The owner's cash-register sound, bundled in the app. Android needs the
       // matching channel, which the app creates on sign-in.
       const push = await send_push(
-        tokens, "Smittenbrot", message, undefined, "kaching.wav", "orders",
+        tokens, "Smittenbrot", message, { type: "admin_alert" }, "kaching.wav", "orders",
       );
       pushed = push.success ? tokens.length : 0;
       log("info", `Admin alert pushed to ${pushed}/${tokens.length} device(s)`);
@@ -1053,6 +1061,14 @@ serve(async (req: Request): Promise<Response> => {
           text = text ?? rendered.body;
           html = html ?? rendered.html;
         }
+        // Only the routing hints travel to the device — the rest of `data` is
+        // template input (item lists and the like) and has no business in a
+        // push payload, which Expo caps at 4 KiB.
+        const inputData = (body.data as Record<string, unknown>) ?? {};
+        const pushData: Record<string, unknown> = {};
+        for (const key of ["order_id", "subscription_id", "fulfillment_date"]) {
+          if (inputData[key] != null) pushData[key] = inputData[key];
+        }
         const result = await send_notification(
           customerId,
           type,
@@ -1060,6 +1076,7 @@ serve(async (req: Request): Promise<Response> => {
           title ?? "Smittenbrot",
           text ?? "",
           html,
+          pushData,
         );
         return jsonResponse(result, result.success ? 200 : 502);
       }

@@ -1,9 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from '@stripe/stripe-react-native';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { theme } from '@/lib/theme';
+import { useNotificationRouting } from '@/lib/notificationRouting';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Component, type ReactNode } from 'react';
 
@@ -43,6 +44,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+/**
+ * Sends a tapped notification to the screen it is about. Lives inside
+ * AuthProvider because orders and subscriptions need a session, and inside the
+ * Stack because it navigates. Renders nothing.
+ */
+function NotificationRouter() {
+  const { user } = useAuth();
+  useNotificationRouting(!!user);
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
@@ -56,6 +68,7 @@ export default function RootLayout() {
         <AuthProvider>
           <CartProvider>
             <StatusBar style="dark" />
+            <NotificationRouter />
           <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
