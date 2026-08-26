@@ -13,6 +13,12 @@ import { useState } from 'react';
  * contract, when it should end, and an address for the confirmation. The
  * confirmation button is labelled "jetzt kündigen" as the provision requires.
  *
+ * The page itself says "Abo", never "Vertrag" — that is the word used
+ * everywhere else, and it reads far less forbidding. The FOOTER LINK keeps the
+ * statutory wording "Verträge hier kündigen": Abs. 2 allows "eine entsprechende
+ * eindeutige Formulierung", but that one string is the part a court would look
+ * at, so it is not worth improvising on.
+ *
  * After submitting, the declaration is shown back with the date and time it was
  * received, and can be printed or saved as PDF — Absatz 3 gives the consumer
  * the right to store it that way. The same content also goes out by email.
@@ -33,7 +39,7 @@ const inputClass =
 export default function KuendigungPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [contract, setContract] = useState('Smittenbrot Abo (automatische Bestellung)');
+  const [contract, setContract] = useState('Smittenbrot Abo');
   const [kind, setKind] = useState<'ordentlich' | 'ausserordentlich'>('ordentlich');
   const [reason, setReason] = useState('');
   const [effectiveChoice, setEffectiveChoice] = useState<'naechstmoeglich' | 'datum'>('naechstmoeglich');
@@ -100,7 +106,7 @@ export default function KuendigungPage() {
               <dd>{email}</dd>
             </div>
             <div className="flex gap-3">
-              <dt className="w-44 shrink-0 text-smitten-text/60">Vertrag</dt>
+              <dt className="w-44 shrink-0 text-smitten-text/60">Abo</dt>
               <dd>{contract}</dd>
             </div>
             <div className="flex gap-3">
@@ -132,7 +138,7 @@ export default function KuendigungPage() {
 
         <p className="mt-5 text-sm leading-relaxed">
           {result.cancelled_subscriptions > 0
-            ? `Es ${result.cancelled_subscriptions === 1 ? 'wurde 1 laufendes Abo' : `wurden ${result.cancelled_subscriptions} laufende Abos`} beendet. Für dich wird keine weitere Bestellung mehr automatisch aufgegeben. Bereits bezahlte Bestellungen bleiben bestehen und kannst du wie gewohnt abholen.`
+            ? `${result.cancelled_subscriptions === 1 ? 'Dein Abo wurde' : `Deine ${result.cancelled_subscriptions} Abos wurden`} gekündigt. Für dich wird keine weitere Bestellung mehr automatisch aufgegeben. Bereits bezahlte Bestellungen bleiben bestehen und kannst du wie gewohnt abholen.`
             : 'Wir konnten zu dieser E-Mail-Adresse kein laufendes Abo finden. Deine Kündigung ist trotzdem eingegangen und wird von uns geprüft — wir melden uns bei dir.'}
         </p>
 
@@ -159,11 +165,11 @@ export default function KuendigungPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 text-smitten-text">
-      <h1 className="text-2xl font-display font-bold">Verträge hier kündigen</h1>
+      <h1 className="text-2xl font-display font-bold">Abo kündigen</h1>
       <p className="mt-3 text-sm leading-relaxed text-smitten-text/70">
-        Hier kannst du dein Smittenbrot-Abo kündigen — ohne Anmeldung. Deine Kündigung wird sofort
-        wirksam: es wird keine weitere Bestellung mehr automatisch für dich aufgegeben. Bereits
-        bezahlte Bestellungen bleiben bestehen. Du bekommst umgehend eine Bestätigung per E-Mail.
+        Hier kannst du dein Smittenbrot-Abo kündigen — ohne Anmeldung. Ab sofort wird keine
+        weitere Bestellung mehr automatisch für dich aufgegeben. Bereits bezahlte Bestellungen
+        bleiben bestehen. Du bekommst umgehend eine Bestätigung per E-Mail.
       </p>
       <p className="mt-2 text-sm text-smitten-text/60">
         Wenn du angemeldet bist, kannst du dein Abo auch direkt unter{' '}
@@ -192,7 +198,7 @@ export default function KuendigungPage() {
             </p>
           </div>
           <div>
-            <label className="text-sm font-medium" htmlFor="k-contract">Vertrag</label>
+            <label className="text-sm font-medium" htmlFor="k-contract">Abo</label>
             <input
               id="k-contract" className={inputClass} value={contract} required
               onChange={(e) => setContract(e.target.value)}

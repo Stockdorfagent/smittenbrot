@@ -16,11 +16,12 @@ import { createClient } from '@supabase/supabase-js';
  * matched account, and only falls back to the address typed into the form when
  * nothing matched. Otherwise anyone could redirect someone else's confirmation.
  *
- * The abuse case — cancelling a stranger's subscription — is bounded: nothing
- * is charged or lost, the real account holder is told immediately, and they can
- * subscribe again in a minute. Weighed against a cancellation sitting unread
- * while the next order is placed and charged, acting immediately is the safer
- * failure.
+ * Knowing an email address is therefore enough to declare a cancellation for
+ * someone else, which is uncomfortable but is the price of a form that may not
+ * ask for a login. The answer is reversibility rather than obstruction: the Abo
+ * is put on hold (`cancellation_pending`, which stops the next order) and the
+ * owner confirms or discards it under Admin → Kündigungen. Nobody is charged
+ * while it waits, and nothing is destroyed if the declaration was a prank.
  */
 
 function admin() {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     if (!declaredName || !declaredEmail || !contractLabel) {
       return NextResponse.json(
-        { error: 'Bitte Name, E-Mail-Adresse und Vertrag angeben.' },
+        { error: 'Bitte Name, E-Mail-Adresse und Abo angeben.' },
         { status: 400 },
       );
     }
@@ -137,16 +138,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Act on it straight away. Cancelling the subscription also drops its
-    // not-yet-charged order (trigger from migration 021), which is what makes
-    // "gekündigt" mean the customer is not charged again.
+    // Hold the Abo rather than deleting it outright. `cancellation_pending`
+    // already stops the next order — placement selects status = 'active' only —
+    // so nobody is charged, while the owner can still discard a declaration
+    // that was not genuine. Since the form needs no login, that reversibility
+    // is the only thing standing between a stranger's email address and
+    // somebody's bread. processCancellations skips held subscriptions until
+    // the owner resolves them (migration 025).
     if (subscriptionIds.length > 0) {
       const { error: cancelError } = await supabase
         .from('subscriptions')
-        .update({ status: 'cancelled' })
+        .update({ status: 'cancellation_pending' })
         .in('id', subscriptionIds);
       if (cancelError) {
-        console.error('[kuendigung] could not cancel subscriptions:', cancelError);
+        console.error('[kuendigung] could not hold subscriptions:', cancelError);
       }
     }
 
@@ -164,7 +169,7 @@ export async function POST(req: NextRequest) {
         <p style="margin: 0 0 16px;">wir bestätigen dir den Eingang deiner Kündigung.</p>
         <table style="border-collapse: collapse; margin: 0 0 16px;">
           <tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Eingegangen am</td><td style="padding: 2px 0;"><strong>${deDateTime(receivedAt)} Uhr</strong></td></tr>
-          <tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Vertrag</td><td style="padding: 2px 0;">${contractLabel}</td></tr>
+          <tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Abo</td><td style="padding: 2px 0;">${contractLabel}</td></tr>
           <tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Art der Kündigung</td><td style="padding: 2px 0;">${kind === 'ausserordentlich' ? 'Außerordentliche Kündigung' : 'Ordentliche Kündigung'}</td></tr>
           ${reason ? `<tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Kündigungsgrund</td><td style="padding: 2px 0;">${reason}</td></tr>` : ''}
           <tr><td style="padding: 2px 16px 2px 0; color: #6B7280;">Beendet</td><td style="padding: 2px 0;"><strong>${endsAt}</strong></td></tr>
@@ -205,7 +210,7 @@ export async function POST(req: NextRequest) {
         `[Smittenbrot] Kündigung eingegangen: ${declaredName}`,
         `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #1A1A1A;">
            <p>${declaredName} (${declaredEmail}) hat gekündigt.</p>
-           <p>Vertrag: ${contractLabel}<br>
+           <p>Abo: ${contractLabel}<br>
               Art: ${kind}${reason ? ` (${reason})` : ''}<br>
               Eingegangen: ${deDateTime(receivedAt)} Uhr<br>
               Zugeordnetes Konto: ${customer ? customer.email : 'KEINES GEFUNDEN — bitte prüfen'}<br>

@@ -1436,10 +1436,37 @@ async function processCancellations(): Promise<{
     return { cancelled: 0, resumed, errors: [] };
   }
 
+  // A cancellation declared through the public /kuendigung page needs no login
+  // — that is the point of § 312k BGB — so it is held in cancellation_pending
+  // until the owner confirms it. This job runs every 30 minutes and would
+  // otherwise finalise it long before she ever saw it, leaving no way back if
+  // the declaration was not genuine. Skip those; the admin decides.
+  const { data: onHold, error: holdError } = await supabase
+    .from("subscriptions_awaiting_cancellation_review")
+    .select("subscription_id");
+  if (holdError) {
+    // Fail SAFE: if the hold list cannot be read, cancel nothing this run
+    // rather than risk finalising a cancellation the owner never saw.
+    console.error(
+      "[subscription-engine] Could not read cancellation review hold list; skipping cancellations this run:",
+      holdError,
+    );
+    return { cancelled: 0, resumed, errors: [holdError.message] };
+  }
+  const held = new Set(
+    (onHold ?? []).map((r: { subscription_id: string }) => r.subscription_id),
+  );
+
   let cancelled = 0;
   const errors: string[] = [];
 
   for (const sub of subscriptions) {
+    if (held.has(sub.id)) {
+      console.log(
+        `[subscription-engine] Subscription ${sub.id} awaits cancellation review — not finalising.`,
+      );
+      continue;
+    }
     try {
       const { error: updateError } = await supabase
         .from("subscriptions")

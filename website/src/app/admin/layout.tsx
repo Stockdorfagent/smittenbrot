@@ -13,6 +13,9 @@ const navItems = [
   { href: '/admin/pickup-locations', label: 'Abholorte' },
   { href: '/admin/closures', label: 'Schließzeiten' },
   { href: '/admin/notifications', label: 'Benachrichtigungen' },
+  // Sits next to Kunden rather than buried: an unreviewed cancellation means a
+  // customer's Abo is already on hold, so it is not a passive list.
+  { href: '/admin/kuendigungen', label: 'Kündigungen' },
   { href: '/admin/customers', label: 'Kunden' },
   { href: '/admin/settings', label: 'Einstellungen' },
 ];
