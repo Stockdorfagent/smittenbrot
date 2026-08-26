@@ -49,6 +49,10 @@ export default function RootLayout({
                   <a href="/datenschutz" className="hover:text-smitten-primary transition-colors">Datenschutz</a>
                   <a href="/zahlung-abholung" className="hover:text-smitten-primary transition-colors">Zahlung</a>
                   <a href="/agb" className="hover:text-smitten-primary transition-colors">AGB</a>
+                  {/* § 312k BGB wants this permanently available and directly
+                      reachable, so it belongs in the footer of every page and
+                      must work without logging in. */}
+                  <a href="/kuendigung" className="hover:text-smitten-primary transition-colors">Verträge hier kündigen</a>
                   <a href="/contact" className="hover:text-smitten-primary transition-colors">Kontakt</a>
                 </nav>
               </div>
