@@ -7,28 +7,8 @@ import { formatPrice } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { Order, OrderWithItems, PickupLocation } from '@/lib/types';
+import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 
-/**
- * "Vorgemerkt" means pencilled in and not yet charged — right for a
- * subscription order before its cutoff, wrong for a one-time order that was
- * paid on the spot. A tester saw a paid order for tomorrow labelled
- * "Vorgemerkt" next to a subscription order for the same day reading
- * "In Produktion" and reasonably asked which one was real.
- */
-function statusLabel(order: { status: string; payment_status: string }): string {
-  if (order.status === 'scheduled' && order.payment_status === 'paid') return 'Bestätigt';
-  return STATUS_LABELS[order.status] ?? order.status;
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Vorgemerkt',
-  processing: 'In Bearbeitung',
-  grace_period_open: 'Änderbar',
-  locked_for_production: 'In Produktion',
-  fulfilled: 'Abgeholt',
-  refunded: 'Rückerstattet',
-  cancelled: 'Storniert',
-};
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -96,8 +76,18 @@ export default function OrdersScreen() {
                     day: 'numeric', month: 'short', year: 'numeric',
                   })}
                 </Text>
-                <View style={[styles.statusBadge, (styles[`status_${order.status}` as keyof typeof styles] as ViewStyle) || styles.status_scheduled]}>
-                  <Text style={styles.statusText}>{statusLabel(order)}</Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    isReadyForPickup(order)
+                      ? styles.status_ready
+                      : (styles[`status_${order.status}` as keyof typeof styles] as ViewStyle) ||
+                        styles.status_scheduled,
+                  ]}
+                >
+                  <Text style={[styles.statusText, isReadyForPickup(order) ? styles.statusTextReady : null]}>
+                    {orderStatusLabel(order)}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.orderLocation}>{order.pickup_location?.name}</Text>
@@ -184,6 +174,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
   },
+  // Solid brand red — the only badge meant to be noticed across the list.
+  status_ready: { backgroundColor: theme.colors.primary },
   status_scheduled: { backgroundColor: '#E5E7EB' },
   status_processing: { backgroundColor: '#DBEAFE' },
   status_grace_period_open: { backgroundColor: '#FEF3C7' },
@@ -191,6 +183,7 @@ const styles = StyleSheet.create({
   status_fulfilled: { backgroundColor: '#D1FAE5' },
   status_refunded: { backgroundColor: '#FCE7F3' },
   status_cancelled: { backgroundColor: '#FEE2E2' },
+  statusTextReady: { color: theme.colors.white },
   statusText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',

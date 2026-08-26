@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
+import { isReadyForPickup } from '@/lib/orderStatus';
 import { Button } from '@/components/Button';
 import { ClosureBanner } from '@/components/ClosureBanner';
 import { ProductCard } from '@/components/ProductCard';
@@ -101,7 +102,14 @@ export default function HomeScreen() {
         .select('*')
         .eq('customer_id', user.id)
         .eq('payment_status', 'paid')
-        .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production'])
+        // Not a status whitelist: the admin "Abholbereit melden" button also
+        // marks the order fulfilled, so whitelisting would hide the order at
+        // the very moment the customer most needs to see it. Exclude the states
+        // that really are over instead — plus orders ticked off WITHOUT ever
+        // being announced (collected, or handled before pickup_ready_at
+        // existed), which would otherwise resurface as the next pickup.
+        .not('status', 'in', '("cancelled","refunded")')
+        .or('status.neq.fulfilled,pickup_ready_at.not.is.null')
         .gte('fulfillment_date', todayStr)
         .order('fulfillment_date', { ascending: true })
         .limit(1)
@@ -182,6 +190,9 @@ export default function HomeScreen() {
                   tester counted them that way. */}
               {subscriptionOrder ? (
                 <>
+                  {isReadyForPickup(subscriptionOrder) ? (
+                    <Text style={styles.readyNow}>Jetzt abholbereit</Text>
+                  ) : null}
                   <Text style={styles.infoSub}>Nächste Abholung: {pickupLabel(subscriptionOrder)}</Text>
                   <TouchableOpacity onPress={() => router.push(`/order/${subscriptionOrder.id}`)}>
                     <Text style={styles.infoLink}>Bestellung ansehen ›</Text>
@@ -198,10 +209,28 @@ export default function HomeScreen() {
             its own card. */}
         {standaloneOrder && (
           <TouchableOpacity style={styles.infoCard} onPress={() => router.push(`/order/${standaloneOrder.id}`)}>
-            <View style={[styles.infoDot, { backgroundColor: theme.colors.success }]} />
+            <View
+              style={[
+                styles.infoDot,
+                {
+                  backgroundColor: isReadyForPickup(standaloneOrder)
+                    ? theme.colors.primary
+                    : theme.colors.success,
+                },
+              ]}
+            />
             <View style={styles.infoTextWrap}>
-              <Text style={styles.infoTitle}>Nächste Abholung</Text>
-              <Text style={styles.infoSub}>{pickupLabel(standaloneOrder)}</Text>
+              {isReadyForPickup(standaloneOrder) ? (
+                <>
+                  <Text style={styles.readyNow}>Jetzt abholbereit</Text>
+                  <Text style={styles.infoSub}>Deine Bestellung wartet auf dich.</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.infoTitle}>Nächste Abholung</Text>
+                  <Text style={styles.infoSub}>{pickupLabel(standaloneOrder)}</Text>
+                </>
+              )}
             </View>
           </TouchableOpacity>
         )}
@@ -275,6 +304,9 @@ const styles = StyleSheet.create({
   infoDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.primary, marginRight: theme.spacing.md },
   infoTextWrap: { flex: 1 },
   infoTitle: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
+  // The one thing on this screen that should catch the eye before anything
+  // else. Brand red, no tinted fill (see the palette rule).
+  readyNow: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.primary },
   infoSub: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
   infoAction: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
   infoLink: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },

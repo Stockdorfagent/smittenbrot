@@ -5,16 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Order, formatPrice } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-const statusLabels: Record<string, string> = {
-  scheduled: 'Geplant',
-  processing: 'In Bearbeitung',
-  grace_period_open: 'Änderungsfenster',
-  locked_for_production: 'Für Produktion gesperrt',
-  fulfilled: 'Abgeholt',
-  refunded: 'Rückerstattet',
-  cancelled: 'Storniert',
-};
+import { isReadyForPickup, orderStatusLabel, orderStatusClasses } from '@/lib/orderStatus';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -78,6 +69,11 @@ export default function OrdersPage() {
                   <p className="font-medium text-smitten-text">
                     Bestellung vom {new Date(order.created_at).toLocaleDateString('de-DE')}
                   </p>
+                  {isReadyForPickup(order) && (
+                    <p className="text-sm font-semibold text-smitten-primary mt-1">
+                      Jetzt abholbereit
+                    </p>
+                  )}
                   <p className="text-sm text-smitten-text/60 mt-1">
                     Abholung: {new Date(order.fulfillment_date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
                   </p>
@@ -86,13 +82,8 @@ export default function OrdersPage() {
                   <p className="font-bold text-smitten-accent">
                     {formatPrice(order.total_cents)}
                   </p>
-                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${
-                    order.status === 'fulfilled' ? 'bg-green-100 text-green-700' :
-                    order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                    order.status === 'locked_for_production' ? 'bg-amber-100 text-amber-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}>
-                    {statusLabels[order.status] || order.status}
+                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${orderStatusClasses(order)}`}>
+                    {orderStatusLabel(order)}
                   </span>
                 </div>
               </div>

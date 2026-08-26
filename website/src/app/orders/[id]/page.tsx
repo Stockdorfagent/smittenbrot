@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatPrice } from '@/lib/types';
+import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 
 interface SellerInfo {
   name: string;
@@ -24,6 +25,7 @@ interface OrderInvoice {
   fulfillment_date: string;
   status: string;
   payment_status: string;
+  pickup_ready_at: string | null;
   total_cents: number;
   net_total_cents: number;
   vat_total_cents: number;
@@ -62,15 +64,6 @@ const paymentStatusLabels: Record<string, string> = {
   refunded: 'Rückerstattet',
 };
 
-const statusLabels: Record<string, string> = {
-  scheduled: 'Geplant',
-  processing: 'In Bearbeitung',
-  grace_period_open: 'Änderungsfenster',
-  locked_for_production: 'Für Produktion gesperrt',
-  fulfilled: 'Abgeholt',
-  refunded: 'Rückerstattet',
-  cancelled: 'Storniert',
-};
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -228,6 +221,15 @@ export default function OrderDetailPage() {
         </button>
       </div>
 
+      {isReadyForPickup(order) && (
+        <div className="no-print mb-6 rounded-xl border-l-4 border-smitten-primary bg-white p-5 border border-smitten-cream">
+          <p className="font-semibold text-smitten-primary">Jetzt abholbereit</p>
+          <p className="mt-1 text-sm text-smitten-text/70">
+            Deine Bestellung liegt für dich bereit.
+          </p>
+        </div>
+      )}
+
       {/* Receipt / Rechnung */}
       <div className="bg-white rounded-xl border border-smitten-cream p-8 md:p-10 print:border-0 print:shadow-none print:p-0">
         {/* HEADER: Rechnung */}
@@ -373,7 +375,7 @@ export default function OrderDetailPage() {
             <span>
               Bestellstatus:{' '}
               <strong className="text-smitten-text/70">
-                {statusLabels[order.status] || order.status}
+                {orderStatusLabel(order)}
               </strong>
             </span>
           </div>

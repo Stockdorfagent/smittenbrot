@@ -231,7 +231,18 @@ export async function send_push(
       { ticketIds: tickets.filter((t) => t.id).map((t) => t.id) },
     );
 
-    return { success: errCount === 0, tickets };
+    // Surface ticket-level failures in `error` too. Without this a rejected
+    // token (DeviceNotRegistered and friends) only ever showed up as
+    // success:false with an empty error, which tells nobody anything — and it
+    // matters more now that a failed push is what triggers the email fallback.
+    const ticketError = errCount > 0
+      ? tickets
+        .filter((t) => t.status === "error")
+        .map((t) => t.details?.error ? `${t.details.error}: ${t.message}` : t.message)
+        .join("; ")
+      : undefined;
+
+    return { success: errCount === 0, tickets, error: ticketError };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log("error", `Failed to send push notification: ${msg}`);
@@ -294,34 +305,56 @@ export async function send_notification(
   let pushResult: SendPushResult | undefined;
   let effectiveChannel = channel;
 
+  const hasPush = !!(customer.push_token && customer.push_token.trim());
+  const hasEmail = !!customer.email;
+
   // Determine the actual channel based on available contact info
   if (channel === "both") {
-    if (!customer.email && (!customer.push_token || !customer.push_token.trim())) {
+    if (!hasEmail && !hasPush) {
       log("warn", `Customer ${customerId} has no email or push token — skipping both channels`);
       effectiveChannel = "none";
-    } else if (!customer.email) {
+    } else if (!hasEmail) {
       effectiveChannel = "push";
-    } else if (!customer.push_token || !customer.push_token.trim()) {
+    } else if (!hasPush) {
       effectiveChannel = "email";
     }
   }
 
-  // Send email
-  if (effectiveChannel === "email" || effectiveChannel === "both") {
-    if (customer.email) {
-      emailResult = await send_email(customer.email, title, html ?? body);
-    } else {
-      log("warn", `Customer ${customerId} has no email — skipping email channel`);
-    }
-  }
-
-  // Send push
+  // Push FIRST, and for "both" the email only follows if the push did not go
+  // out. Two testers reported the app notification plus the identical message
+  // by email as spam — and they are right: for someone who has the app, the
+  // push IS the message. The email stays as the fallback so a failed push
+  // never means silence, and it remains the only channel for everyone who
+  // orders on the website without the app.
+  // NOTE: this deliberately does NOT touch `order_receipt` (send_order_receipt
+  // below), which is the Bestellbestätigung/invoice and must always be emailed.
   if (effectiveChannel === "push" || effectiveChannel === "both") {
-    if (customer.push_token && customer.push_token.trim()) {
-      pushResult = await send_push([customer.push_token], title, body);
+    if (hasPush) {
+      pushResult = await send_push([customer.push_token!], title, body);
     } else {
       log("warn", `Customer ${customerId} has no push token — skipping push channel`);
     }
+  }
+
+  const pushDelivered = pushResult?.success === true;
+
+  if (
+    effectiveChannel === "email" ||
+    (effectiveChannel === "both" && !pushDelivered)
+  ) {
+    if (hasEmail) {
+      emailResult = await send_email(customer.email, title, html ?? body);
+      if (effectiveChannel === "both") {
+        log("info", `Push failed for customer ${customerId} — sent ${type} by email instead`);
+        // Log what was actually delivered; the push failure is kept in `error`.
+        effectiveChannel = "email";
+      }
+    } else {
+      log("warn", `Customer ${customerId} has no email — skipping email channel`);
+    }
+  } else if (effectiveChannel === "both") {
+    // Push carried it; record what actually happened, not what was requested.
+    effectiveChannel = "push";
   }
 
   // Log to notifications table. "delivered" means the customer was reached
@@ -530,10 +563,12 @@ export async function send_pickup_ready(
         );
       }
 
-      // 8. Send email
+      // 8. Send email — but only when the push did not carry the message.
+      //    Same rule as send_notification: one message per person, not two.
+      //    Guests have no push token, so they always get the email.
       const recipientEmail = order.customer_email ?? customer?.email;
       let emailResult: SendEmailResult | undefined;
-      if (recipientEmail) {
+      if (recipientEmail && pushResult?.success !== true) {
         emailResult = await send_email(
           recipientEmail,
           emailSubject,
@@ -541,16 +576,36 @@ export async function send_pickup_ready(
         );
       }
 
-      // 9. Log to notifications table
+      // 9. Mark the order as announced, so the app can show "Jetzt abholbereit"
+      //    on its own. This is the safety net for anyone whose notifications
+      //    are switched off: they see it the moment they open the app.
+      //    Best-effort — a failed stamp must not fail the notification.
+      const { error: stampError } = await supabase
+        .from("orders")
+        .update({ pickup_ready_at: new Date().toISOString() })
+        .eq("id", orderId)
+        .is("pickup_ready_at", null); // keep the FIRST announcement time
+      if (stampError) {
+        log("warn", `Could not stamp pickup_ready_at on order ${orderId}: ${stampError.message}`);
+      }
+
+      // 10. Log to notifications table
       const hasError =
         emailResult?.success === false || pushResult?.success === false;
+      // "delivered" = reached by at least one channel. A push that failed and
+      // was covered by the email fallback is still a delivered notification;
+      // the failure itself stays visible in `error`.
+      const reached =
+        emailResult?.success === true || pushResult?.success === true;
 
       await supabase.from("notifications").insert({
         customer_id: order.customer_id,
         type: "pickup_ready",
-        channel: pushResult && emailResult ? "both" : pushResult ? "push" : "email",
+        channel: emailResult?.success === true
+          ? (pushResult?.success === true ? "both" : "email")
+          : "push",
         sent_at: new Date().toISOString(),
-        delivered: !hasError,
+        delivered: reached,
         error: hasError
           ? JSON.stringify({ email: emailResult?.error, push: pushResult?.error })
           : null,

@@ -6,16 +6,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-
-const STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Vorgemerkt',
-  processing: 'In Bearbeitung',
-  grace_period_open: 'Änderbar',
-  locked_for_production: 'In Produktion',
-  fulfilled: 'Abgeholt',
-  refunded: 'Rückerstattet',
-  cancelled: 'Storniert',
-};
+import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending: 'Ausstehend',
@@ -35,6 +26,7 @@ interface OrderRow {
   order_type: string;
   status: string;
   payment_status: string;
+  pickup_ready_at: string | null;
   fulfillment_date: string;
   total_cents: number;
   created_at: string;
@@ -56,7 +48,7 @@ export default function OrderDetailScreen() {
     setLoading(true);
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, order_type, status, payment_status, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
+      .select('id, order_number, order_type, status, payment_status, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
       .eq('id', id)
       .single();
     setOrder((data as unknown as OrderRow) ?? null);
@@ -122,7 +114,14 @@ export default function OrderDetailScreen() {
         <View style={styles.section}>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Status</Text>
-            <Text style={styles.detailValue}>{STATUS_LABELS[order.status] ?? order.status}</Text>
+            <Text
+              style={[
+                styles.detailValue,
+                isReadyForPickup(order) ? styles.detailValueReady : null,
+              ]}
+            >
+              {orderStatusLabel(order)}
+            </Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Abholung</Text>
@@ -221,6 +220,7 @@ const styles = StyleSheet.create({
   hintText: { fontSize: theme.fontSize.sm, color: theme.colors.text, lineHeight: 19 },
   detailLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
   detailValue: { fontSize: theme.fontSize.sm, color: theme.colors.text, fontWeight: '500' },
+  detailValueReady: { color: theme.colors.primary, fontWeight: '700' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   itemName: { fontSize: theme.fontSize.md, color: theme.colors.text, flex: 1, marginRight: theme.spacing.sm },
   itemPrice: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '500' },

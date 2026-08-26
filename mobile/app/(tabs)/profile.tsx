@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { LocationDropdown } from '@/components/LocationDropdown';
 import { ReminderSettings } from '@/components/ReminderSettings';
+import { NotificationStatusCard } from '@/components/NotificationStatusCard';
 import type { PickupLocation } from '@/lib/types';
 
 export default function ProfileScreen() {
@@ -136,6 +137,10 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        {/* Sits directly above the reminder settings: if notifications are off,
+            that is the first thing worth knowing about any reminder. */}
+        <NotificationStatusCard />
 
         <ReminderSettings />
 

@@ -41,6 +41,8 @@ export interface Order {
   pickup_location_id: string;
   status: 'scheduled' | 'processing' | 'grace_period_open' | 'locked_for_production' | 'fulfilled' | 'refunded' | 'cancelled';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
+  /** Set when the "abholbereit" notice was sent; null until then. */
+  pickup_ready_at: string | null;
   stripe_payment_intent_id: string | null;
   total_cents: number;
   notes: string | null;

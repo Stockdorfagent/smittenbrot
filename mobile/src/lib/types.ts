@@ -120,6 +120,8 @@ export interface Order {
   customer_email: string | null;
   customer_name: string | null;
   idempotency_key: string;
+  /** Set when the "abholbereit" notice was sent; null until then. */
+  pickup_ready_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -62,6 +62,63 @@ export async function clearNotificationBadge(): Promise<void> {
 }
 
 /**
+ * Has this device actually got permission to show notifications?
+ *
+ * Not the same question as "did we ever ask": permission can be withdrawn in
+ * the system settings long after it was granted.
+ */
+export async function hasNotificationPermission(): Promise<boolean> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Forget this customer's push token on the server.
+ *
+ * The backend now treats a stored token as "this person can be reached in the
+ * app" and skips the email when a push goes out. A token that outlives the
+ * permission breaks that promise silently: Expo accepts the push, the phone
+ * shows nothing, and no email is sent either — so the customer never learns
+ * their bread is ready. Clearing it puts them back on email, which is the
+ * right channel for someone with notifications switched off.
+ */
+async function clearStoredPushToken(userId: string): Promise<void> {
+  try {
+    await supabase
+      .from('customers')
+      .update({ push_token: null })
+      .eq('id', userId)
+      .not('push_token', 'is', null); // no pointless write when already clear
+  } catch (err) {
+    console.warn('[push] could not clear stale token:', err);
+  }
+}
+
+/**
+ * Re-check permission and bring the stored token in line with it. Unlike
+ * registerAndSavePushToken this NEVER prompts, so it is safe to run every time
+ * the app comes to the foreground — which is when a permission change made in
+ * the system settings becomes visible to us.
+ */
+export async function syncPushRegistration(userId: string): Promise<void> {
+  try {
+    if (!Device.isDevice) return;
+    if (await hasNotificationPermission()) {
+      // Permission may have been granted in settings after we last asked.
+      await registerAndSavePushToken(userId);
+    } else {
+      await clearStoredPushToken(userId);
+    }
+  } catch (err) {
+    console.warn('[push] sync failed:', err);
+  }
+}
+
+/**
  * Request notification permission, obtain the Expo push token, and save it
  * to the customer's `push_token` so the backend (subscription engine /
  * notification dispatch) can reach this device. Safe to call repeatedly.
@@ -79,7 +136,12 @@ export async function registerAndSavePushToken(userId: string): Promise<void> {
       const requested = await Notifications.requestPermissionsAsync();
       status = requested.status;
     }
-    if (status !== 'granted') return;
+    if (status !== 'granted') {
+      // Permission refused (or withdrawn since last time). Drop any token we
+      // stored earlier — see clearStoredPushToken for why that matters.
+      await clearStoredPushToken(userId);
+      return;
+    }
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {

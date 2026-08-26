@@ -2,7 +2,12 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { AppState } from 'react-native';
 import { supabase, recoverStoredSession } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { registerAndSavePushToken, clearNotificationBadge, ensureOrderChannel } from '@/lib/push';
+import {
+  registerAndSavePushToken,
+  clearNotificationBadge,
+  ensureOrderChannel,
+  syncPushRegistration,
+} from '@/lib/push';
 import type { AuthState } from '@/lib/types';
 
 interface AuthContextType extends AuthState {
@@ -161,6 +166,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.remove();
   }, []);
+
+  // Coming back to the app is the only moment we can notice that notifications
+  // were switched off in the system settings. Re-syncing here keeps the stored
+  // push token honest, so the backend falls back to email for anyone who can no
+  // longer be reached in the app. Never prompts.
+  useEffect(() => {
+    const userId = state.user?.id;
+    if (!userId) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') syncPushRegistration(userId);
+    });
+    return () => sub.remove();
+  }, [state.user?.id]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
