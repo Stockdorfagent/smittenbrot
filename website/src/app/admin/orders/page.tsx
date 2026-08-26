@@ -10,6 +10,38 @@ interface OrderWithItems extends Order {
   location_name?: string;
 }
 
+interface OrderNotification {
+  id: string;
+  order_id: string;
+  type: string;
+  channel: string;
+  sent_at: string;
+  delivered: boolean;
+  error: string | null;
+  provider_message_id: string | null;
+}
+
+const notificationTypeLabels: Record<string, string> = {
+  order_receipt: 'Bestellbestätigung',
+  order_placed: 'Bestellung aufgegeben',
+  pickup_ready: 'Abholbereit',
+  payment_failed: 'Zahlung fehlgeschlagen',
+};
+
+const notificationChannelLabels: Record<string, string> = {
+  email: 'E-Mail',
+  push: 'App',
+  both: 'App + E-Mail',
+};
+
+/**
+ * The day the order_id link started being written. Before this, notifications
+ * were logged but not tied to an order, so an empty list for an older order
+ * means "cannot tell", NOT "nothing was sent" — a distinction worth making
+ * loudly, since the whole point of this panel is answering that question.
+ */
+const NOTIFICATION_LINK_SINCE = '2026-08-26';
+
 const statusLabels: Record<string, string> = {
   scheduled: 'Neu',
   processing: 'In Bearbeitung',
@@ -91,6 +123,7 @@ export default function AdminOrdersPage() {
   const [dayFilter, setDayFilter] = useState<string>('');
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [notificationsByOrder, setNotificationsByOrder] = useState<Record<string, OrderNotification[]>>({});
   const [sending, setSending] = useState<Record<string, boolean>>({});
   const [invoiceFrom, setInvoiceFrom] = useState('');
   const [invoiceTo, setInvoiceTo] = useState('');
@@ -115,6 +148,20 @@ export default function AdminOrdersPage() {
 
     if (ordersRes.data) {
       const orderIds = ordersRes.data.map((o) => o.id);
+
+      // Which messages went out for these orders — so "did he get an email?"
+      // is answered on the order itself instead of by eyeballing timestamps in
+      // a separate list.
+      const { data: notifs } = await supabase
+        .from('notifications')
+        .select('id, order_id, type, channel, sent_at, delivered, error, provider_message_id')
+        .in('order_id', orderIds)
+        .order('sent_at', { ascending: true });
+      const byOrder: Record<string, OrderNotification[]> = {};
+      for (const n of (notifs ?? []) as OrderNotification[]) {
+        (byOrder[n.order_id] ??= []).push(n);
+      }
+      setNotificationsByOrder(byOrder);
       const { data: items } = await supabase
         .from('order_items')
         .select('*, products!inner(name)')
@@ -296,7 +343,10 @@ export default function AdminOrdersPage() {
                         {order.customer_name || order.customer_email || 'Gast'}
                       </p>
                       <p className="text-xs text-smitten-text/40 mt-0.5">
-                        <strong className="text-smitten-text/60">{(order as any).order_number}</strong> · {new Date(order.fulfillment_date).toLocaleDateString('de-DE')} · {order.location_name}
+                        <strong className="text-smitten-text/60">{(order as any).order_number}</strong>
+                        {' · '}Abholung {new Date(order.fulfillment_date).toLocaleDateString('de-DE')}
+                        {' · '}bestellt {new Date(order.created_at).toLocaleDateString('de-DE')}
+                        {' · '}{order.location_name}
                       </p>
                     </div>
                     <div className="text-right ml-4 flex items-center gap-3">
@@ -363,6 +413,54 @@ export default function AdminOrdersPage() {
                         ))}
                       </tbody>
                     </table>
+
+                    {/* What the customer was actually told about THIS order.
+                        The question that prompted this panel — "he says he got
+                        no email" — used to need two lists and a lot of squinting
+                        at timestamps. */}
+                    <div className="mt-4 border-t border-smitten-cream pt-3">
+                      <p className="text-xs font-medium text-smitten-text/60">Benachrichtigungen</p>
+                      {(notificationsByOrder[order.id] ?? []).length > 0 ? (
+                        <ul className="mt-1 space-y-1">
+                          {(notificationsByOrder[order.id] ?? []).map((n) => (
+                            <li key={n.id} className="text-xs text-smitten-text/70">
+                              <span className={n.delivered ? 'text-green-700' : 'text-red-600'}>
+                                {n.delivered ? '✓' : '✗'}
+                              </span>{' '}
+                              {notificationTypeLabels[n.type] ?? n.type}
+                              {' · '}
+                              {notificationChannelLabels[n.channel] ?? n.channel}
+                              {' · '}
+                              {new Date(n.sent_at).toLocaleString('de-DE')}
+                              {n.error && <span className="text-red-500"> · {n.error}</span>}
+                              {n.provider_message_id && (
+                                <span
+                                  className="ml-1 font-mono text-[10px] text-smitten-text/30"
+                                  title="Brevo-Message-ID. 'Zugestellt' heißt nur, dass Brevo die Mail angenommen hat — die tatsächliche Zustellung lässt sich damit bei Brevo prüfen."
+                                >
+                                  {n.provider_message_id}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : order.created_at.slice(0, 10) < NOTIFICATION_LINK_SINCE ? (
+                        <p className="mt-1 text-xs text-smitten-text/40">
+                          Keine Zuordnung möglich — bei Bestellungen vor dem 26.08.2026 wurde die
+                          Benachrichtigung nicht mit der Bestellung verknüpft. Das heißt nicht, dass
+                          nichts versendet wurde:{' '}
+                          <Link href="/admin/notifications" className="underline">
+                            in der Liste nachsehen
+                          </Link>
+                          .
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-smitten-text/40">
+                          Für diese Bestellung wurde noch keine Benachrichtigung versendet.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="mt-3 flex items-center gap-2">
                       {(order as any).discount_code && (
                         <p className="text-xs text-green-600">

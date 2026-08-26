@@ -10,9 +10,13 @@ interface Notification {
   sent_at: string;
   delivered: boolean;
   error: string | null;
+  provider_message_id: string | null;
+  order: { order_number: string | null; fulfillment_date: string } | null;
+  customer: { email: string | null; name: string | null } | null;
 }
 
 const typeLabels: Record<string, string> = {
+  order_receipt: 'Bestellbestätigung',
   subscription_reminder: 'Abonnement-Erinnerung',
   order_placed: 'Bestellung aufgegeben',
   pickup_ready: 'Abholbereit',
@@ -41,9 +45,12 @@ export default function AdminNotificationsPage() {
     setLoading(true);
     const { data } = await supabase
       .from('notifications')
-      .select('*')
+      // A type and a timestamp on their own could not be tied to anything —
+      // so "did this order get its email?" was unanswerable. The order and the
+      // customer come along now.
+      .select('*, order:orders(order_number, fulfillment_date), customer:customers(email, name)')
       .order('sent_at', { ascending: false })
-      .limit(50);
+      .limit(100);
     if (data) setNotifications(data);
     setLoading(false);
   }
@@ -70,6 +77,8 @@ export default function AdminNotificationsPage() {
             <thead>
               <tr className="border-b border-smitten-cream bg-smitten-cream/50">
                 <th className="text-left px-4 py-3 font-medium text-smitten-text">Typ</th>
+                <th className="text-left px-4 py-3 font-medium text-smitten-text">Bestellung</th>
+                <th className="text-left px-4 py-3 font-medium text-smitten-text">Kunde</th>
                 <th className="text-left px-4 py-3 font-medium text-smitten-text">Kanal</th>
                 <th className="text-left px-4 py-3 font-medium text-smitten-text">Gesendet</th>
                 <th className="text-left px-4 py-3 font-medium text-smitten-text">Status</th>
@@ -80,6 +89,18 @@ export default function AdminNotificationsPage() {
                 <tr key={n.id} className="border-b border-smitten-cream last:border-0">
                   <td className="px-4 py-3 text-smitten-text">
                     {typeLabels[n.type] || n.type}
+                  </td>
+                  <td className="px-4 py-3 text-smitten-text/70">
+                    {n.order?.order_number ? (
+                      <span className="font-mono text-xs">{n.order.order_number}</span>
+                    ) : (
+                      // Either the message was not about an order at all
+                      // (a reminder, a cancellation), or it predates the link.
+                      <span className="text-smitten-text/30">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-smitten-text/70 text-xs">
+                    {n.customer?.email ?? <span className="text-smitten-text/30">—</span>}
                   </td>
                   <td className="px-4 py-3 text-smitten-text">
                     {channelLabels[n.channel] || n.channel}
@@ -97,6 +118,14 @@ export default function AdminNotificationsPage() {
                     </span>
                     {n.error && (
                       <span className="ml-2 text-xs text-red-500">{n.error}</span>
+                    )}
+                    {n.provider_message_id && (
+                      <span
+                        className="block mt-1 text-[10px] text-smitten-text/30 font-mono"
+                        title="Brevo-Message-ID — damit lässt sich die tatsächliche Zustellung bei Brevo prüfen. 'Zugestellt' heißt nur, dass Brevo die Mail angenommen hat."
+                      >
+                        {n.provider_message_id}
+                      </span>
                     )}
                   </td>
                 </tr>

@@ -384,6 +384,13 @@ export async function send_notification(
     error: anyFailed
       ? JSON.stringify({ email: emailResult?.error ?? null, push: pushResult?.error ?? null })
       : null,
+    // The order this was about, where there is one. Without it the admin's
+    // notification list and order list have nothing in common, and "did this
+    // order get its email?" can only be guessed at from timestamps.
+    order_id: (data?.order_id as string | undefined) ?? null,
+    // Brevo's own id. `delivered` only means Brevo accepted the message; this
+    // is what makes a "nothing arrived" report checkable at the provider.
+    provider_message_id: emailResult?.messageId ?? null,
   });
 
   if (logError) {
@@ -608,6 +615,8 @@ export async function send_pickup_ready(
 
       await supabase.from("notifications").insert({
         customer_id: order.customer_id,
+        order_id: orderId,
+        provider_message_id: emailResult?.messageId ?? null,
         type: "pickup_ready",
         channel: emailResult?.success === true
           ? (pushResult?.success === true ? "both" : "email")

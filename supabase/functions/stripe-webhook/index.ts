@@ -83,6 +83,9 @@ async function insertNotification(
   channel: string,
   delivered = false,
   failure: string | null = null,
+  /** The order this was about, so the admin can answer "did THIS order get
+   *  its email?" without matching timestamps by eye. */
+  orderId: string | null = null,
 ): Promise<void> {
   const { error } = await supabase.from("notifications").insert({
     customer_id: customerId,
@@ -91,6 +94,7 @@ async function insertNotification(
     sent_at: new Date().toISOString(),
     delivered,
     error: failure,
+    order_id: orderId,
   });
 
   if (error) {
@@ -105,8 +109,8 @@ async function insertNotification(
  * serious: the money is taken and nothing tells anyone the paperwork never
  * arrived. Console logs alone are not enough — edge-function log retention is
  * short and not queryable after the fact — so every attempt lands in
- * `notifications` with delivered=true/false and the reason on failure. The
- * order number goes into the error text because the table has no order_id.
+ * `notifications` with delivered=true/false and the reason on failure, linked
+ * to the order via order_id (migration 023).
  */
 async function logReceiptOutcome(
   order: Record<string, unknown>,
@@ -120,6 +124,7 @@ async function logReceiptOutcome(
     "email",
     delivered,
     delivered ? null : `${ref}: ${reason ?? "unknown error"}`,
+    (order.id as string | null) ?? null,
   );
 }
 

@@ -355,8 +355,8 @@ function buildReceiptHtml(
  * The receipt doubles as the invoice, so a silent failure means the card was
  * charged and nobody knows the paperwork never arrived. Edge-function console
  * logs are short-lived and not queryable afterwards, so every attempt lands in
- * `notifications` (delivered=true/false, reason on failure). The order number
- * goes into the error text because the table has no order_id column.
+ * `notifications` (delivered=true/false, reason on failure), linked to the
+ * order via order_id (migration 023).
  */
 async function logReceiptOutcome(
   customerId: string | null,
@@ -372,6 +372,7 @@ async function logReceiptOutcome(
     sent_at: new Date().toISOString(),
     delivered,
     error: delivered ? null : `${ref}: ${reason ?? "unknown error"}`,
+    order_id: (order.id as string | null) ?? null,
   });
   if (error) {
     console.error("[subscription-engine] Failed to log receipt outcome:", error);
