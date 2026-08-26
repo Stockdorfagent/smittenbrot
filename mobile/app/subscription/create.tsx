@@ -194,6 +194,23 @@ export default function SubscriptionCreateScreen() {
           customerId: si.customerId,
           customerEphemeralKeySecret: si.ephemeralKey,
           returnURL: 'smittenbrot://stripe-redirect',
+          applePay: {
+            merchantCountryCode: 'DE',
+            // A SetupIntent carries no amount, so Apple's sheet would otherwise
+            // read 0,00 €. Show the weekly charge instead — twice the per-delivery
+            // total when both bake days are picked.
+            cartItems: [
+              {
+                paymentType: 'Recurring',
+                intervalUnit: 'day',
+                intervalCount: 7,
+                label: 'Smittenbrot Abo (pro Woche)',
+                amount: (
+                  (subTotalCents * (pickupDay === 'both' ? 2 : 1)) / 100
+                ).toFixed(2),
+              },
+            ],
+          },
           googlePay: {
             merchantCountryCode: 'DE',
             currencyCode: 'EUR',

@@ -49,6 +49,9 @@ export default function RootLayout() {
       <StripeProvider
         publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
         urlScheme="smittenbrot"
+        // Registered with Apple and certified through Stripe. Without it the
+        // payment sheet simply omits Apple Pay, with no error to explain why.
+        merchantIdentifier="merchant.de.smittenbrot.app"
       >
         <AuthProvider>
           <CartProvider>

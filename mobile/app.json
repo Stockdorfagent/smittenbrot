@@ -49,7 +49,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "",
+          "merchantIdentifier": "merchant.de.smittenbrot.app",
           "enableGooglePay": true
         }
       ],

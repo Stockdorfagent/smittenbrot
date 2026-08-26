@@ -96,6 +96,16 @@ export default function SubscriptionsScreen() {
         customerId: data.customerId,
         customerEphemeralKeySecret: data.ephemeralKey,
         returnURL: 'smittenbrot://stripe-redirect',
+        // Same wallets as when the subscription was created — otherwise someone
+        // who paid with Apple Pay could only switch to a plain card here.
+        applePay: {
+          merchantCountryCode: 'DE',
+        },
+        googlePay: {
+          merchantCountryCode: 'DE',
+          currencyCode: 'EUR',
+          testEnv: !(process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').startsWith('pk_live'),
+        },
       });
       if (init.error) {
         Alert.alert('Fehler', init.error.message);

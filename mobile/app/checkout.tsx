@@ -74,6 +74,9 @@ export default function CheckoutScreen() {
         customerEphemeralKeySecret: ephemeralKey,
         returnURL: 'smittenbrot://stripe-redirect',
         allowsDelayedPaymentMethods: false,
+        applePay: {
+          merchantCountryCode: 'DE',
+        },
         googlePay: {
           merchantCountryCode: 'DE',
           currencyCode: 'EUR',
