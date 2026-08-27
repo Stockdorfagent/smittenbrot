@@ -15,5 +15,9 @@ build/
 # TypeScript incremental build artifact
 website/tsconfig.tsbuildinfo
 
-# Backstube: generated locally by start.sh from .credentials (never committed)
-backstube/js/config.js
+# Backstube — a SEPARATE project (stock management + recipe planning). It lives
+# in this folder and shares the same Supabase database, but it is not part of
+# this repository and must not be committed with it. Ignoring the whole
+# directory rather than just its config file, because `git add -A` swept the
+# lot in once already.
+/backstube/
