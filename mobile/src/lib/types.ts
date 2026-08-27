@@ -240,6 +240,16 @@ export interface AuthState {
     email: string;
     name: string;
     is_admin: boolean;
+    /**
+     * Did the customers row actually load?
+     *
+     * False means the session is valid but the profile fetch did not succeed,
+     * so `name` is a guess from the auth token rather than the truth. Anything
+     * that reacts to a blank name — the profile-setup gate above all — must
+     * check this first, or a failed fetch looks exactly like "this person has
+     * no name yet" and sends an existing customer back through sign-up.
+     */
+    profileLoaded: boolean;
   } | null;
   loading: boolean;
 }

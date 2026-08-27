@@ -29,7 +29,13 @@ export default function ProfileSetupScreen() {
       setError('Bitte gib Vor- und Nachnamen ein — beides steht auf deiner Bestellbestätigung.');
       return;
     }
-    if (!user) return;
+    // Never fail silently. This used to be a bare `return`, so with no session
+    // yet the button did nothing at all — no spinner, no message — and the app
+    // looked frozen. A tester had to force-quit and reopen it.
+    if (!user) {
+      setError('Deine Anmeldung wird noch geladen. Bitte versuch es gleich noch einmal.');
+      return;
+    }
     setError('');
     setLoading(true);
     const { error: err } = await supabase
@@ -43,7 +49,23 @@ export default function ProfileSetupScreen() {
     }
     // Pulls the new name into context; the gate then lets the tabs render.
     await refreshUser();
+
+    // ...unless the profile could not be read back, in which case the gate
+    // keeps this screen up and pressing Weiter again looks like nothing is
+    // happening. Check rather than guess, and only then explain — the name is
+    // already saved at this point, so this is reassurance, not an error.
+    const { data: check } = await supabase
+      .from('customers')
+      .select('name')
+      .eq('id', user.id)
+      .maybeSingle();
     setLoading(false);
+    if (!check?.name?.trim()) {
+      setError(
+        'Dein Name ist gespeichert. Die Verbindung ist gerade langsam — ' +
+        'gleich geht es weiter.',
+      );
+    }
   };
 
   return (

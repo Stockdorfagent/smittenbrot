@@ -24,7 +24,20 @@ export function ProductCard({
   onAdd,
 }: ProductCardProps) {
   const soldOut = !available;
-  const showControls = !soldOut && !!onAdd;
+  const showControls = !soldOut && !!onIncrease;
+
+  /**
+   * Nothing in the basket yet: offer one button that puts it there. Once it is
+   * in, the stepper takes over and edits the basket directly — there is no
+   * separate "add" step to press afterwards.
+   *
+   * A tester pointed out that adding several products meant setting a quantity
+   * and then confirming it, product after product. The confirmation was the
+   * redundant part: what the card shows IS what the basket holds, so a stepper
+   * with nothing to commit is both fewer taps and one less thing to explain.
+   * (It also removes a real inconsistency — the card used to reset to 0 after
+   * adding, while the basket held 3.)
+   */
 
   return (
     <View style={styles.card}>
@@ -50,8 +63,16 @@ export function ProductCard({
           </View>
         ) : showControls ? (
           <View style={styles.controls}>
-            <QuantitySelector quantity={quantity} onIncrease={onIncrease!} onDecrease={onDecrease!} />
-            <Button title="In den Warenkorb" onPress={onAdd!} size="sm" style={styles.addButton} />
+            {quantity > 0 ? (
+              <QuantitySelector quantity={quantity} onIncrease={onIncrease!} onDecrease={onDecrease!} />
+            ) : (
+              <Button
+                title="In den Warenkorb"
+                onPress={onAdd ?? onIncrease!}
+                size="sm"
+                style={styles.addButton}
+              />
+            )}
           </View>
         ) : null}
       </View>

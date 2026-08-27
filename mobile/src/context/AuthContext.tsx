@@ -33,47 +33,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({ user: null, loading: false });
       return;
     }
-    try {
-      const { data: profile } = await supabase
+
+    // Retry the profile read before giving up on it.
+    //
+    // The first request after a cold start — especially the first launch after
+    // an app update — regularly loses the race with the network stack or with
+    // the token being attached. That used to fall straight through to the
+    // fallback below, and because the fallback invents an empty name, the auth
+    // gate concluded the customer had never given one and sent them to
+    // /profile-setup. An existing customer was asked for their name again on
+    // every update, which is exactly what a tester reported.
+    let profile: Record<string, unknown> | null = null;
+    let missingRow = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
         .from('customers')
         .select('*')
         .eq('id', session.user.id)
-        .single();
-
-      if (profile) {
-        setState({
-          user: {
-            id: profile.id,
-            email: profile.email,
-            name: profile.name,
-            is_admin: profile.is_admin ?? false,
-          },
-          loading: false,
-        });
+        .maybeSingle();
+      if (data) { profile = data; break; }
+      // An empty result is NOT proof the row is absent: row-level security
+      // filters out everything when the request goes out before the token is
+      // attached, and that comes back as no rows and no error — exactly what a
+      // genuinely missing row looks like. So keep retrying either way, and only
+      // believe "absent" once the last attempt still says so.
+      if (attempt === 2) {
+        missingRow = !error;
       } else {
-        setState({
-          user: {
-            id: session.user.id,
-            email: session.user.email ?? '',
-            name: session.user.user_metadata?.name ?? '',
-            is_admin: false,
-          },
-          loading: false,
-        });
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
-    } catch {
-      // A failed profile fetch must NOT look like "logged out" — the session is
-      // valid, so keep the user signed in with what the token already tells us.
+    }
+
+    if (profile) {
       setState({
         user: {
-          id: session.user.id,
-          email: session.user.email ?? '',
-          name: session.user.user_metadata?.name ?? '',
-          is_admin: false,
+          id: profile.id as string,
+          email: profile.email as string,
+          name: (profile.name as string) ?? '',
+          is_admin: (profile.is_admin as boolean) ?? false,
+          profileLoaded: true,
         },
         loading: false,
       });
+      return;
     }
+
+    // No profile to show. The session is still valid, so stay signed in — but
+    // record whether we actually know there is no row (missingRow: the database
+    // answered, and the row is not there) or merely failed to ask. Only the
+    // former justifies asking for a name.
+    setState({
+      user: {
+        id: session.user.id,
+        email: session.user.email ?? '',
+        name: (session.user.user_metadata?.name as string) ?? '',
+        is_admin: false,
+        profileLoaded: missingRow,
+      },
+      loading: false,
+    });
   }, []);
 
   const refreshUser = useCallback(async () => {

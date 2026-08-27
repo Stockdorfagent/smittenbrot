@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import Constants from 'expo-constants';
+import { Linking } from 'react-native';
+import { SITE_LINKS, siteUrl } from '@/lib/site';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { LocationDropdown } from '@/components/LocationDropdown';
@@ -162,6 +165,22 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Pages that live on the website and would be pointless to rebuild here.
+            Also how the legally required pages stay reachable from the app. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mehr</Text>
+          {SITE_LINKS.map((link) => (
+            <TouchableOpacity
+              key={link.path}
+              style={styles.row}
+              onPress={() => Linking.openURL(siteUrl(link.path))}
+            >
+              <Text style={styles.rowLabel}>{link.label}</Text>
+              <Text style={styles.rowArrow}>↗</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <View style={styles.section}>
           <Button
             title="Abmelden"
@@ -183,9 +202,28 @@ export default function ProfileScreen() {
             {deleting ? 'Wird gelöscht…' : 'Konto löschen'}
           </Text>
         </TouchableOpacity>
+
+        <Text style={styles.version}>Smittenbrot {appVersionLabel()}</Text>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+/**
+ * "1.0.0 (15)" — the version a customer can read out when reporting something.
+ *
+ * The build number comes from the embedded Info.plist / manifest rather than
+ * from the Expo config, so it describes the binary actually installed on this
+ * phone. That is the whole point: it has to distinguish "this is a bug" from
+ * "you are two builds behind".
+ */
+function appVersionLabel(): string {
+  const version = Constants.expoConfig?.version ?? '?';
+  const build =
+    Platform.OS === 'ios'
+      ? Constants.platform?.ios?.buildNumber
+      : Constants.platform?.android?.versionCode;
+  return build ? `${version} (${build})` : version;
 }
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
@@ -300,6 +338,13 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     minWidth: 200,
+  },
+  version: {
+    textAlign: 'center',
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textLight,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   deleteRow: {
     alignItems: 'center',

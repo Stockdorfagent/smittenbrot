@@ -717,8 +717,11 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
     if (tokens.length > 0) {
       // The owner's cash-register sound, bundled in the app. Android needs the
       // matching channel, which the app creates on sign-in.
+      // Channel id must match KACHING_CHANNEL in the app's src/lib/push.ts. It
+      // carries a version because an Android channel's sound cannot be changed
+      // after creation, so a new sound needs a new channel — see that file.
       const push = await send_push(
-        tokens, "Smittenbrot", message, { type: "admin_alert" }, "kaching.wav", "orders",
+        tokens, "Smittenbrot", message, { type: "admin_alert" }, "kaching.wav", "orders-v2",
       );
       pushed = push.success ? tokens.length : 0;
       log("info", `Admin alert pushed to ${pushed}/${tokens.length} device(s)`);

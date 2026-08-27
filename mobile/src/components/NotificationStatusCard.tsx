@@ -20,8 +20,11 @@ import { hasNotificationPermission } from '@/lib/push';
  * do arrive by email. Nothing is lost — it is only worth knowing which inbox to
  * watch.
  *
- * Renders nothing at all when notifications are working, which is the normal
- * case; a permanent "everything is fine" box would just be noise.
+ * When notifications ARE working it drops to a single quiet sentence rather
+ * than a box — no chrome, no icon. That one line is worth keeping, because the
+ * app now suppresses the email whenever it can reach the phone: without it,
+ * someone who used to get order reminders by email would just notice they had
+ * stopped and assume something was broken.
  */
 export function NotificationStatusCard() {
   const [granted, setGranted] = useState<boolean | null>(null);
@@ -48,8 +51,17 @@ export function NotificationStatusCard() {
 
   useFocusEffect(check);
 
-  // null = not checked yet. Never flash the warning before we know.
-  if (granted !== false) return null;
+  // null = not checked yet. Never flash either state before we know.
+  if (granted === null) return null;
+
+  if (granted) {
+    return (
+      <Text style={styles.fine}>
+        Solange du die App nutzt, bekommst du alles direkt hier. E-Mails schicken wir dir nur,
+        wenn wir dich in der App nicht erreichen — deine Bestellbestätigung kommt immer per E-Mail.
+      </Text>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -70,6 +82,13 @@ export function NotificationStatusCard() {
 }
 
 const styles = StyleSheet.create({
+  fine: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textLight,
+    lineHeight: 17,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xs,
+  },
   card: {
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,

@@ -17,7 +17,13 @@ export default function TabLayout() {
   // Passwordless sign-up creates the profile with a blank name (the database
   // has no name to work from). Ask for it once before letting them shop — it
   // goes on the order confirmation and the invoice.
-  if (!user.name?.trim()) return <Redirect href="/profile-setup" />;
+  //
+  // Only when the profile actually loaded. A blank name on an unloaded profile
+  // means "we could not read it", not "they never gave one" — treating the two
+  // the same sent existing customers back to the name screen after every app
+  // update. Letting them through is the right failure: the gate fires again as
+  // soon as the profile does load, and the name is only needed at checkout.
+  if (user.profileLoaded && !user.name?.trim()) return <Redirect href="/profile-setup" />;
 
   return (
     <>

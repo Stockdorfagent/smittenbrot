@@ -18,8 +18,21 @@ Notifications.setNotificationHandler({
  * Android 8.0+ ignores a per-notification sound: it comes from the channel.
  * So the ka-ching needs its own channel, created before any push arrives.
  * iOS takes the sound straight from the payload and needs no channel.
+ *
+ * The id carries a version, and that is not decoration. A channel's sound is
+ * fixed at creation: Android's own documentation says "after you create a
+ * notification channel, you can't change the notification behaviors", and
+ * recreating one with the same id is explicitly a no-op. So shipping a new
+ * sound under the old id would change nothing on any phone that already had the
+ * app — the very phones being tested. A new id is the only way the new sound
+ * actually reaches anyone.
+ *
+ * Bump this whenever the sound changes, and add the retired id to LEGACY_CHANNELS.
  */
-export const KACHING_CHANNEL = 'orders';
+export const KACHING_CHANNEL = 'orders-v2';
+
+/** Old channel ids, deleted on sight so they stop cluttering Android settings. */
+const LEGACY_CHANNELS = ['orders'];
 
 export async function ensureOrderChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
@@ -30,6 +43,11 @@ export async function ensureOrderChannel(): Promise<void> {
       sound: 'kaching.wav',
       vibrationPattern: [0, 250, 250, 250],
     });
+    // Without this the retired channel lingers in the system notification
+    // settings as a second "Bestellungen" entry, which looks like a bug.
+    for (const id of LEGACY_CHANNELS) {
+      await Notifications.deleteNotificationChannelAsync(id).catch(() => {});
+    }
   } catch {
     // best effort — a missing channel only costs the custom sound
   }

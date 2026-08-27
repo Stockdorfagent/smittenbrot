@@ -24,11 +24,10 @@ function pickupLabel(order: { fulfillment_date: string }): string {
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { addItem, itemCount, totalCents } = useCart();
+  const { items: cartItems, addItem, updateQuantity, itemCount, totalCents } = useCart();
   const [refreshing, setRefreshing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [soldOut, setSoldOut] = useState<Record<string, boolean>>({});
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<Subscription | null>(null);
   const [upcomingOrder, setUpcomingOrder] = useState<Order | null>(null);
@@ -128,27 +127,43 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const handleAddToCart = (product: Product) => {
+  /** How many of this product are in the basket right now. */
+  const cartQuantity = (productId: string) =>
+    cartItems.find((i) => i.product_id === productId)?.quantity ?? 0;
+
+  /**
+   * One more of this product, straight into the basket.
+   *
+   * The large-order check now fires on the way past ten rather than when a
+   * separate "add" button was pressed, because there is no such button any
+   * more. It asks once, at the crossing, not on every tap after it.
+   */
+  const handleIncrease = (product: Product) => {
     if (soldOut[product.id]) return;
-    const qty = quantities[product.id] || 1;
-    const add = () => {
+    const next = cartQuantity(product.id) + 1;
+    const add = () =>
       addItem({
         product_id: product.id,
         product_name: product.name,
-        quantity: qty,
+        quantity: 1,
         unit_price_cents: product.price_cents,
       });
-      setQuantities((prev) => ({ ...prev, [product.id]: 0 }));
-    };
-    if (qty > 10) {
-      Alert.alert('Menge bestätigen', `Du hast ${qty}× ${product.name} ausgewählt. Ist das korrekt?`, [
-        { text: 'Menge ändern', style: 'cancel' },
-        { text: 'Ja', onPress: add },
-      ]);
-    } else {
-      add();
+    if (next === 11) {
+      Alert.alert(
+        'Menge bestätigen',
+        `Du hast dann ${next}× ${product.name} im Warenkorb. Ist das korrekt?`,
+        [{ text: 'Abbrechen', style: 'cancel' }, { text: 'Ja', onPress: add }],
+      );
+      return;
     }
+    add();
   };
+
+  const handleDecrease = (product: Product) =>
+    updateQuantity(product.id, Math.max(0, cartQuantity(product.id) - 1));
+
+  /** Used by the product detail sheet, which has its own single add button. */
+  const handleAddToCart = (product: Product) => handleIncrease(product);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -238,7 +253,7 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Unser Sortiment</Text>
 
         {products.map((product) => {
-          const qty = quantities[product.id] || 0;
+          const qty = cartQuantity(product.id);
           const isSoldOut = soldOut[product.id] === true;
           return (
             <View key={product.id} style={styles.productItem}>
@@ -247,9 +262,9 @@ export default function HomeScreen() {
                 available={!isSoldOut}
                 quantity={qty}
                 onPress={() => setDetailProduct(product)}
-                onIncrease={() => setQuantities((prev) => ({ ...prev, [product.id]: (prev[product.id] || 0) + 1 }))}
-                onDecrease={() => setQuantities((prev) => ({ ...prev, [product.id]: Math.max(0, (prev[product.id] || 0) - 1) }))}
-                onAdd={() => handleAddToCart(product)}
+                onIncrease={() => handleIncrease(product)}
+                onDecrease={() => handleDecrease(product)}
+                onAdd={() => handleIncrease(product)}
               />
             </View>
           );
