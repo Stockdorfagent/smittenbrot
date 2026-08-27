@@ -675,7 +675,14 @@ export interface AdminAlertResult {
  * @param message  Plain-text message to include in the alert email
  * @returns        Result with success flag
  */
-export async function send_admin_alert(message: string): Promise<AdminAlertResult> {
+export async function send_admin_alert(
+  message: string,
+  /** The order the alert is about, so tapping it opens that order rather than
+   *  a general list. The owner tapped a 200-euro sale alert to see what had
+   *  been ordered and landed on the bake-day overview, which does not even
+   *  contain that order. */
+  orderId?: string | null,
+): Promise<AdminAlertResult> {
   if (!message) {
     log("warn", "send_admin_alert called with empty message");
     return { success: false, error: "Message is empty" };
@@ -721,7 +728,12 @@ export async function send_admin_alert(message: string): Promise<AdminAlertResul
       // carries a version because an Android channel's sound cannot be changed
       // after creation, so a new sound needs a new channel — see that file.
       const push = await send_push(
-        tokens, "Smittenbrot", message, { type: "admin_alert" }, "kaching.wav", "orders-v2",
+        tokens,
+        "Smittenbrot",
+        message,
+        { type: "admin_alert", ...(orderId ? { order_id: orderId } : {}) },
+        "kaching.wav",
+        "orders-v2",
       );
       pushed = push.success ? tokens.length : 0;
       log("info", `Admin alert pushed to ${pushed}/${tokens.length} device(s)`);
@@ -1117,7 +1129,7 @@ serve(async (req: Request): Promise<Response> => {
         if (!message) {
           return jsonResponse({ error: "message is required" }, 400);
         }
-        const result = await send_admin_alert(message);
+        const result = await send_admin_alert(message, (body.order_id as string) ?? null);
         return jsonResponse(result, result.success ? 200 : 502);
       }
 

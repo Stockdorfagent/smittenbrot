@@ -45,8 +45,12 @@ export function routeForNotification(data: PushData): string | null {
       return '/(tabs)/subscriptions';
 
     case 'admin_alert':
-      // Only ever sent to admins; a new order means the bake list changed.
-      return '/admin-bakeday';
+      // Only ever sent to admins, and always about one specific sale — so open
+      // that sale. Sending it to the bake-day overview was wrong twice over:
+      // it is a summary of a production day, and a brand-new order is often not
+      // even on it yet. Fall back to the overview only when the alert carries
+      // no order (system warnings such as a failed payment sweep).
+      return data.order_id ? `/order/${data.order_id}` : '/admin-bakeday';
 
     default:
       // Includes the personal weekly reminder, which is a nudge to order —

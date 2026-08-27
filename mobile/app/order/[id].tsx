@@ -6,6 +6,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -26,6 +27,8 @@ interface OrderRow {
   order_type: string;
   status: string;
   payment_status: string;
+  customer_id: string | null;
+  customer_email: string | null;
   pickup_ready_at: string | null;
   fulfillment_date: string;
   total_cents: number;
@@ -38,6 +41,7 @@ interface OrderRow {
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -48,7 +52,7 @@ export default function OrderDetailScreen() {
     setLoading(true);
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, order_type, status, payment_status, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
+      .select('id, order_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
       .eq('id', id)
       .single();
     setOrder((data as unknown as OrderRow) ?? null);
@@ -96,7 +100,17 @@ export default function OrderDetailScreen() {
   const netCents = Math.round(grossCents / 1.07);
   const vatCents = grossCents - netCents;
 
+  // Only the person who placed it may cancel — the server enforces this and
+  // returns 403 otherwise, so showing the button to an admin looking at someone
+  // else's order (which is now what a sale alert opens) would only produce an
+  // error message.
+  const isOwnOrder =
+    !!user &&
+    (order.customer_id === user.id ||
+      (order.customer_email ?? '').toLowerCase() === (user.email ?? '').toLowerCase());
+
   const canCancel =
+    isOwnOrder &&
     order.order_type === 'one_time' &&
     order.payment_status === 'paid' &&
     !['cancelled', 'refunded', 'fulfilled'].includes(order.status);

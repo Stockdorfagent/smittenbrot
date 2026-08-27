@@ -150,7 +150,7 @@ async function alertAdminNewOrder(order: Record<string, unknown>): Promise<void>
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, order_id: (order.id as string) ?? null }),
       },
     );
     if (!resp.ok) {
