@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
@@ -43,7 +44,19 @@ export function ProductCard({
     <View style={styles.card}>
       <TouchableOpacity activeOpacity={onPress ? 0.85 : 1} onPress={onPress} disabled={!onPress}>
         {product.cover_image_url ? (
-          <Image source={{ uri: product.cover_image_url }} style={styles.image} />
+          <Image
+            source={{ uri: product.cover_image_url }}
+            style={styles.image}
+            /* Storage serves these with `cache-control: no-cache`, and that
+               cannot be changed on this project — so the app has to do the
+               caching itself. expo-image keeps them on disk regardless, which
+               turns a repeat visit from ~2.8 MB into nothing at all. */
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            /* Without this the picture appears in one jump after a grey gap,
+               which is what "slow to load" usually means. */
+            transition={200}
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.placeholderText}>{product.name.charAt(0)}</Text>

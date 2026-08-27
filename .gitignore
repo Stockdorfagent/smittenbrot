@@ -14,3 +14,6 @@ build/
 
 # TypeScript incremental build artifact
 website/tsconfig.tsbuildinfo
+
+# Backstube: generated locally by start.sh from .credentials (never committed)
+backstube/js/config.js
