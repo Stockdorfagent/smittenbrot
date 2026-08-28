@@ -24,6 +24,25 @@ const DAY_LABELS: Record<string, string> = {
   saturday: 'Samstags',
 };
 
+/**
+ * supabase-js hides the function's response body on a non-2xx: invoke()
+ * resolves { data: null, error } without parsing it, so the engine's German
+ * message is only reachable through error.context. Falls back to `fallback`
+ * for network errors (no context) and non-JSON bodies.
+ */
+async function edgeErrorMessage(error: unknown, fallback: string): Promise<string> {
+  try {
+    const ctx = (error as { context?: { json(): Promise<{ error?: unknown }> } }).context;
+    if (ctx && typeof ctx.json === 'function') {
+      const parsed = await ctx.json();
+      if (parsed && typeof parsed.error === 'string' && parsed.error) return parsed.error;
+    }
+  } catch {
+    // keep the fallback
+  }
+  return fallback;
+}
+
 export default function SubscriptionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -31,7 +50,10 @@ export default function SubscriptionsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [pausingId, setPausingId] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pauseDate, setPauseDate] = useState(new Date());
+  // Tomorrow, not today: "pausiert bis" is inclusive and the engine rejects a
+  // pause ending today — the */30 auto-resume cron would undo it immediately.
+  const tomorrow = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const [pauseDate, setPauseDate] = useState(tomorrow());
   const [busyId, setBusyId] = useState<string | null>(null);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -55,13 +77,17 @@ export default function SubscriptionsScreen() {
   };
 
   const handlePause = async (subId: string) => {
-    const resumeDate = pauseDate.toISOString().split('T')[0];
+    // The DEVICE-local calendar date the customer actually saw in the picker.
+    // toISOString() is the UTC date and sends yesterday for a pick made
+    // shortly after midnight; the engine rejects any date not after
+    // Berlin-today, so that bug surfaced as an inexplicable error.
+    const resumeDate = pauseDate.toLocaleDateString('en-CA');
     // The engine also removes any not-yet-charged upcoming order so the paused
     // week isn't charged.
     const { error } = await supabase.functions.invoke('subscription-engine/pause', {
       body: { subscription_id: subId, resume_date: resumeDate },
     });
-    if (error) Alert.alert('Fehler', 'Pausieren fehlgeschlagen.');
+    if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Pausieren fehlgeschlagen.'));
     else await fetchSubscriptions();
     setPausingId(null);
   };
@@ -71,7 +97,7 @@ export default function SubscriptionsScreen() {
     const { error } = await supabase.functions.invoke('subscription-engine/resume', {
       body: { subscription_id: subId },
     });
-    if (error) Alert.alert('Fehler', 'Fortsetzen fehlgeschlagen.');
+    if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Fortsetzen fehlgeschlagen.'));
     else await fetchSubscriptions();
   };
 
@@ -116,12 +142,23 @@ export default function SubscriptionsScreen() {
         if (sheetError.code !== 'Canceled') Alert.alert('Fehler', sheetError.message);
         return;
       }
-      const { error: updateError } = await supabase
-        .from('subscriptions')
-        .update({ status: 'active' })
-        .eq('id', subId);
-      if (updateError) {
-        Alert.alert('Fehler', updateError.message);
+      // Reactivate THROUGH the engine, never straight into the table: resume
+      // also regenerates the next order (idempotently), which is what makes
+      // the alert below actually true. The failed week itself is past its
+      // cutoff and cannot be baked any more; the old direct status write left
+      // the Abo active but orderless until the next Mon/Thu run — and the
+      // home screen with no trace of either.
+      const { error: resumeErr } = await supabase.functions.invoke('subscription-engine/resume', {
+        body: { subscription_id: subId },
+      });
+      if (resumeErr) {
+        Alert.alert(
+          'Fehler',
+          await edgeErrorMessage(
+            resumeErr,
+            'Die Karte wurde gespeichert, aber das Abo konnte nicht reaktiviert werden. Bitte versuche es gleich noch einmal.',
+          ),
+        );
         return;
       }
       Alert.alert(
@@ -134,13 +171,18 @@ export default function SubscriptionsScreen() {
     }
   };
 
-  /** The cancel dialog promises this is reversible, but nothing offered it. */
+  /**
+   * The cancel dialog promises this is reversible, but nothing offered it.
+   * The undo goes THROUGH the engine: the cancellation trigger (migration 021)
+   * already deleted the uncharged upcoming order the moment the status became
+   * cancellation_pending, so a bare status='active' write restored the Abo
+   * but not the bread — resume regenerates the order while its cutoff allows.
+   */
   const handleUndoCancel = async (subId: string) => {
-    const { error } = await supabase
-      .from('subscriptions')
-      .update({ status: 'active' })
-      .eq('id', subId);
-    if (error) Alert.alert('Fehler', error.message);
+    const { error } = await supabase.functions.invoke('subscription-engine/resume', {
+      body: { subscription_id: subId },
+    });
+    if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Die Kündigung konnte nicht zurückgenommen werden.'));
     else await fetchSubscriptions();
   };
 
@@ -249,7 +291,7 @@ export default function SubscriptionsScreen() {
                           value={pauseDate}
                           mode="date"
                           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          minimumDate={new Date()}
+                          minimumDate={tomorrow()}
                           onChange={(_, date) => {
                             setShowDatePicker(false);
                             if (date) setPauseDate(date);

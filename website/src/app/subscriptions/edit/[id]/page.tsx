@@ -88,11 +88,22 @@ export default function SubscriptionEditPage() {
     });
     setSaving(false);
     if (fnErr) { setError('Änderung fehlgeschlagen. Bitte später erneut versuchen.'); return; }
-    const applied = (data as { applied_this_week?: boolean } | null)?.applied_this_week;
+    const result = data as {
+      applied_this_week?: boolean;
+      reason?: 'no_items_this_week' | 'already_charged' | 'paused' | 'payment_failed';
+    } | null;
+    // Say what actually happened — "bereits fixiert" was wrong for a paused
+    // or payment_failed Abo, where no upcoming order exists at all.
     alert(
-      applied
+      result?.applied_this_week
         ? 'Abo aktualisiert. Deine anstehende, noch nicht berechnete Bestellung wurde bereits angepasst.'
-        : 'Abo aktualisiert. Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.',
+        : result?.reason === 'paused'
+          ? 'Abo aktualisiert. Dein Abo ist pausiert – die Änderung gilt, sobald es weiterläuft.'
+          : result?.reason === 'payment_failed'
+            ? 'Abo aktualisiert. Die Änderung gilt, sobald dein Abo wieder aktiv ist.'
+            : result?.reason === 'no_items_this_week'
+              ? 'Abo aktualisiert. Diese Woche ist keines deiner Produkte im Sortiment – die nächste passende Lieferung kommt automatisch.'
+              : 'Abo aktualisiert. Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.',
     );
     router.push('/subscriptions');
   }

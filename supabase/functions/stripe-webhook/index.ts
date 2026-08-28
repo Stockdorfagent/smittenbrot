@@ -757,17 +757,30 @@ async function handlePaymentIntentFailed(
     return;
   }
 
+  const isSubscriptionOrder =
+    !!order.subscription_id && order.order_type === "subscription";
+
   const oldData: Record<string, unknown> = {
     payment_status: order.payment_status,
+    ...(isSubscriptionOrder ? { status: order.status } : {}),
   };
   const newData: Record<string, unknown> = {
     payment_status: "failed",
+    // A declined subscription charge is never retried (recovery goes through
+    // the engine's resume, which creates NEXT week's order), so the dead order
+    // is cancelled at the source: that frees its capacity slot, takes it off
+    // the bake lists and shows it truthfully as "Storniert" — for every
+    // client. Mirrors the same write in subscription-engine's process10pmLock
+    // (this handler catches the async case, e.g. a SEPA charge that was
+    // 'processing' at lock time). ONE-TIME orders keep their status: checkout
+    // may still complete them with a second payment attempt.
+    ...(isSubscriptionOrder ? { status: "cancelled" } : {}),
   };
 
-  // 1. Update order payment_status
+  // 1. Update the order
   const { error: orderError } = await supabase
     .from("orders")
-    .update({ payment_status: "failed", updated_at: new Date().toISOString() })
+    .update({ ...newData, updated_at: new Date().toISOString() })
     .eq("id", order.id);
 
   if (orderError) {
@@ -779,7 +792,7 @@ async function handlePaymentIntentFailed(
   }
 
   // 2. If subscription order, mark subscription as payment_failed
-  if (order.subscription_id && order.order_type === "subscription") {
+  if (isSubscriptionOrder) {
     const { error: subError } = await supabase
       .from("subscriptions")
       .update({

@@ -53,7 +53,7 @@ export default function HomeScreen() {
   const hiddenPickupCount = upcomingOrders.length - visiblePickups.length;
 
   /**
-   * Only PAUSED subscriptions earn a line of their own.
+   * Only a PAUSED or a PAYMENT_FAILED subscription earns a line of its own.
    *
    * An active Abo with no upcoming order is not a problem to report: the order
    * simply has not been generated yet, or nothing in the basket is baked this
@@ -64,10 +64,20 @@ export default function HomeScreen() {
    * bread is coming, and it is the one they may want to undo. Pausing deletes
    * the not-yet-charged order, so without this the Abo would disappear from
    * this screen entirely for the length of the pause.
+   *
+   * A failed charge is the most urgent of the three, so it is listed first: the
+   * bread has stopped and only the customer can restart it. The declined order
+   * is deliberately filtered out of the query below, so without this row a
+   * payment failure would leave no trace on this screen at all.
    */
-  const pausedSubs = subscriptions.filter(
-    (sub) => sub.status === 'paused' && !upcomingOrders.some((o) => o.subscription_id === sub.id),
-  );
+  const subNotices = useMemo(() => {
+    const unexplained = (sub: Subscription) =>
+      !upcomingOrders.some((o) => o.subscription_id === sub.id);
+    return [
+      ...subscriptions.filter((s) => s.status === 'payment_failed' && unexplained(s)),
+      ...subscriptions.filter((s) => s.status === 'paused' && unexplained(s)),
+    ];
+  }, [subscriptions, upcomingOrders]);
 
   const fetchData = useCallback(async () => {
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
@@ -109,7 +119,7 @@ export default function HomeScreen() {
         .from('subscriptions')
         .select('*')
         .eq('customer_id', user.id)
-        .in('status', ['active', 'paused'])
+        .in('status', ['active', 'paused', 'payment_failed'])
         .order('created_at', { ascending: false });
       setSubscriptions((subs ?? []) as Subscription[]);
 
@@ -127,9 +137,15 @@ export default function HomeScreen() {
         .select('*')
         .eq('customer_id', user.id)
         // Subscription orders are pending until the 22:00 charge, but they are
-        // still a pickup the customer is expecting — so include them. Unpaid
-        // ONE-TIME orders are abandoned checkouts and stay hidden.
-        .or('payment_status.eq.paid,order_type.eq.subscription')
+        // still a pickup the customer is expecting — so include them while they
+        // are PENDING. A declined charge is cancelled by the engine at the
+        // source (status='cancelled', payment_status='failed'), so the status
+        // filter below already hides it; this payment filter is the belt to
+        // that suspender — a failed order must never read as a promised
+        // pickup. The subscription is 'payment_failed' by then and gets its
+        // own notice row instead. Unpaid ONE-TIME orders are abandoned
+        // checkouts and stay hidden.
+        .or('payment_status.eq.paid,and(order_type.eq.subscription,payment_status.eq.pending)')
         // Not a status whitelist: the admin "Abholbereit melden" button also
         // marks the order fulfilled, so whitelisting would hide the order at
         // the very moment the customer most needs to see it. Exclude the states
@@ -141,6 +157,13 @@ export default function HomeScreen() {
         .gte('fulfillment_date', todayStr)
         .order('fulfillment_date', { ascending: true });
       setUpcomingOrders((orders ?? []) as Order[]);
+    } else {
+      // Signed out. Without this the previous account's pickup dates and order
+      // numbers stay on screen — `fetchData` re-runs when `user` becomes null,
+      // skips the block above and leaves the old lists mounted.
+      setSubscriptions([]);
+      setUpcomingOrders([]);
+      setShowAllPickups(false);
     }
   }, [user, pickup.day, pickup.date]);
 
@@ -210,10 +233,17 @@ export default function HomeScreen() {
           <Text style={styles.pickupInfoDate}>{pickup.cutoffLabel}</Text>
         </View>
 
-        {(visiblePickups.length > 0 || pausedSubs.length > 0) && (
+        {(visiblePickups.length > 0 || subNotices.length > 0) && (
           <View style={styles.pickupCard}>
             <Text style={styles.pickupCardTitle}>
-              {upcomingOrders.length === 1 ? 'Nächste Abholung' : 'Deine nächsten Abholungen'}
+              {/* The card also appears with no pickups at all — a paused or
+                  unpaid Abo on its own — so "Abholungen" would name something
+                  that is not there. */}
+              {upcomingOrders.length === 0
+                ? subNotices.length === 1 ? 'Dein Abonnement' : 'Deine Abonnements'
+                : upcomingOrders.length === 1
+                  ? 'Nächste Abholung'
+                  : 'Deine nächsten Abholungen'}
             </Text>
 
             {visiblePickups.map((order) => {
@@ -255,24 +285,46 @@ export default function HomeScreen() {
               </TouchableOpacity>
             )}
 
-            {pausedSubs.map((sub) => (
-              <TouchableOpacity
-                key={sub.id}
-                style={styles.pickupRow}
-                onPress={() => router.push('/(tabs)/subscriptions')}
-              >
-                <View style={[styles.pickupDot, { backgroundColor: theme.colors.textLight }]} />
-                <View style={styles.pickupRowText}>
-                  <Text style={styles.pickupWhen}>Abo pausiert</Text>
-                  <Text style={styles.pickupWhat}>
-                    {sub.paused_until
-                      ? `Läuft am ${new Date(sub.paused_until + 'T12:00:00').toLocaleDateString('de-DE')} weiter`
-                      : 'Fortsetzen in den Abos'}
-                  </Text>
-                </View>
-                <Text style={styles.pickupChevron}>›</Text>
-              </TouchableOpacity>
-            ))}
+            {/* Ruled off from the pickups above, so the "weitere anzeigen"
+                link reads as belonging to the list it actually expands. */}
+            {subNotices.map((sub, i) => {
+              const failed = sub.status === 'payment_failed';
+              return (
+                <TouchableOpacity
+                  key={sub.id}
+                  style={[
+                    styles.pickupRow,
+                    i === 0 && visiblePickups.length > 0 ? styles.pickupRowDivided : null,
+                  ]}
+                  onPress={() => router.push('/(tabs)/subscriptions')}
+                >
+                  {/* Error red (#DC2626), deliberately NOT the brand red: a
+                      colour that is almost-but-not-quite the branding reads as
+                      a warning rather than as decoration, and it matches the
+                      payment_failed dot on the subscriptions screen. Grey for a
+                      pause — that is the customer's own choice, not a problem. */}
+                  <View
+                    style={[
+                      styles.pickupDot,
+                      { backgroundColor: failed ? theme.colors.error : theme.colors.textLight },
+                    ]}
+                  />
+                  <View style={styles.pickupRowText}>
+                    <Text style={[styles.pickupWhen, failed && styles.pickupWhenAlert]}>
+                      {failed ? 'Zahlung fehlgeschlagen' : 'Abo pausiert'}
+                    </Text>
+                    <Text style={styles.pickupWhat}>
+                      {failed
+                        ? 'Zahlungsmethode aktualisieren, dann läuft dein Abo weiter'
+                        : sub.paused_until
+                          ? `Läuft am ${new Date(sub.paused_until + 'T12:00:00').toLocaleDateString('de-DE')} weiter`
+                          : 'Fortsetzen in den Abos'}
+                    </Text>
+                  </View>
+                  <Text style={styles.pickupChevron}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -353,6 +405,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   pickupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm },
+  pickupRowDivided: { borderTopWidth: 1, borderTopColor: theme.colors.border },
   pickupDot: {
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: theme.colors.success, marginRight: theme.spacing.md,
@@ -360,6 +413,9 @@ const styles = StyleSheet.create({
   pickupRowText: { flex: 1 },
   pickupWhen: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
   pickupWhat: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 1 },
+  // Same error red as the dot, so brand red keeps meaning "good news, come and
+  // collect" and this red means "something needs your attention".
+  pickupWhenAlert: { color: theme.colors.error },
   // Brand red, no tinted fill (see the palette rule).
   pickupReady: {
     fontSize: theme.fontSize.sm, fontWeight: '700',

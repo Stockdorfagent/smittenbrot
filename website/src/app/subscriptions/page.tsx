@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
+import { berlinDatePlusDays, berlinTodayISO } from '@/lib/pickup';
 import { formatPrice } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,7 +20,8 @@ interface SubItem {
 interface Subscription {
   id: string;
   status: string;
-  paused_from: string | null;
+  // NB: the DB also has paused_from, kept for history only — nothing reads or
+  // writes it any more (the engine sets just paused_until).
   paused_until: string | null;
   created_at: string;
   pickup_location_id: string;
@@ -33,6 +35,7 @@ const statusLabels: Record<string, string> = {
   paused: 'Pausiert',
   cancellation_pending: 'Kündigung läuft',
   cancelled: 'Gekündigt',
+  payment_failed: 'Zahlung fehlgeschlagen',
 };
 
 const statusColors: Record<string, string> = {
@@ -40,6 +43,7 @@ const statusColors: Record<string, string> = {
   paused: 'bg-amber-100 text-amber-700',
   cancellation_pending: 'bg-orange-100 text-orange-700',
   cancelled: 'bg-gray-100 text-gray-500',
+  payment_failed: 'bg-red-100 text-red-700',
 };
 
 export default function SubscriptionsPage() {
@@ -50,7 +54,9 @@ export default function SubscriptionsPage() {
 
   // Pause state
   const [pausingId, setPausingId] = useState<string | null>(null);
-  const [pauseFrom, setPauseFrom] = useState('');
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [resumingId, setResumingId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<{ id: string; msg: string } | null>(null);
   const [pauseUntil, setPauseUntil] = useState('');
   const [pauseError, setPauseError] = useState('');
 
@@ -124,37 +130,61 @@ export default function SubscriptionsPage() {
     }
   }
 
+  /**
+   * Pause and resume MUST go through the engine, never straight into the table.
+   *
+   * A pause also has to delete the already-generated, not-yet-charged order for
+   * the paused week; a resume has to regenerate it if the cutoff has not passed
+   * yet. Writing `subscriptions` directly — which this page used to do — skipped
+   * both. The orphaned order was never charged and never removed, so it kept
+   * consuming that day's capacity, still turned up on the bake list, and still
+   * showed on the customer's phone as a pickup that was coming. Resuming on the
+   * web then produced the opposite: an active Abo and no bread that week.
+   *
+   * There is only one pause date, "bis". The old form also asked for a "von",
+   * but the write set status='paused' immediately regardless of it and nothing
+   * in the backend has ever read `paused_from` — so a customer choosing a start
+   * a month out had their Abo paused on the spot. One date is the truth.
+   */
   async function handlePause(subId: string) {
-    if (!pauseFrom || !pauseUntil) return;
-    if (new Date(pauseUntil) <= new Date(pauseFrom)) {
-      setPauseError('Das Pause-Ende muss nach dem Pause-Beginn liegen.');
+    if (!pauseUntil) return;
+    // Berlin calendar date on both sides — the engine validates against its
+    // todayInTz(), and toISOString() would be the UTC date, i.e. still
+    // yesterday between midnight and ~02:00 Berlin time.
+    if (pauseUntil <= berlinTodayISO()) {
+      setPauseError('Das Pause-Ende muss in der Zukunft liegen.');
       return;
     }
     setPauseError('');
-    setPausingId(subId);
-    await supabase
-      .from('subscriptions')
-      .update({
-        status: 'paused',
-        paused_from: pauseFrom,
-        paused_until: pauseUntil,
-      })
-      .eq('id', subId);
+    setPauseBusy(true);
+    const res = await invokeEdgeFunction(
+      'subscription-engine/pause',
+      { subscription_id: subId, resume_date: pauseUntil },
+      'Pausieren fehlgeschlagen. Bitte versuche es erneut.',
+    );
+    setPauseBusy(false);
+    if (!res.ok) {
+      setPauseError(res.message);
+      return;
+    }
     setPausingId(null);
-    setPauseFrom('');
     setPauseUntil('');
     loadSubscriptions();
   }
 
   async function handleResume(subId: string) {
-    await supabase
-      .from('subscriptions')
-      .update({
-        status: 'active',
-        paused_from: null,
-        paused_until: null,
-      })
-      .eq('id', subId);
+    setResumeError(null);
+    setResumingId(subId);
+    const res = await invokeEdgeFunction(
+      'subscription-engine/resume',
+      { subscription_id: subId },
+      'Fortsetzen fehlgeschlagen. Bitte versuche es erneut.',
+    );
+    setResumingId(null);
+    if (!res.ok) {
+      setResumeError({ id: subId, msg: res.message });
+      return;
+    }
     loadSubscriptions();
   }
 
@@ -275,39 +305,49 @@ export default function SubscriptionsPage() {
                 )}
 
                 {/* Pause info */}
-                {isPaused && sub.paused_from && (
+                {isPaused && (
                   <p className="mt-2 text-sm text-amber-600">
-                    Pausiert von {new Date(sub.paused_from + 'T00:00:00').toLocaleDateString('de-DE')} bis {new Date(sub.paused_until! + 'T00:00:00').toLocaleDateString('de-DE')}
+                    Pausiert bis {new Date(sub.paused_until! + 'T00:00:00').toLocaleDateString('de-DE')}
                     {isPauseExpired && (
-                      <button onClick={() => handleResume(sub.id)}
-                        className="ml-2 text-smitten-primary underline text-xs">
-                        Jetzt reaktivieren
+                      <button onClick={() => handleResume(sub.id)} disabled={resumingId === sub.id}
+                        className="ml-2 text-smitten-primary underline text-xs disabled:opacity-50">
+                        {resumingId === sub.id ? 'Wird reaktiviert...' : 'Jetzt reaktivieren'}
                       </button>
                     )}
                   </p>
                 )}
+                {sub.status === 'payment_failed' && (
+                  <p className="mt-2 text-sm text-red-600">
+                    Die letzte Zahlung hat nicht funktioniert. Hinterlege in der
+                    Smittenbrot-App unter &bdquo;Abos&ldquo; eine neue Zahlungsmethode,
+                    dann l&auml;uft dein Abo weiter.
+                  </p>
+                )}
+                {resumeError?.id === sub.id && (
+                  <p className="mt-2 text-sm text-red-600">{resumeError.msg}</p>
+                )}
 
                 {/* Actions */}
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {(sub.status === 'active' || sub.status === 'paused') && (
+                  {(sub.status === 'active' || sub.status === 'paused' || sub.status === 'payment_failed') && (
                     <Link href={`/subscriptions/edit/${sub.id}`}
                       className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                       Bearbeiten
                     </Link>
                   )}
                   {(sub.status === 'active' || isPauseExpired) && (
-                    <button onClick={() => { setPausingId(sub.id); setPauseFrom(''); setPauseUntil(''); }}
+                    <button onClick={() => { setPausingId(sub.id); setPauseUntil(''); setPauseError(''); }}
                       className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                       Pausieren
                     </button>
                   )}
                   {isPaused && !isPauseExpired && (
-                    <button onClick={() => handleResume(sub.id)}
-                      className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-green-600 hover:border-green-300 transition-colors">
-                      Reaktivieren
+                    <button onClick={() => handleResume(sub.id)} disabled={resumingId === sub.id}
+                      className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-green-600 hover:border-green-300 transition-colors disabled:opacity-50">
+                      {resumingId === sub.id ? 'Wird reaktiviert...' : 'Reaktivieren'}
                     </button>
                   )}
-                  {sub.status === 'active' && (
+                  {(sub.status === 'active' || sub.status === 'payment_failed') && (
                     <button onClick={() => handleCancel(sub.id)} disabled={cancellingId === sub.id}
                       className="text-xs border border-red-200 px-3 py-1.5 rounded-full text-red-500 hover:border-red-300 transition-colors disabled:opacity-50">
                       {cancellingId === sub.id ? 'Wird gekündigt...' : 'Kündigen'}
@@ -322,29 +362,24 @@ export default function SubscriptionsPage() {
                 {pausingId === sub.id && (
                   <div className="mt-4 p-4 bg-smitten-cream rounded-xl space-y-3">
                     <p className="text-sm font-medium text-smitten-text">Abo pausieren</p>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <label className="block text-xs text-smitten-text mb-1">Von</label>
-                        <input type="date" value={pauseFrom} onChange={e => setPauseFrom(e.target.value)}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-smitten-text mb-1">Bis</label>
-                        <input type="date" value={pauseUntil} onChange={e => setPauseUntil(e.target.value)}
-                          min={pauseFrom || new Date().toISOString().split('T')[0]}
-                          className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
-                      </div>
+                    <p className="text-xs text-smitten-text/60">
+                      Die Pause beginnt sofort. Danach l&auml;uft dein Abo automatisch weiter.
+                    </p>
+                    <div>
+                      <label className="block text-xs text-smitten-text mb-1">Pausieren bis</label>
+                      <input type="date" value={pauseUntil} onChange={e => setPauseUntil(e.target.value)}
+                        min={berlinDatePlusDays(1)}
+                        className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
                     </div>
                     {pauseError && <p className="text-xs text-red-500">{pauseError}</p>}
                     <div className="flex gap-2">
-                      <button onClick={() => setPausingId(null)}
+                      <button onClick={() => { setPausingId(null); setPauseError(''); }}
                         className="px-4 py-1.5 text-xs border border-smitten-cream rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                         Abbrechen
                       </button>
-                      <button onClick={() => handlePause(sub.id)} disabled={!pauseFrom || !pauseUntil}
+                      <button onClick={() => handlePause(sub.id)} disabled={!pauseUntil || pauseBusy}
                         className="px-4 py-1.5 text-xs bg-smitten-primary text-white rounded-full hover:bg-smitten-primary/90 disabled:opacity-50 transition-colors">
-                        Pause speichern
+                        {pauseBusy ? 'Wird pausiert...' : 'Pause speichern'}
                       </button>
                     </div>
                   </div>

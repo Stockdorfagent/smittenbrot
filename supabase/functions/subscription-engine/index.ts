@@ -1251,10 +1251,18 @@ async function process10pmLock(): Promise<{
 
         failed++;
 
-        // Update order payment_status to 'failed'
+        // The declined order will never be baked or charged — nothing ever
+        // retries it (recovery goes through resume, which creates NEXT week's
+        // order). Cancelling it here, at the source, is what frees its
+        // capacity slot (capacity-manager excludes cancelled), takes it off
+        // every bake list and shows it truthfully as "Storniert" in the
+        // customer's order list — for every client, with no per-screen query
+        // filters. Same principle as migration 021 for cancellations. The row
+        // is kept (not deleted) so support can see what failed and when.
         const { error: failUpdateError } = await supabase
           .from("orders")
           .update({
+            status: "cancelled",
             payment_status: "failed",
             updated_at: new Date().toISOString(),
           })
@@ -1302,8 +1310,8 @@ async function process10pmLock(): Promise<{
           "subscription_payment_failed",
           "order",
           order.id,
-          { payment_status: "pending" },
-          { payment_status: "failed", error: msg },
+          { payment_status: "pending", status: "locked_for_production" },
+          { payment_status: "failed", status: "cancelled", error: msg },
         );
 
         errors.push(`Order ${order.id}: ${msg}`);
@@ -1770,6 +1778,22 @@ async function pauseSubscription(
   subscriptionId: string,
   resumeDate: string | null,
 ): Promise<{ success: boolean; removedOrders: number; error: string | null }> {
+  const today = todayInTz();
+
+  // "Pausiert bis X" is inclusive and the auto-resume matches
+  // `paused_until <= today` every 30 minutes, so a resume date of today (or
+  // earlier) would be undone almost immediately — a zero-length pause that
+  // still deleted the pending order. Validated HERE, not only in a client,
+  // so the app, the website and any direct caller all get the same rule.
+  // Berlin calendar date on both sides (todayInTz), never UTC.
+  if (resumeDate && resumeDate <= today) {
+    return {
+      success: false,
+      removedOrders: 0,
+      error: "Das Pause-Ende muss in der Zukunft liegen.",
+    };
+  }
+
   const { error: subErr } = await supabase
     .from("subscriptions")
     .update({
@@ -1780,8 +1804,14 @@ async function pauseSubscription(
     .eq("id", subscriptionId);
   if (subErr) return { success: false, removedOrders: 0, error: subErr.message };
 
-  const today = todayInTz();
-  const { data: orders } = await supabase
+  // Remove only the orders the pause actually covers: fulfillment dates from
+  // today up to and INCLUDING paused_until (order generation is blocked while
+  // `paused_until >= fulfillment_date`, see processSingleSubscription). An
+  // order AFTER the pause window must survive — nothing would regenerate it:
+  // the auto-resume's processSingleSubscription skips dates whose cutoff has
+  // passed, and the Mon/Thu batch may only run after that delivery. An
+  // indefinite pause (no resume date) still clears every future pending order.
+  let ordersQuery = supabase
     .from("orders")
     .select("id")
     .eq("subscription_id", subscriptionId)
@@ -1789,6 +1819,8 @@ async function pauseSubscription(
     .in("status", ["scheduled", "grace_period_open"])
     .eq("payment_status", "pending")
     .gte("fulfillment_date", today);
+  if (resumeDate) ordersQuery = ordersQuery.lte("fulfillment_date", resumeDate);
+  const { data: orders } = await ordersQuery;
 
   let removed = 0;
   for (const o of orders ?? []) {
@@ -1844,11 +1876,12 @@ async function resumeSubscription(
  *                          cycle or day availability), so there is no order
  *   'already_charged'    — this week's order is paid/locked; change applies next time
  *   'paused'             — a paused Abo gets its order when it resumes
+ *   'payment_failed'     — no order until the customer reactivates the Abo
  */
 type UpdateResult = {
   success: boolean;
   applied_this_week: boolean;
-  reason?: "no_items_this_week" | "already_charged" | "paused";
+  reason?: "no_items_this_week" | "already_charged" | "paused" | "payment_failed";
   error: string | null;
 };
 
@@ -1866,7 +1899,10 @@ async function updateSubscription(
     .single();
   if (subErr || !sub) return { success: false, applied_this_week: false, error: "Subscription not found" };
   if (sub.customer_id !== userId) return { success: false, applied_this_week: false, error: "Not your subscription" };
-  if (sub.status !== "active" && sub.status !== "paused") {
+  // payment_failed is editable like paused: the items are saved now and the
+  // order is generated when the Abo is reactivated (resume). Without this the
+  // app's "Bearbeiten" button on a payment_failed Abo was a dead end.
+  if (sub.status !== "active" && sub.status !== "paused" && sub.status !== "payment_failed") {
     return { success: false, applied_this_week: false, error: `Cannot edit a ${sub.status} subscription` };
   }
 
@@ -1904,8 +1940,8 @@ async function updateSubscription(
     .insert(clean.map((i) => ({ subscription_id: sub.id, product_id: i.product_id, quantity: i.quantity })));
   if (insErr) return { success: false, applied_this_week: false, error: insErr.message };
 
-  // 5. Rebuild the upcoming order (active subs only; paused subs get a fresh
-  //    order when they resume).
+  // 5. Rebuild the upcoming order (active subs only; paused and
+  //    payment_failed subs get a fresh order when they resume).
   let appliedThisWeek = false;
   let reason: UpdateResult["reason"];
   if (sub.status === "active") {
@@ -1941,14 +1977,83 @@ async function updateSubscription(
     }
   } else if (sub.status === "paused") {
     reason = "paused";
+  } else if (sub.status === "payment_failed") {
+    reason = "payment_failed";
   }
 
   return { success: true, applied_this_week: appliedThisWeek, reason, error: null };
 }
 
+/**
+ * Ownership guard for EVERY customer-facing subscription action.
+ *
+ * This function is deployed --no-verify-jwt so that cron can reach it, which
+ * means neither the platform nor the router above authenticates anybody: each
+ * customer-facing route must verify the caller's JWT and their ownership of
+ * the subscription itself. A pause DELETES the not-yet-charged orders and
+ * process-single-subscription CREATES a chargeable order, so an
+ * unauthenticated caller holding a UUID could destroy — or force a charge
+ * for — someone else's bread. The internal engine paths (crons, auto-resume)
+ * call the worker functions directly and never pass through this guard.
+ *
+ * Returns the caller's user id when they own the subscription, or the error
+ * Response to send.
+ */
+async function requireSubscriptionOwner(
+  req: Request,
+  subscriptionId: string,
+): Promise<{ userId: string } | Response> {
+  const jsonErr = (error: string, status: number) =>
+    new Response(JSON.stringify({ error }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return jsonErr("Unauthorized", 401);
+
+  const { data: sub, error: subErr } = await supabase
+    .from("subscriptions")
+    .select("customer_id")
+    .eq("id", subscriptionId)
+    .single();
+  if (subErr || !sub) return jsonErr("Subscription not found", 404);
+  if (sub.customer_id !== user.id) return jsonErr("Nicht autorisiert.", 403);
+
+  return { userId: user.id };
+}
+
 // ── HTTP Router ──────────────────────────────────────────────
 
-serve(async (req: Request): Promise<Response> => {
+// The website calls pause/resume/update-subscription from the BROWSER, whose
+// CORS preflight (OPTIONS) previously hit the bare "POST only" branch with no
+// Access-Control headers — the browser then blocked the real request.
+// Wrapping the router answers the preflight and stamps the headers onto every
+// response without touching the individual Response literals. Same header set
+// as the sibling delete-account function.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function withCors(
+  handler: (req: Request) => Promise<Response>,
+): (req: Request) => Promise<Response> {
+  return async (req) => {
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
+    }
+    const res = await handler(req);
+    const headers = new Headers(res.headers);
+    for (const [k, v] of Object.entries(corsHeaders)) headers.set(k, v);
+    return new Response(res.body, { status: res.status, headers });
+  };
+}
+
+serve(withCors(async (req: Request): Promise<Response> => {
   // Only accept POST
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -1979,16 +2084,28 @@ serve(async (req: Request): Promise<Response> => {
     "process_10pm_lock": 22,
   };
   const expectedHour = GUARDED_HOURS[action];
-  if (expectedHour !== undefined && url.searchParams.get("force") !== "1") {
-    const h = berlinHour();
-    if (h !== expectedHour) {
-      return new Response(
-        JSON.stringify({
-          skipped: true,
-          reason: `DST guard: Berlin hour ${h} != expected ${expectedHour}. No-op firing of the dual UTC schedule.`,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+  if (expectedHour !== undefined) {
+    // `?force=1` bypasses the hour guard for manual/testing invocation — but
+    // forcing the 22:00 charge loop early is exactly what an outsider must
+    // never be able to do on a --no-verify-jwt function, so force requires
+    // the service-role key as Bearer. The scheduled pg_net crons never send
+    // force (nor any Authorization header); they rely on the hour guard alone.
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const forced =
+      url.searchParams.get("force") === "1" &&
+      SUPABASE_SERVICE_ROLE_KEY.length > 0 &&
+      bearer === SUPABASE_SERVICE_ROLE_KEY;
+    if (!forced) {
+      const h = berlinHour();
+      if (h !== expectedHour) {
+        return new Response(
+          JSON.stringify({
+            skipped: true,
+            reason: `DST guard: Berlin hour ${h} != expected ${expectedHour}. No-op firing of the dual UTC schedule.`,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
     }
   }
 
@@ -2055,6 +2172,13 @@ serve(async (req: Request): Promise<Response> => {
           );
         }
 
+        // Customer-facing (the app calls it right after creating an Abo) and
+        // it CREATES an order that the 22:00 lock will charge — same ownership
+        // rule as pause/resume. Cron and auto-resume call
+        // processSingleSubscription() in-process and never hit this route.
+        const auth = await requireSubscriptionOwner(req, body.subscription_id);
+        if (auth instanceof Response) return auth;
+
         const result = await processSingleSubscription(body.subscription_id, {
           fulfillmentDate: body.fulfillment_date,
           skipIfExisting: body.skip_if_existing ?? true,
@@ -2076,6 +2200,8 @@ serve(async (req: Request): Promise<Response> => {
         if (!body.subscription_id) {
           return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
+        const auth = await requireSubscriptionOwner(req, body.subscription_id);
+        if (auth instanceof Response) return auth;
         const result = await pauseSubscription(body.subscription_id, body.resume_date ?? null);
         return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
       }
@@ -2089,18 +2215,13 @@ serve(async (req: Request): Promise<Response> => {
         if (!body.subscription_id) {
           return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
+        const auth = await requireSubscriptionOwner(req, body.subscription_id);
+        if (auth instanceof Response) return auth;
         const result = await resumeSubscription(body.subscription_id);
         return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
       }
 
       case "update-subscription": {
-        // Customer-facing: this fn is --no-verify-jwt (for cron), so verify the
-        // caller's JWT + subscription ownership manually.
-        const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-        const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-        if (authErr || !user) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
-        }
         let body: { subscription_id?: string; items?: { product_id: string; quantity: number }[]; pickup_location_id?: string | null };
         try { body = await req.json(); } catch {
           return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -2108,7 +2229,9 @@ serve(async (req: Request): Promise<Response> => {
         if (!body.subscription_id || !Array.isArray(body.items)) {
           return new Response(JSON.stringify({ error: "subscription_id and items are required" }), { status: 400, headers: { "Content-Type": "application/json" } });
         }
-        const result = await updateSubscription(user.id, body.subscription_id, body.items, body.pickup_location_id ?? null);
+        const auth = await requireSubscriptionOwner(req, body.subscription_id);
+        if (auth instanceof Response) return auth;
+        const result = await updateSubscription(auth.userId, body.subscription_id, body.items, body.pickup_location_id ?? null);
         return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
       }
 
@@ -2125,6 +2248,7 @@ serve(async (req: Request): Promise<Response> => {
               "process-single-subscription",
               "pause",
               "resume",
+              "update-subscription",
             ],
           }),
           {
@@ -2142,4 +2266,4 @@ serve(async (req: Request): Promise<Response> => {
       headers: { "Content-Type": "application/json" },
     });
   }
-});
+}));

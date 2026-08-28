@@ -94,7 +94,7 @@ export default function SubscriptionEditScreen() {
     }
     const result = data as {
       applied_this_week?: boolean;
-      reason?: 'no_items_this_week' | 'already_charged' | 'paused';
+      reason?: 'no_items_this_week' | 'already_charged' | 'paused' | 'payment_failed';
     } | null;
 
     // Say what actually happened. The old fallback claimed the next delivery
@@ -108,6 +108,8 @@ export default function SubscriptionEditScreen() {
       message = 'Gespeichert. Diese Woche ist allerdings nichts aus deinem Abo dabei — es geht ab der nächsten Lieferung weiter.';
     } else if (result?.reason === 'paused') {
       message = 'Gespeichert. Dein Abo ist pausiert — die Änderung gilt, sobald du es fortsetzt.';
+    } else if (result?.reason === 'payment_failed') {
+      message = 'Gespeichert. Die Änderung gilt, sobald dein Abo wieder aktiv ist.';
     } else {
       message = 'Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.';
     }

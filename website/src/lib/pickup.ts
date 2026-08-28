@@ -17,6 +17,28 @@ function berlinNow(now: Date): Date {
 }
 
 /**
+ * Today's calendar date (YYYY-MM-DD) in Europe/Berlin — NOT the UTC date:
+ * between midnight and 01:00/02:00 Berlin time `toISOString()` still returns
+ * yesterday, which is exactly when date-boundary checks go wrong. The server
+ * (subscription engine) does all of its date math in Europe/Berlin, so
+ * client-side date comparisons must use the same calendar.
+ */
+export function berlinTodayISO(now: Date = new Date()): string {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+}
+
+/**
+ * A Berlin calendar date a whole number of days from today (e.g. +1 =
+ * tomorrow), as YYYY-MM-DD. Pure calendar arithmetic on the date parts, so
+ * DST-length days cannot shift the result the way `Date.now() + 86400000`
+ * can.
+ */
+export function berlinDatePlusDays(days: number, now: Date = new Date()): string {
+  const [y, m, d] = berlinTodayISO(now).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().split('T')[0];
+}
+
+/**
  * The pickup day is decided by the order cutoff, NOT chosen by the customer:
  *   - Wednesday pickup closes Monday 22:00
  *   - Saturday pickup closes Thursday 22:00  (two days before, at 22:00)
