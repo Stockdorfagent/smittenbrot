@@ -219,10 +219,17 @@ export default function ProfileScreen() {
  */
 function appVersionLabel(): string {
   const version = Constants.expoConfig?.version ?? '?';
+  // Constants.platform.* reads the embedded Info.plist / manifest, which is the
+  // most truthful source — but it is deprecated and Android no longer supplies
+  // versionCode there, so the label rendered as a bare "1.0.0" with no build
+  // number at all, which was the entire point of it. Fall back to the config
+  // baked into the binary at build time. That is equally accurate here because
+  // this app ships no over-the-air updates: the config cannot drift from the
+  // binary it was built with.
   const build =
     Platform.OS === 'ios'
-      ? Constants.platform?.ios?.buildNumber
-      : Constants.platform?.android?.versionCode;
+      ? Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber
+      : Constants.platform?.android?.versionCode ?? Constants.expoConfig?.android?.versionCode;
   return build ? `${version} (${build})` : version;
 }
 
