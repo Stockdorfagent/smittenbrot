@@ -120,6 +120,10 @@ export interface Order {
   customer_email: string | null;
   customer_name: string | null;
   idempotency_key: string;
+  /** Assigned when payment succeeds — null while a subscription order is still
+   *  only pencilled in, which is why the app shows "Abo" for those. */
+  order_number: string | null;
+  invoice_number: string | null;
   /** Set when the "abholbereit" notice was sent; null until then. */
   pickup_ready_at: string | null;
   created_at: string;

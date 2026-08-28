@@ -29,18 +29,33 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [soldOut, setSoldOut] = useState<Record<string, boolean>>({});
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [activeSubscription, setActiveSubscription] = useState<Subscription | null>(null);
-  const [upcomingOrder, setUpcomingOrder] = useState<Order | null>(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
+  const [showAllPickups, setShowAllPickups] = useState(false);
 
   const pickup = useMemo(() => getNextPickup(), []);
 
-  // Is the upcoming pickup this Abo's own order? If so it belongs inside the
-  // subscription card rather than beside it — two cards read as two Abos.
-  const subscriptionOrder =
-    activeSubscription && upcomingOrder?.subscription_id === activeSubscription.id
-      ? upcomingOrder
-      : null;
-  const standaloneOrder = upcomingOrder && !subscriptionOrder ? upcomingOrder : null;
+  /**
+   * One card, one line per upcoming pickup.
+   *
+   * Two cards ("Aktives Abonnement" and "Nächste Abholung") were only ever
+   * right for the simplest account. Anyone with two subscriptions saw just the
+   * newest, and anyone with two pickups on the same day saw whichever the
+   * database happened to return first — silently losing the other. Listing the
+   * pickups themselves removes both problems and reads as one thing.
+   *
+   * Kept deliberately short: at most two lines, the rest behind "weitere". The
+   * products are what people came for, and this card must not push them down
+   * the screen.
+   */
+  const VISIBLE_PICKUPS = 2;
+  const visiblePickups = showAllPickups ? upcomingOrders : upcomingOrders.slice(0, VISIBLE_PICKUPS);
+  const hiddenPickupCount = upcomingOrders.length - visiblePickups.length;
+
+  /** Subscriptions with nothing scheduled yet still need to be reachable. */
+  const subsWithoutPickup = subscriptions.filter(
+    (sub) => !upcomingOrders.some((o) => o.subscription_id === sub.id),
+  );
 
   const fetchData = useCallback(async () => {
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
@@ -83,9 +98,8 @@ export default function HomeScreen() {
         .select('*')
         .eq('customer_id', user.id)
         .in('status', ['active', 'paused'])
-        .order('created_at', { ascending: false })
-        .limit(1);
-      setActiveSubscription((subs?.[0] as Subscription) ?? null);
+        .order('created_at', { ascending: false });
+      setSubscriptions((subs ?? []) as Subscription[]);
 
       // Only pickups that are still upcoming (today or later). Without this,
       // a paid order that was never marked fulfilled keeps showing as the
@@ -96,11 +110,14 @@ export default function HomeScreen() {
         `${now.getFullYear()}-` +
         `${String(now.getMonth() + 1).padStart(2, '0')}-` +
         `${String(now.getDate()).padStart(2, '0')}`;
-      const { data: order } = await supabase
+      const { data: orders } = await supabase
         .from('orders')
         .select('*')
         .eq('customer_id', user.id)
-        .eq('payment_status', 'paid')
+        // Subscription orders are pending until the 22:00 charge, but they are
+        // still a pickup the customer is expecting — so include them. Unpaid
+        // ONE-TIME orders are abandoned checkouts and stay hidden.
+        .or('payment_status.eq.paid,order_type.eq.subscription')
         // Not a status whitelist: the admin "Abholbereit melden" button also
         // marks the order fulfilled, so whitelisting would hide the order at
         // the very moment the customer most needs to see it. Exclude the states
@@ -110,10 +127,8 @@ export default function HomeScreen() {
         .not('status', 'in', '("cancelled","refunded")')
         .or('status.neq.fulfilled,pickup_ready_at.not.is.null')
         .gte('fulfillment_date', todayStr)
-        .order('fulfillment_date', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      setUpcomingOrder(order);
+        .order('fulfillment_date', { ascending: true });
+      setUpcomingOrders((orders ?? []) as Order[]);
     }
   }, [user, pickup.day, pickup.date]);
 
@@ -183,71 +198,70 @@ export default function HomeScreen() {
           <Text style={styles.pickupInfoDate}>{pickup.cutoffLabel}</Text>
         </View>
 
-        {activeSubscription && (
-          <TouchableOpacity style={styles.infoCard} onPress={() => router.push('/(tabs)/subscriptions')}>
-            <View
-              style={[
-                styles.infoDot,
-                {
-                  backgroundColor:
-                    activeSubscription.status === 'paused'
-                      ? theme.colors.textLight
-                      : theme.colors.success,
-                },
-              ]}
-            />
-            <View style={styles.infoTextWrap}>
-              <Text style={styles.infoTitle}>
-                {activeSubscription.status === 'paused' ? 'Abonnement pausiert' : 'Aktives Abonnement'}
-              </Text>
-              {/* The next pickup lives INSIDE this card when it is this Abo's
-                  own order. Two separate cards read as two subscriptions — a
-                  tester counted them that way. */}
-              {subscriptionOrder ? (
-                <>
-                  {isReadyForPickup(subscriptionOrder) ? (
-                    <Text style={styles.readyNow}>Jetzt abholbereit</Text>
-                  ) : null}
-                  <Text style={styles.infoSub}>Nächste Abholung: {pickupLabel(subscriptionOrder)}</Text>
-                  <TouchableOpacity onPress={() => router.push(`/order/${subscriptionOrder.id}`)}>
-                    <Text style={styles.infoLink}>Bestellung ansehen ›</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={styles.infoAction}>Verwalten ›</Text>
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
+        {(visiblePickups.length > 0 || subsWithoutPickup.length > 0) && (
+          <View style={styles.pickupCard}>
+            <Text style={styles.pickupCardTitle}>
+              {upcomingOrders.length === 1 ? 'Nächste Abholung' : 'Deine nächsten Abholungen'}
+            </Text>
 
-        {/* A pickup that is NOT from the Abo — a one-off order — still deserves
-            its own card. */}
-        {standaloneOrder && (
-          <TouchableOpacity style={styles.infoCard} onPress={() => router.push(`/order/${standaloneOrder.id}`)}>
-            <View
-              style={[
-                styles.infoDot,
-                {
-                  backgroundColor: isReadyForPickup(standaloneOrder)
-                    ? theme.colors.primary
-                    : theme.colors.success,
-                },
-              ]}
-            />
-            <View style={styles.infoTextWrap}>
-              {isReadyForPickup(standaloneOrder) ? (
-                <>
-                  <Text style={styles.readyNow}>Jetzt abholbereit</Text>
-                  <Text style={styles.infoSub}>Deine Bestellung wartet auf dich.</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.infoTitle}>Nächste Abholung</Text>
-                  <Text style={styles.infoSub}>{pickupLabel(standaloneOrder)}</Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
+            {visiblePickups.map((order) => {
+              const ready = isReadyForPickup(order);
+              return (
+                <TouchableOpacity
+                  key={order.id}
+                  style={styles.pickupRow}
+                  onPress={() => router.push(`/order/${order.id}`)}
+                >
+                  <View style={[styles.pickupDot, ready && { backgroundColor: theme.colors.primary }]} />
+                  <View style={styles.pickupRowText}>
+                    <Text style={styles.pickupWhen}>{pickupLabel(order)}</Text>
+                    {/* The order number for a one-off, so it can be told apart
+                        from an older one at a glance; "Abo" for a subscription
+                        order, which has no number until it is charged. */}
+                    <Text style={styles.pickupWhat}>
+                      {order.order_type === 'subscription'
+                        ? 'Abo'
+                        : order.order_number ?? 'Bestellung'}
+                    </Text>
+                  </View>
+                  {ready && <Text style={styles.pickupReady}>abholbereit</Text>}
+                  <Text style={styles.pickupChevron}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {hiddenPickupCount > 0 && (
+              <TouchableOpacity onPress={() => setShowAllPickups(true)} hitSlop={8}>
+                <Text style={styles.pickupMore}>
+                  {hiddenPickupCount} weitere {hiddenPickupCount === 1 ? 'Abholung' : 'Abholungen'} anzeigen
+                </Text>
+              </TouchableOpacity>
+            )}
+            {showAllPickups && upcomingOrders.length > VISIBLE_PICKUPS && (
+              <TouchableOpacity onPress={() => setShowAllPickups(false)} hitSlop={8}>
+                <Text style={styles.pickupMore}>Weniger anzeigen</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* An Abo with nothing scheduled yet — paused, or between weeks —
+                would otherwise vanish from this screen entirely. */}
+            {subsWithoutPickup.map((sub) => (
+              <TouchableOpacity
+                key={sub.id}
+                style={styles.pickupRow}
+                onPress={() => router.push('/(tabs)/subscriptions')}
+              >
+                <View style={[styles.pickupDot, { backgroundColor: theme.colors.textLight }]} />
+                <View style={styles.pickupRowText}>
+                  <Text style={styles.pickupWhen}>
+                    {sub.status === 'paused' ? 'Abo pausiert' : 'Abo aktiv'}
+                  </Text>
+                  <Text style={styles.pickupWhat}>Noch keine Bestellung geplant</Text>
+                </View>
+                <Text style={styles.pickupChevron}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
 
         <Text style={styles.sectionTitle}>Unser Sortiment</Text>
@@ -306,25 +320,44 @@ const styles = StyleSheet.create({
   },
   pickupInfoText: { fontSize: theme.fontSize.sm, color: theme.colors.text, fontWeight: '600' },
   pickupInfoDate: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // One card for every upcoming pickup. Sized to take no more room than the two
+  // cards it replaced, so the product list keeps its place on the screen.
+  pickupCard: {
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     marginBottom: theme.spacing.md,
   },
-  infoDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.primary, marginRight: theme.spacing.md },
-  infoTextWrap: { flex: 1 },
-  infoTitle: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  // The one thing on this screen that should catch the eye before anything
-  // else. Brand red, no tinted fill (see the palette rule).
-  readyNow: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.primary },
-  infoSub: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
-  infoAction: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
-  infoLink: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
+  pickupCardTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+  },
+  pickupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm },
+  pickupDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: theme.colors.success, marginRight: theme.spacing.md,
+  },
+  pickupRowText: { flex: 1 },
+  pickupWhen: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
+  pickupWhat: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 1 },
+  // Brand red, no tinted fill (see the palette rule).
+  pickupReady: {
+    fontSize: theme.fontSize.sm, fontWeight: '700',
+    color: theme.colors.primary, marginRight: theme.spacing.sm,
+  },
+  pickupChevron: { fontSize: theme.fontSize.lg, color: theme.colors.textLight },
+  pickupMore: {
+    fontSize: theme.fontSize.sm, color: theme.colors.textLight,
+    paddingVertical: theme.spacing.sm,
+  },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
