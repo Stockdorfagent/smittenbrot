@@ -54,8 +54,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-audio",
-      "expo-image"
+      "expo-audio"
     ],
     "scheme": "smittenbrot",
     "extra": {

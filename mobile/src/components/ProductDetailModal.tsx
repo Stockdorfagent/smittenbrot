@@ -1,5 +1,4 @@
-import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Image } from 'expo-image';
+import { Modal, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
@@ -66,14 +65,7 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
           {images.length > 0 ? (
             <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
               {images.map((uri, i) => (
-                <Image
-                  key={i}
-                  source={{ uri }}
-                  style={{ width, height: width }}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  transition={200}
-                />
+                <Image key={i} source={{ uri }} style={{ width, height: width }} resizeMode="cover" />
               ))}
             </ScrollView>
           ) : (
