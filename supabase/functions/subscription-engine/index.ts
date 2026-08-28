@@ -24,6 +24,9 @@ function eur(cents: number): string {
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// Shared secret the pg_net cron jobs send as Bearer (migration 024). Also in
+// Postgres Vault under 'cron_secret' and in .credentials/cron-secret.txt.
+const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
 // ── Clients ──────────────────────────────────────────────────
 
@@ -2071,6 +2074,26 @@ serve(withCors(async (req: Request): Promise<Response> => {
   // compatibility with different cron trigger setups.
   const actionParam = url.searchParams.get("action");
   const action = actionParam ?? path.split("/").pop() ?? "";
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+
+  // ── Cron-only actions require the shared cron secret ──
+  // This function is --no-verify-jwt, so without this anyone could run the
+  // reminder/placement/charge/cancellation loops out of band. The pg_net cron
+  // jobs send the secret as Bearer (they read it from Vault at run time,
+  // migration 024); the service-role key is accepted too for manual owner
+  // invocations. Customer actions are guarded per-subscription further down.
+  const CRON_ONLY = new Set([
+    "process-12pm-reminders", "process_12pm_reminders",
+    "process-8pm-order-placement", "process_8pm_order_placement",
+    "process-10pm-lock", "process_10pm_lock",
+    "process-cancellations", "process_cancellations",
+  ]);
+  if (CRON_ONLY.has(action)) {
+    const ok =
+      (CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+      (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY);
+    if (!ok) return json({ error: "Unauthorized" }, 401);
+  }
 
   // ── DST guard for the time-sensitive cron actions ──
   // Each is cron-scheduled at both the summer and winter UTC hours; only the
@@ -2089,9 +2112,8 @@ serve(withCors(async (req: Request): Promise<Response> => {
     // `?force=1` bypasses the hour guard for manual/testing invocation — but
     // forcing the 22:00 charge loop early is exactly what an outsider must
     // never be able to do on a --no-verify-jwt function, so force requires
-    // the service-role key as Bearer. The scheduled pg_net crons never send
-    // force (nor any Authorization header); they rely on the hour guard alone.
-    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    // the service-role key as Bearer (the cron gate above already vetted the
+    // caller; this is the stricter bar for overriding the schedule itself).
     const forced =
       url.searchParams.get("force") === "1" &&
       SUPABASE_SERVICE_ROLE_KEY.length > 0 &&
