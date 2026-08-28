@@ -52,9 +52,21 @@ export default function HomeScreen() {
   const visiblePickups = showAllPickups ? upcomingOrders : upcomingOrders.slice(0, VISIBLE_PICKUPS);
   const hiddenPickupCount = upcomingOrders.length - visiblePickups.length;
 
-  /** Subscriptions with nothing scheduled yet still need to be reachable. */
-  const subsWithoutPickup = subscriptions.filter(
-    (sub) => !upcomingOrders.some((o) => o.subscription_id === sub.id),
+  /**
+   * Only PAUSED subscriptions earn a line of their own.
+   *
+   * An active Abo with no upcoming order is not a problem to report: the order
+   * simply has not been generated yet, or nothing in the basket is baked this
+   * week (the A/B cycle). Saying "noch keine Bestellung geplant" there would
+   * invent a worry — this card is about pickups, and there is no pickup.
+   *
+   * A pause is different. It is a state the customer chose, it explains why no
+   * bread is coming, and it is the one they may want to undo. Pausing deletes
+   * the not-yet-charged order, so without this the Abo would disappear from
+   * this screen entirely for the length of the pause.
+   */
+  const pausedSubs = subscriptions.filter(
+    (sub) => sub.status === 'paused' && !upcomingOrders.some((o) => o.subscription_id === sub.id),
   );
 
   const fetchData = useCallback(async () => {
@@ -198,7 +210,7 @@ export default function HomeScreen() {
           <Text style={styles.pickupInfoDate}>{pickup.cutoffLabel}</Text>
         </View>
 
-        {(visiblePickups.length > 0 || subsWithoutPickup.length > 0) && (
+        {(visiblePickups.length > 0 || pausedSubs.length > 0) && (
           <View style={styles.pickupCard}>
             <Text style={styles.pickupCardTitle}>
               {upcomingOrders.length === 1 ? 'Nächste Abholung' : 'Deine nächsten Abholungen'}
@@ -243,9 +255,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             )}
 
-            {/* An Abo with nothing scheduled yet — paused, or between weeks —
-                would otherwise vanish from this screen entirely. */}
-            {subsWithoutPickup.map((sub) => (
+            {pausedSubs.map((sub) => (
               <TouchableOpacity
                 key={sub.id}
                 style={styles.pickupRow}
@@ -253,10 +263,12 @@ export default function HomeScreen() {
               >
                 <View style={[styles.pickupDot, { backgroundColor: theme.colors.textLight }]} />
                 <View style={styles.pickupRowText}>
-                  <Text style={styles.pickupWhen}>
-                    {sub.status === 'paused' ? 'Abo pausiert' : 'Abo aktiv'}
+                  <Text style={styles.pickupWhen}>Abo pausiert</Text>
+                  <Text style={styles.pickupWhat}>
+                    {sub.paused_until
+                      ? `Läuft am ${new Date(sub.paused_until + 'T12:00:00').toLocaleDateString('de-DE')} weiter`
+                      : 'Fortsetzen in den Abos'}
                   </Text>
-                  <Text style={styles.pickupWhat}>Noch keine Bestellung geplant</Text>
                 </View>
                 <Text style={styles.pickupChevron}>›</Text>
               </TouchableOpacity>
