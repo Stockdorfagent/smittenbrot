@@ -19,6 +19,15 @@ const MONTHS = [
 ];
 
 /**
+ * The DEVICE-local calendar date as YYYY-MM-DD, formatted manually (no Intl,
+ * see above). Never use toISOString() for a calendar date — that is the UTC
+ * date, i.e. still yesterday between midnight and ~02:00 German time.
+ */
+export function localDateISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
  * The pickup day is decided by the order cutoff, NOT chosen by the customer:
  *   - Wednesday pickup closes Monday 22:00
  *   - Saturday pickup closes Thursday 22:00  (two days before, at 22:00)

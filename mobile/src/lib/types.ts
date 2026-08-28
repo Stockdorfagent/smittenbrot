@@ -75,6 +75,18 @@ export type SubscriptionStatus =
   | 'cancelled'
   | 'payment_failed';
 
+/**
+ * Customer-facing German labels for the states above — shared so the screens
+ * (Abos list, home-screen notice rows, …) cannot drift apart in wording.
+ */
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  active: 'Aktiv',
+  paused: 'Pausiert',
+  cancellation_pending: 'Kündigung läuft',
+  cancelled: 'Gekündigt',
+  payment_failed: 'Zahlung fehlgeschlagen',
+};
+
 export interface Subscription {
   id: string;
   customer_id: string;

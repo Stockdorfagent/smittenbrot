@@ -68,6 +68,7 @@ export interface Subscription {
   customer_id: string;
   status: 'active' | 'paused' | 'cancellation_pending' | 'cancelled' | 'payment_failed';
   paused_until: string | null;
+  pickup_day: 'wednesday' | 'saturday' | 'both' | null;
   pickup_location_id: string;
   created_at: string;
 }

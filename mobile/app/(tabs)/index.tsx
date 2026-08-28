@@ -13,6 +13,13 @@ import { ClosureBanner } from '@/components/ClosureBanner';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailModal } from '@/components/ProductDetailModal';
 import type { Product, Subscription, Order, WeekCycle } from '@/lib/types';
+import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
+
+/**
+ * Which subscription states earn a notice row on the pickup card, most urgent
+ * first — the first entry renders first.
+ */
+const NOTICE_ORDER: Subscription['status'][] = ['payment_failed', 'paused'];
 
 /** "Mittwoch, 26. August" */
 function pickupLabel(order: { fulfillment_date: string }): string {
@@ -70,14 +77,18 @@ export default function HomeScreen() {
    * is deliberately filtered out of the query below, so without this row a
    * payment failure would leave no trace on this screen at all.
    */
-  const subNotices = useMemo(() => {
-    const unexplained = (sub: Subscription) =>
-      !upcomingOrders.some((o) => o.subscription_id === sub.id);
-    return [
-      ...subscriptions.filter((s) => s.status === 'payment_failed' && unexplained(s)),
-      ...subscriptions.filter((s) => s.status === 'paused' && unexplained(s)),
-    ];
-  }, [subscriptions, upcomingOrders]);
+  const withUpcomingOrder = new Set(upcomingOrders.map((o) => o.subscription_id));
+  const subNotices = subscriptions
+    .filter((s) => NOTICE_ORDER.includes(s.status) && !withUpcomingOrder.has(s.id))
+    .sort((a, b) => NOTICE_ORDER.indexOf(a.status) - NOTICE_ORDER.indexOf(b.status));
+
+  // The pickup card also appears with no pickups at all — a paused or unpaid
+  // Abo on its own — so "Abholungen" would name something that is not there.
+  const pickupCardTitle =
+    upcomingOrders.length > 1 ? 'Deine nächsten Abholungen'
+    : upcomingOrders.length === 1 ? 'Nächste Abholung'
+    : subNotices.length === 1 ? 'Dein Abonnement'
+    : 'Deine Abonnements';
 
   const fetchData = useCallback(async () => {
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
@@ -235,16 +246,7 @@ export default function HomeScreen() {
 
         {(visiblePickups.length > 0 || subNotices.length > 0) && (
           <View style={styles.pickupCard}>
-            <Text style={styles.pickupCardTitle}>
-              {/* The card also appears with no pickups at all — a paused or
-                  unpaid Abo on its own — so "Abholungen" would name something
-                  that is not there. */}
-              {upcomingOrders.length === 0
-                ? subNotices.length === 1 ? 'Dein Abonnement' : 'Deine Abonnements'
-                : upcomingOrders.length === 1
-                  ? 'Nächste Abholung'
-                  : 'Deine nächsten Abholungen'}
-            </Text>
+            <Text style={styles.pickupCardTitle}>{pickupCardTitle}</Text>
 
             {visiblePickups.map((order) => {
               const ready = isReadyForPickup(order);
@@ -311,7 +313,7 @@ export default function HomeScreen() {
                   />
                   <View style={styles.pickupRowText}>
                     <Text style={[styles.pickupWhen, failed && styles.pickupWhenAlert]}>
-                      {failed ? 'Zahlung fehlgeschlagen' : 'Abo pausiert'}
+                      {failed ? SUBSCRIPTION_STATUS_LABELS.payment_failed : 'Abo pausiert'}
                     </Text>
                     <Text style={styles.pickupWhat}>
                       {failed

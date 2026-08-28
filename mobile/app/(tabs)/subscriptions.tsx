@@ -10,14 +10,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
 import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/lib/types';
-
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Aktiv',
-  paused: 'Pausiert',
-  cancellation_pending: 'Kündigung läuft',
-  cancelled: 'Gekündigt',
-  payment_failed: 'Zahlung fehlgeschlagen',
-};
+import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
+import { localDateISO } from '@/lib/pickup';
 
 const DAY_LABELS: Record<string, string> = {
   wednesday: 'Mittwochs',
@@ -77,11 +71,11 @@ export default function SubscriptionsScreen() {
   };
 
   const handlePause = async (subId: string) => {
-    // The DEVICE-local calendar date the customer actually saw in the picker.
-    // toISOString() is the UTC date and sends yesterday for a pick made
-    // shortly after midnight; the engine rejects any date not after
-    // Berlin-today, so that bug surfaced as an inexplicable error.
-    const resumeDate = pauseDate.toLocaleDateString('en-CA');
+    // The DEVICE-local calendar date the customer actually saw in the picker,
+    // formatted manually — Hermes has no reliable Intl (see lib/pickup.ts),
+    // and toISOString() would be the UTC date, i.e. yesterday for a pick made
+    // shortly after midnight.
+    const resumeDate = localDateISO(pauseDate);
     // The engine also removes any not-yet-charged upcoming order so the paused
     // week isn't charged.
     const { error } = await supabase.functions.invoke('subscription-engine/pause', {
@@ -260,7 +254,7 @@ export default function SubscriptionsScreen() {
                 <View style={[styles.statusDot, (styles[`statusDot_${sub.status}` as keyof typeof styles] as ViewStyle) || styles.statusDot_active]}>
                   <View />
                 </View>
-                <Text style={styles.subStatus}>{STATUS_LABELS[sub.status]}</Text>
+                <Text style={styles.subStatus}>{SUBSCRIPTION_STATUS_LABELS[sub.status]}</Text>
               </View>
 
               {sub.items?.map((item) => (

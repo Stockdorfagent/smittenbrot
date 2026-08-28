@@ -2,13 +2,17 @@ import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '@/lib/theme';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { localDateISO } from '@/lib/pickup';
 import type { Closure } from '@/lib/types';
 
 export function ClosureBanner() {
   const [closure, setClosure] = useState<Closure | null>(null);
 
   useEffect(() => {
-    const now = new Date().toISOString().split('T')[0];
+    // Device-local calendar date, not UTC: toISOString() still returns
+    // yesterday between midnight and ~02:00 German time, which would show or
+    // hide the banner a day off around the closure boundaries.
+    const now = localDateISO(new Date());
     supabase
       .from('closures')
       .select('*')

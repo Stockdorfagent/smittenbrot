@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { berlinDatePlusDays, berlinTodayISO } from '@/lib/pickup';
-import { formatPrice } from '@/lib/types';
+import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
@@ -17,15 +17,10 @@ interface SubItem {
   products?: { name: string; price_cents: number };
 }
 
-interface Subscription {
-  id: string;
-  status: string;
-  // NB: the DB also has paused_from, kept for history only — nothing reads or
-  // writes it any more (the engine sets just paused_until).
-  paused_until: string | null;
-  created_at: string;
-  pickup_location_id: string;
-  pickup_day: string | null;
+// The canonical row lives in lib/types — this page only adds the relations it
+// joins in its select. (The DB also has paused_from, kept for history only:
+// nothing reads or writes it any more; the engine sets just paused_until.)
+interface SubscriptionRow extends Subscription {
   pickup_locations?: { name: string; address: string };
   subscription_items?: SubItem[];
 }
@@ -48,20 +43,18 @@ const statusColors: Record<string, string> = {
 
 export default function SubscriptionsPage() {
   const [user, setUser] = useState<unknown>(null);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   // Pause state
   const [pausingId, setPausingId] = useState<string | null>(null);
-  const [pauseBusy, setPauseBusy] = useState(false);
-  const [resumingId, setResumingId] = useState<string | null>(null);
-  const [resumeError, setResumeError] = useState<{ id: string; msg: string } | null>(null);
   const [pauseUntil, setPauseUntil] = useState('');
   const [pauseError, setPauseError] = useState('');
-
-  // Cancel state
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<{ id: string; msg: string } | null>(null);
+  // Only one engine action can be in flight; this is the sub it belongs to.
+  // Pause, resume and cancel buttons all key their busy/disabled state off it.
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check for return from Stripe setup (3D Secure redirect)
@@ -85,7 +78,7 @@ export default function SubscriptionsPage() {
         .eq('customer_id', session.user.id)
         .neq('status', 'cancelled') // hide fully-cancelled abos (cancellation_pending still shows)
         .order('created_at', { ascending: false });
-      if (data) setSubscriptions(data as unknown as Subscription[]);
+      if (data) setSubscriptions(data as unknown as SubscriptionRow[]);
     }
     setLoading(false);
   }
@@ -156,13 +149,13 @@ export default function SubscriptionsPage() {
       return;
     }
     setPauseError('');
-    setPauseBusy(true);
+    setBusyId(subId);
     const res = await invokeEdgeFunction(
       'subscription-engine/pause',
       { subscription_id: subId, resume_date: pauseUntil },
       'Pausieren fehlgeschlagen. Bitte versuche es erneut.',
     );
-    setPauseBusy(false);
+    setBusyId(null);
     if (!res.ok) {
       setPauseError(res.message);
       return;
@@ -174,13 +167,13 @@ export default function SubscriptionsPage() {
 
   async function handleResume(subId: string) {
     setResumeError(null);
-    setResumingId(subId);
+    setBusyId(subId);
     const res = await invokeEdgeFunction(
       'subscription-engine/resume',
       { subscription_id: subId },
       'Fortsetzen fehlgeschlagen. Bitte versuche es erneut.',
     );
-    setResumingId(null);
+    setBusyId(null);
     if (!res.ok) {
       setResumeError({ id: subId, msg: res.message });
       return;
@@ -190,12 +183,12 @@ export default function SubscriptionsPage() {
 
   async function handleCancel(subId: string) {
     if (!confirm('Möchtest du dieses Abo kündigen? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
-    setCancellingId(subId);
+    setBusyId(subId);
     await supabase
       .from('subscriptions')
       .update({ status: 'cancellation_pending' })
       .eq('id', subId);
-    setCancellingId(null);
+    setBusyId(null);
     loadSubscriptions();
   }
 
@@ -309,9 +302,9 @@ export default function SubscriptionsPage() {
                   <p className="mt-2 text-sm text-amber-600">
                     Pausiert bis {new Date(sub.paused_until! + 'T00:00:00').toLocaleDateString('de-DE')}
                     {isPauseExpired && (
-                      <button onClick={() => handleResume(sub.id)} disabled={resumingId === sub.id}
+                      <button onClick={() => handleResume(sub.id)} disabled={busyId === sub.id}
                         className="ml-2 text-smitten-primary underline text-xs disabled:opacity-50">
-                        {resumingId === sub.id ? 'Wird reaktiviert...' : 'Jetzt reaktivieren'}
+                        {busyId === sub.id ? 'Wird reaktiviert...' : 'Jetzt reaktivieren'}
                       </button>
                     )}
                   </p>
@@ -342,15 +335,15 @@ export default function SubscriptionsPage() {
                     </button>
                   )}
                   {isPaused && !isPauseExpired && (
-                    <button onClick={() => handleResume(sub.id)} disabled={resumingId === sub.id}
+                    <button onClick={() => handleResume(sub.id)} disabled={busyId === sub.id}
                       className="text-xs border border-smitten-cream px-3 py-1.5 rounded-full text-green-600 hover:border-green-300 transition-colors disabled:opacity-50">
-                      {resumingId === sub.id ? 'Wird reaktiviert...' : 'Reaktivieren'}
+                      {busyId === sub.id ? 'Wird reaktiviert...' : 'Reaktivieren'}
                     </button>
                   )}
                   {(sub.status === 'active' || sub.status === 'payment_failed') && (
-                    <button onClick={() => handleCancel(sub.id)} disabled={cancellingId === sub.id}
+                    <button onClick={() => handleCancel(sub.id)} disabled={busyId === sub.id}
                       className="text-xs border border-red-200 px-3 py-1.5 rounded-full text-red-500 hover:border-red-300 transition-colors disabled:opacity-50">
-                      {cancellingId === sub.id ? 'Wird gekündigt...' : 'Kündigen'}
+                      {busyId === sub.id ? 'Wird gekündigt...' : 'Kündigen'}
                     </button>
                   )}
                   {sub.status === 'cancellation_pending' && (
@@ -377,9 +370,9 @@ export default function SubscriptionsPage() {
                         className="px-4 py-1.5 text-xs border border-smitten-cream rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
                         Abbrechen
                       </button>
-                      <button onClick={() => handlePause(sub.id)} disabled={!pauseUntil || pauseBusy}
+                      <button onClick={() => handlePause(sub.id)} disabled={!pauseUntil || busyId === sub.id}
                         className="px-4 py-1.5 text-xs bg-smitten-primary text-white rounded-full hover:bg-smitten-primary/90 disabled:opacity-50 transition-colors">
-                        {pauseBusy ? 'Wird pausiert...' : 'Pause speichern'}
+                        {busyId === sub.id ? 'Wird pausiert...' : 'Pause speichern'}
                       </button>
                     </div>
                   </div>

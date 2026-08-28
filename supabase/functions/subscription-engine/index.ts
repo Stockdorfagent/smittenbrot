@@ -59,6 +59,14 @@ function todayInTz(): string {
   return formatDateInTz(new Date());
 }
 
+/** JSON Response shorthand — same helper the sibling edge functions have. */
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /**
  * Get the current day of week (0=Sunday..6=Saturday) in Europe/Berlin.
  */
@@ -2003,11 +2011,7 @@ async function requireSubscriptionOwner(
   req: Request,
   subscriptionId: string,
 ): Promise<{ userId: string } | Response> {
-  const jsonErr = (error: string, status: number) =>
-    new Response(JSON.stringify({ error }), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
+  const jsonErr = (error: string, status: number) => json({ error }, status);
 
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
@@ -2056,10 +2060,7 @@ function withCors(
 serve(withCors(async (req: Request): Promise<Response> => {
   // Only accept POST
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return json({ error: "Method not allowed" }, 405);
   }
 
   const url = new URL(req.url);
@@ -2098,13 +2099,10 @@ serve(withCors(async (req: Request): Promise<Response> => {
     if (!forced) {
       const h = berlinHour();
       if (h !== expectedHour) {
-        return new Response(
-          JSON.stringify({
-            skipped: true,
-            reason: `DST guard: Berlin hour ${h} != expected ${expectedHour}. No-op firing of the dual UTC schedule.`,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return json({
+          skipped: true,
+          reason: `DST guard: Berlin hour ${h} != expected ${expectedHour}. No-op firing of the dual UTC schedule.`,
+        });
       }
     }
   }
@@ -2114,37 +2112,25 @@ serve(withCors(async (req: Request): Promise<Response> => {
       case "process-12pm-reminders":
       case "process_12pm_reminders": {
         const result = await process12pmReminders();
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return json(result);
       }
 
       case "process-8pm-order-placement":
       case "process_8pm_order_placement": {
         const result = await process8pmOrderPlacement();
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return json(result);
       }
 
       case "process-10pm-lock":
       case "process_10pm_lock": {
         const result = await process10pmLock();
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return json(result);
       }
 
       case "process-cancellations":
       case "process_cancellations": {
         const result = await processCancellations();
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return json(result);
       }
 
       case "process-single-subscription":
@@ -2153,23 +2139,11 @@ serve(withCors(async (req: Request): Promise<Response> => {
         try {
           body = await req.json();
         } catch {
-          return new Response(
-            JSON.stringify({ error: "Invalid JSON body" }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
+          return json({ error: "Invalid JSON body" }, 400);
         }
 
         if (!body.subscription_id) {
-          return new Response(
-            JSON.stringify({ error: "subscription_id is required" }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
+          return json({ error: "subscription_id is required" }, 400);
         }
 
         // Customer-facing (the app calls it right after creating an Abo) and
@@ -2184,86 +2158,64 @@ serve(withCors(async (req: Request): Promise<Response> => {
           skipIfExisting: body.skip_if_existing ?? true,
         });
 
-        const statusCode = result.success ? 200 : 400;
-        return new Response(JSON.stringify(result), {
-          status: statusCode,
-          headers: { "Content-Type": "application/json" },
-        });
+        return json(result, result.success ? 200 : 400);
       }
 
+      // One case group: the two routes are identical except for the worker
+      // call, and the ownership guard must never be pasted per-route again.
       case "pause":
-      case "pause-subscription": {
-        let body: { subscription_id?: string; resume_date?: string };
-        try { body = await req.json(); } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
-        }
-        if (!body.subscription_id) {
-          return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
-        }
-        const auth = await requireSubscriptionOwner(req, body.subscription_id);
-        if (auth instanceof Response) return auth;
-        const result = await pauseSubscription(body.subscription_id, body.resume_date ?? null);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
-      }
-
+      case "pause-subscription":
       case "resume":
       case "resume-subscription": {
-        let body: { subscription_id?: string };
+        let body: { subscription_id?: string; resume_date?: string };
         try { body = await req.json(); } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+          return json({ error: "Invalid JSON body" }, 400);
         }
         if (!body.subscription_id) {
-          return new Response(JSON.stringify({ error: "subscription_id is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+          return json({ error: "subscription_id is required" }, 400);
         }
         const auth = await requireSubscriptionOwner(req, body.subscription_id);
         if (auth instanceof Response) return auth;
-        const result = await resumeSubscription(body.subscription_id);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
+        const result = action.startsWith("pause")
+          ? await pauseSubscription(body.subscription_id, body.resume_date ?? null)
+          : await resumeSubscription(body.subscription_id);
+        return json(result, result.success ? 200 : 400);
       }
 
       case "update-subscription": {
         let body: { subscription_id?: string; items?: { product_id: string; quantity: number }[]; pickup_location_id?: string | null };
         try { body = await req.json(); } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+          return json({ error: "Invalid JSON body" }, 400);
         }
         if (!body.subscription_id || !Array.isArray(body.items)) {
-          return new Response(JSON.stringify({ error: "subscription_id and items are required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+          return json({ error: "subscription_id and items are required" }, 400);
         }
         const auth = await requireSubscriptionOwner(req, body.subscription_id);
         if (auth instanceof Response) return auth;
         const result = await updateSubscription(auth.userId, body.subscription_id, body.items, body.pickup_location_id ?? null);
-        return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { "Content-Type": "application/json" } });
+        return json(result, result.success ? 200 : 400);
       }
 
       default: {
         // If no recognized action, return available endpoints
-        return new Response(
-          JSON.stringify({
-            error: "Unknown action",
-            available_actions: [
-              "process-12pm-reminders",
-              "process-8pm-order-placement",
-              "process-10pm-lock",
-              "process-cancellations",
-              "process-single-subscription",
-              "pause",
-              "resume",
-              "update-subscription",
-            ],
-          }),
-          {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        return json({
+          error: "Unknown action",
+          available_actions: [
+            "process-12pm-reminders",
+            "process-8pm-order-placement",
+            "process-10pm-lock",
+            "process-cancellations",
+            "process-single-subscription",
+            "pause",
+            "resume",
+            "update-subscription",
+          ],
+        }, 404);
       }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
     console.error("[subscription-engine] Unhandled error:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return json({ error: message }, 500);
   }
 }));
