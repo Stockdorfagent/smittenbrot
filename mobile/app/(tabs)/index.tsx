@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
 import { isReadyForPickup } from '@/lib/orderStatus';
+import { loadPickedUp } from '@/lib/pickedUp';
 import { Button } from '@/components/Button';
 import { ClosureBanner } from '@/components/ClosureBanner';
 import { ProductCard } from '@/components/ProductCard';
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
   const [showAllPickups, setShowAllPickups] = useState(false);
+  const [pickedUp, setPickedUp] = useState<Set<string>>(new Set());
 
   const pickup = useMemo(() => getNextPickup(), []);
 
@@ -56,8 +58,14 @@ export default function HomeScreen() {
    * the screen.
    */
   const VISIBLE_PICKUPS = 2;
-  const visiblePickups = showAllPickups ? upcomingOrders : upcomingOrders.slice(0, VISIBLE_PICKUPS);
-  const hiddenPickupCount = upcomingOrders.length - visiblePickups.length;
+  // An order the customer marked as collected on this device is done — off
+  // the card now instead of at midnight. subNotices below still counts it as
+  // the subscription's order, so no phantom notice row appears.
+  const openPickups = upcomingOrders.filter(
+    (o) => !(o.status === 'fulfilled' && pickedUp.has(o.id)),
+  );
+  const visiblePickups = showAllPickups ? openPickups : openPickups.slice(0, VISIBLE_PICKUPS);
+  const hiddenPickupCount = openPickups.length - visiblePickups.length;
 
   /**
    * Only a PAUSED or a PAYMENT_FAILED subscription earns a line of its own.
@@ -85,12 +93,13 @@ export default function HomeScreen() {
   // The pickup card also appears with no pickups at all — a paused or unpaid
   // Abo on its own — so "Abholungen" would name something that is not there.
   const pickupCardTitle =
-    upcomingOrders.length > 1 ? 'Deine nächsten Abholungen'
-    : upcomingOrders.length === 1 ? 'Nächste Abholung'
+    openPickups.length > 1 ? 'Deine nächsten Abholungen'
+    : openPickups.length === 1 ? 'Nächste Abholung'
     : subNotices.length === 1 ? 'Dein Abonnement'
     : 'Deine Abonnements';
 
   const fetchData = useCallback(async () => {
+    setPickedUp(await loadPickedUp());
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
 
     const { data: allProducts } = await supabase
@@ -281,7 +290,7 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {showAllPickups && upcomingOrders.length > VISIBLE_PICKUPS && (
+            {showAllPickups && openPickups.length > VISIBLE_PICKUPS && (
               <TouchableOpacity onPress={() => setShowAllPickups(false)} hitSlop={8}>
                 <Text style={styles.pickupMore}>Weniger anzeigen</Text>
               </TouchableOpacity>

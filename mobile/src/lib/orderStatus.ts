@@ -48,7 +48,11 @@ function todayISO(): string {
  * with notifications switched off needs to be able to see this by opening the
  * app.
  */
-export function isReadyForPickup(order: StatusInput): boolean {
+export function isReadyForPickup(order: StatusInput, collectedLocally = false): boolean {
+  // The customer tapped "abgeholt" on this device (lib/pickedUp.ts): for
+  // their own eyes the pickup is done, so the label may fall through to
+  // "Abgeholt" a few hours before the date rule below would flip it.
+  if (collectedLocally) return false;
   if (!order.pickup_ready_at) return false;
   if (order.status === 'cancelled' || order.status === 'refunded') return false;
   return order.fulfillment_date >= todayISO(); // ISO dates compare lexically
@@ -58,8 +62,8 @@ export function isReadyForPickup(order: StatusInput): boolean {
  * Ready for collection outranks every other state — it is the only one that
  * asks something of the customer.
  */
-export function orderStatusLabel(order: StatusInput): string {
-  if (isReadyForPickup(order)) return 'Abholbereit';
+export function orderStatusLabel(order: StatusInput, collectedLocally = false): string {
+  if (isReadyForPickup(order, collectedLocally)) return 'Abholbereit';
   // A paid order labelled "Vorgemerkt" beside a subscription order reading
   // "In Produktion" made a tester ask which of the two was real.
   if (order.status === 'scheduled' && order.payment_status === 'paid') return 'Bestätigt';

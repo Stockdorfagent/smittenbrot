@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { Order, OrderWithItems, PickupLocation } from '@/lib/types';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
+import { loadPickedUp } from '@/lib/pickedUp';
 
 
 export default function OrdersScreen() {
@@ -15,8 +16,10 @@ export default function OrdersScreen() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [pickedUp, setPickedUp] = useState<Set<string>>(new Set());
 
   const fetchOrders = useCallback(async () => {
+    setPickedUp(await loadPickedUp());
     if (!user) { setOrders([]); return; }
     const { data } = await supabase
       .from('orders')
@@ -79,14 +82,14 @@ export default function OrdersScreen() {
                 <View
                   style={[
                     styles.statusBadge,
-                    isReadyForPickup(order)
+                    isReadyForPickup(order, pickedUp.has(order.id))
                       ? styles.status_ready
                       : (styles[`status_${order.status}` as keyof typeof styles] as ViewStyle) ||
                         styles.status_scheduled,
                   ]}
                 >
-                  <Text style={[styles.statusText, isReadyForPickup(order) ? styles.statusTextReady : null]}>
-                    {orderStatusLabel(order)}
+                  <Text style={[styles.statusText, isReadyForPickup(order, pickedUp.has(order.id)) ? styles.statusTextReady : null]}>
+                    {orderStatusLabel(order, pickedUp.has(order.id))}
                   </Text>
                 </View>
               </View>

@@ -8,6 +8,7 @@ import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
+import { loadPickedUp, markPickedUp, unmarkPickedUp } from '@/lib/pickedUp';
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending: 'Ausstehend',
@@ -45,11 +46,13 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [collected, setCollected] = useState(false);
 
   useEffect(() => { if (id) load(); }, [id]);
 
   async function load() {
     setLoading(true);
+    if (id) setCollected((await loadPickedUp()).has(id));
     const { data } = await supabase
       .from('orders')
       .select('id, order_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
@@ -131,10 +134,10 @@ export default function OrderDetailScreen() {
             <Text
               style={[
                 styles.detailValue,
-                isReadyForPickup(order) ? styles.detailValueReady : null,
+                isReadyForPickup(order, collected) ? styles.detailValueReady : null,
               ]}
             >
-              {orderStatusLabel(order)}
+              {orderStatusLabel(order, collected)}
             </Text>
           </View>
           <View style={styles.detailRow}>
@@ -158,6 +161,25 @@ export default function OrderDetailScreen() {
             <Text style={styles.detailLabel}>Zahlung</Text>
             <Text style={styles.detailValue}>{PAYMENT_LABELS[order.payment_status] ?? order.payment_status}</Text>
           </View>
+          {/* Cosmetic, device-local: flips the label to "Abgeholt" right away
+              instead of at midnight. Never sent anywhere (see lib/pickedUp.ts). */}
+          {isReadyForPickup(order, collected) && (
+            <TouchableOpacity
+              style={styles.collectedButton}
+              onPress={async () => { await markPickedUp(order.id); setCollected(true); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.collectedButtonText}>Abgeholt? Als abgeholt markieren</Text>
+            </TouchableOpacity>
+          )}
+          {collected && isReadyForPickup(order) && (
+            <TouchableOpacity
+              onPress={async () => { await unmarkPickedUp(order.id); setCollected(false); }}
+              hitSlop={8}
+            >
+              <Text style={styles.collectedUndo}>Doch nicht abgeholt? Zurücksetzen</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -249,4 +271,14 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md, alignItems: 'center',
   },
   cancelButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.primary },
+  collectedButton: {
+    marginTop: theme.spacing.md,
+    borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md, alignItems: 'center',
+  },
+  collectedButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
+  collectedUndo: {
+    marginTop: theme.spacing.sm, textAlign: 'center',
+    fontSize: theme.fontSize.sm, color: theme.colors.textLight, textDecorationLine: 'underline',
+  },
 });
