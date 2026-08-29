@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/apiAuth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy, like every other admin route: a module-scope client dereferences the
+// env vars at BUILD time, which crashes `next build` in any environment
+// without them (page-data collection imports the module).
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 const EDGE_FN_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closure-handler`;
 
 export async function POST(req: NextRequest) {
@@ -21,6 +26,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'create') {
       // 1. Insert the closure
+      const supabase = getSupabaseAdmin();
       const { data: closure, error: insertError } = await supabase
         .from('closures')
         .insert({ start_date, end_date, reason: reason || null, banner_text_de: banner_text_de || null })
@@ -47,7 +53,7 @@ export async function POST(req: NextRequest) {
       });
 
       // 2. Delete the closure
-      await supabase.from('closures').delete().eq('id', closure_id);
+      await getSupabaseAdmin().from('closures').delete().eq('id', closure_id);
       return NextResponse.json({ success: true });
     }
 

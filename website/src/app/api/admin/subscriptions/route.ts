@@ -15,9 +15,11 @@ function getSupabaseAdmin() {
  *
  * Delegates to the subscription-engine — the ONE implementation that also
  * deletes the not-yet-charged order on pause and regenerates it on resume.
- * The engine's ownership guard accepts the service-role key for exactly this
- * server-side path; browsers never hold that key, and this route is behind
- * requireAdmin. An audit_log row records which admin acted.
+ * The admin's OWN JWT is forwarded: the engine's ownership guard lets a
+ * caller with customers.is_admin act on the owner's behalf. (Deliberately
+ * not the service key — the runtime-injected key value differs from ours,
+ * so key equality fails across environments.) An audit_log row records
+ * which admin acted.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -32,13 +34,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const callerToken = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/subscription-engine/${action}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          Authorization: `Bearer ${callerToken}`,
         },
         body: JSON.stringify({
           subscription_id,

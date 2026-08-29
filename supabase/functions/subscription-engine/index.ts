@@ -2018,6 +2018,12 @@ async function requireSubscriptionOwner(
 
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
 
+  // Authenticate FIRST, look the subscription up second: an anonymous caller
+  // must get the same 401 whether or not the UUID exists — a 404 here would
+  // confirm valid subscription ids to outsiders.
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return jsonErr("Unauthorized", 401);
+
   const { data: sub, error: subErr } = await supabase
     .from("subscriptions")
     .select("customer_id")
@@ -2025,16 +2031,22 @@ async function requireSubscriptionOwner(
     .single();
   if (subErr || !sub) return jsonErr("Subscription not found", 404);
 
-  // Trusted server-side caller (the website's admin API routes, requireAdmin
-  // there): acts on the subscription owner's behalf, e.g. pausing an Abo for
-  // a customer standing at the counter. Browsers never hold this key.
-  if (SUPABASE_SERVICE_ROLE_KEY.length > 0 && token === SUPABASE_SERVICE_ROLE_KEY) {
+  if (sub.customer_id !== user.id) {
+    // Not the owner — but the shop's ADMIN may act on the owner's behalf
+    // (pausing an Abo for a customer at the counter; the web admin's Abos
+    // page). Checked against customers.is_admin, so it is a real, revocable
+    // role and the audit trail names the person. NOTE: deliberately not a
+    // service-key comparison — the platform injects a DIFFERENT key value
+    // into this runtime than the one our servers hold, so key equality
+    // silently fails across environments (verified live).
+    const { data: caller } = await supabase
+      .from("customers")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+    if (!caller?.is_admin) return jsonErr("Nicht autorisiert.", 403);
     return { userId: sub.customer_id as string };
   }
-
-  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-  if (authErr || !user) return jsonErr("Unauthorized", 401);
-  if (sub.customer_id !== user.id) return jsonErr("Nicht autorisiert.", 403);
 
   return { userId: user.id };
 }
@@ -2122,10 +2134,13 @@ serve(withCors(async (req: Request): Promise<Response> => {
     // never be able to do on a --no-verify-jwt function, so force requires
     // the service-role key as Bearer (the cron gate above already vetted the
     // caller; this is the stricter bar for overriding the schedule itself).
+    // The cron secret, not the service key: the platform injects a service
+    // key VALUE into this runtime that differs from the one stored in
+    // .credentials, so a service-key comparison never matches for the owner.
     const forced =
       url.searchParams.get("force") === "1" &&
-      SUPABASE_SERVICE_ROLE_KEY.length > 0 &&
-      bearer === SUPABASE_SERVICE_ROLE_KEY;
+      ((CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+        (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY));
     if (!forced) {
       const h = berlinHour();
       if (h !== expectedHour) {
