@@ -53,6 +53,7 @@ export function AdminOrderAlerts() {
               id?: string;
               payment_status?: string;
               order_number?: string;
+              customer_name?: string;
               total_cents?: number;
             };
             // "Money in" = a paid order. Ignore un-charged/pending rows.
@@ -75,10 +76,16 @@ export function AdminOrderAlerts() {
               row.total_cents != null
                 ? ` · ${(row.total_cents / 100).toFixed(2).replace('.', ',')} €`
                 : '';
+            // The name leads, exactly as the customer typed it (never rewrite
+            // names): the owner knows customers by name, not by order number.
+            const who = row.customer_name ? `${row.customer_name} · ` : '';
             Notifications.scheduleNotificationAsync({
               content: {
                 title: 'Neue Bestellung',
-                body: `Bestellung ${row.order_number ?? ''}${eur}`,
+                body: `${who}${row.order_number ?? ''}${eur}`,
+                // Same data shape as the server's admin_alert push, so tapping
+                // this local one routes to the order too (notificationRouting).
+                data: { type: 'admin_alert', ...(row.id ? { order_id: row.id } : {}) },
               },
               trigger: null,
             }).catch(() => {});
