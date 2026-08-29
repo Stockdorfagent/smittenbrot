@@ -328,8 +328,9 @@ export async function send_notification(
   // push IS the message. The email stays as the fallback so a failed push
   // never means silence, and it remains the only channel for everyone who
   // orders on the website without the app.
-  // NOTE: this deliberately does NOT touch `order_receipt` (send_order_receipt
-  // below), which is the Bestellbestätigung/invoice and must always be emailed.
+  // NOTE: this deliberately does NOT touch `order_receipt` — the
+  // Bestellbestätigung/invoice, sent inline by subscription-engine and
+  // stripe-webhook — which must always be emailed.
   if (effectiveChannel === "push" || effectiveChannel === "both") {
     if (hasPush) {
       // Always carry the type, so a tap can open something better than the
@@ -777,197 +778,6 @@ export async function send_admin_alert(
 }
 
 // ═════════════════════════════════════════════════════════════
-// 6. send_order_receipt — Send German tax-compliant receipt to customer
-// ═════════════════════════════════════════════════════════════
-
-export interface SendReceiptResult {
-  success: boolean;
-  email?: string;
-  error?: string;
-  invoiceNumber?: string;
-}
-
-/**
- * Send a full German tax-compliant receipt (Rechnung) by email.
- *
- * Fetches order + items + products + seller_info and builds a complete
- * GoBD-compliant HTML invoice.
- *
- * @param orderId  UUID of the order to send receipt for
- * @returns        Result with success flag and optional error
- */
-export async function send_order_receipt(orderId: string): Promise<SendReceiptResult> {
-  if (!orderId) {
-    return { success: false, error: "orderId is required" };
-  }
-
-  // ── Fetch order with items, products, seller info ──
-  const { data: invoice, error: invoiceError } = await supabase
-    .rpc("get_order_invoice", { p_order_id: orderId });
-
-  if (invoiceError || !invoice) {
-    const msg = `Failed to fetch invoice data for order ${orderId}: ${invoiceError?.message ?? "no data"}`;
-    log("error", msg);
-    return { success: false, error: msg };
-  }
-
-  const ord = invoice.order as Record<string, unknown>;
-  const seller = invoice.seller as Record<string, unknown>;
-  const items = invoice.items as Array<Record<string, unknown>>;
-
-  const invoiceNumber = (ord.invoice_number as string) ?? orderId.substring(0, 8).toUpperCase();
-  const customerName = (ord.customer_name as string) ?? "Kunde";
-  const customerEmail = (ord.customer_email as string) ?? "";
-  const fulfillmentDate = (ord.fulfillment_date as string) ?? "";
-  const orderDate = (ord.order_date as string) ?? "";
-  const paymentStatus = (ord.payment_status as string) ?? "";
-  const status = (ord.status as string) ?? "";
-
-  if (!customerEmail) {
-    const msg = `Order ${orderId} has no customer email — cannot send receipt`;
-    log("warn", msg);
-    return { success: false, error: msg };
-  }
-
-  // ── Build item rows ──
-  let itemsHtml = "";
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    itemsHtml += `
-      <tr>
-        <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${i + 1}</td>
-        <td style="padding: 6px 4px; border-bottom: 1px solid #ddd;">${item.product_name ?? ""}</td>
-        <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${item.quantity ?? 0}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.unit_price_gross as number ?? 0)}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.unit_price_net as number ?? 0)}</td>
-        <td style="text-align: center; padding: 6px 4px; border-bottom: 1px solid #ddd;">${((item.vat_rate as number ?? 0) * 100).toFixed(0)}%</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur((item.vat_cents as number ?? 0) * (item.quantity as number ?? 1))}</td>
-        <td style="text-align: right; padding: 6px 4px; border-bottom: 1px solid #ddd;">${eur(item.line_total_gross as number ?? 0)}</td>
-      </tr>`;
-  }
-
-  // ── Build the full HTML email ──
-  const taxId = (seller.tax_id as string) ?? "";
-  const vatId = (seller.vat_id as string) ?? "";
-
-  const paymentStatusLabel: Record<string, string> = {
-    paid: "Bezahlt",
-    pending: "Ausstehend",
-    failed: "Fehlgeschlagen",
-    refunded: "Rückerstattet",
-  };
-
-  const htmlBody = `
-    <div style="font-family: 'Helvetica', 'Arial', sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #333;">
-      <div style="border-bottom: 3px solid #1A1A1A; padding-bottom: 10px; margin-bottom: 20px;">
-        <h1 style="color: #1A1A1A; font-size: 24px; margin: 0;">Smittenbrot</h1>
-        <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Handgemachtes Sauerteigbrot aus Stockdorf</p>
-      </div>
-
-      <h2 style="font-size: 18px; color: #1A1A1A;">Rechnung ${invoiceNumber}</h2>
-
-      <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-        <tr>
-          <td style="width: 50%; vertical-align: top; padding-right: 10px;">
-            <div style="background: #F5EDE0; padding: 10px; border-radius: 6px;">
-              <strong style="font-size: 12px; color: #666;">Verkäufer</strong>
-              <p style="margin: 4px 0; font-size: 13px;">
-                ${seller.name ?? "Smittenbrot"}<br>
-                ${seller.address_line1 ?? ""}${seller.address_line2 ? "<br>" + seller.address_line2 : ""}<br>
-                ${seller.postal_code ?? ""} ${seller.city ?? ""}<br>
-                ${seller.country ?? "Deutschland"}<br>
-                ${taxId ? `<br>Steuer-Nr.: ${taxId}` : ""}
-                ${vatId ? `<br>USt-IdNr.: ${vatId}` : ""}
-              </p>
-            </div>
-          </td>
-          <td style="width: 50%; vertical-align: top; padding-left: 10px;">
-            <div style="background: #F5EDE0; padding: 10px; border-radius: 6px;">
-              <strong style="font-size: 12px; color: #666;">Kunde</strong>
-              <p style="margin: 4px 0; font-size: 13px;">
-                ${customerName}<br>
-                ${customerEmail}
-              </p>
-            </div>
-          </td>
-        </tr>
-      </table>
-
-      <table style="width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px;">
-        <tr>
-          <td style="padding: 2px 0; color: #666;">Rechnungsdatum:</td>
-          <td style="padding: 2px 0; text-align: right;">${new Date(orderDate).toLocaleDateString("de-DE")}</td>
-        </tr>
-        <tr>
-          <td style="padding: 2px 0; color: #666;">Leistungsdatum (Abholung):</td>
-          <td style="padding: 2px 0; text-align: right;">${new Date(fulfillmentDate + "T12:00:00").toLocaleDateString("de-DE")}</td>
-        </tr>
-        <tr>
-          <td style="padding: 2px 0; color: #666;">Zahlungsstatus:</td>
-          <td style="padding: 2px 0; text-align: right;">${paymentStatusLabel[paymentStatus] ?? paymentStatus}</td>
-        </tr>
-      </table>
-
-      <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px;">
-        <thead>
-          <tr style="background: #1A1A1A; color: white;">
-            <th style="padding: 8px 4px; text-align: center;">Pos.</th>
-            <th style="padding: 8px 4px; text-align: left;">Produkt</th>
-            <th style="padding: 8px 4px; text-align: center;">Menge</th>
-            <th style="padding: 8px 4px; text-align: right;">Preis (brutto)</th>
-            <th style="padding: 8px 4px; text-align: right;">Netto</th>
-            <th style="padding: 8px 4px; text-align: center;">MwSt.</th>
-            <th style="padding: 8px 4px; text-align: right;">MwSt.-Betrag</th>
-            <th style="padding: 8px 4px; text-align: right;">Gesamt (brutto)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-
-      <div style="border-top: 2px solid #1A1A1A; padding-top: 10px; margin-top: 5px; text-align: right; font-size: 13px;">
-        <p style="margin: 2px 0;">Nettobetrag: <strong>${eur(ord.total_net as number ?? 0)}</strong></p>
-        <p style="margin: 2px 0;">Enthaltene MwSt. 7%: <strong>${eur(ord.total_vat as number ?? 0)}</strong></p>
-        <p style="margin: 2px 0; font-size: 16px; color: #1A1A1A;">Rechnungsbetrag (brutto): <strong>${eur(ord.total_gross as number ?? 0)}</strong></p>
-      </div>
-
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-
-      <p style="font-size: 11px; color: #999; text-align: center;">
-        Smittenbrot · ${seller.address_line1 ?? ""} · ${seller.postal_code ?? ""} ${seller.city ?? ""}<br>
-        ${taxId ? `Steuer-Nr.: ${taxId} · ` : ""}E-Mail: ${seller.email ?? "info@smittenbrot.de"}<br>
-        Zahlung erfolgt über Stripe
-      </p>
-    </div>
-  `.trim();
-
-  // ── Send the email ──
-  const subject = `Deine Smittenbrot Rechnung ${invoiceNumber}`;
-  const result = await send_email(customerEmail, subject, htmlBody);
-
-  if (result.success) {
-    log("info", `Receipt ${invoiceNumber} sent to ${customerEmail} for order ${orderId}`);
-
-    // Log to notifications table
-    await supabase.from("notifications").insert({
-      customer_id: null,
-      type: "order_placed",
-      channel: "email",
-      sent_at: new Date().toISOString(),
-      delivered: true,
-    });
-  }
-
-  return {
-    success: result.success,
-    email: customerEmail,
-    error: result.error,
-    invoiceNumber,
-  };
-}
-
-// ═════════════════════════════════════════════════════════════
 // HTTP Router — makes the functions above invocable over HTTP.
 // Server-to-server only; callers authenticate with the service-role
 // key (verify_jwt stays enabled for this function).
@@ -1148,15 +958,6 @@ serve(async (req: Request): Promise<Response> => {
         return jsonResponse(result, result.success ? 200 : 502);
       }
 
-      case "send-order-receipt": {
-        const orderId = (body.order_id as string) ?? "";
-        if (!orderId) {
-          return jsonResponse({ error: "order_id is required" }, 400);
-        }
-        const result = await send_order_receipt(orderId);
-        return jsonResponse(result, result.success ? 200 : 502);
-      }
-
       default:
         return jsonResponse(
           {
@@ -1165,7 +966,6 @@ serve(async (req: Request): Promise<Response> => {
               "send-notification",
               "send-pickup-ready",
               "send-admin-alert",
-              "send-order-receipt",
             ],
           },
           404,
