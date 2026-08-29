@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { formatPrice } from '@/lib/types';
 import { berlinTodayISO } from '@/lib/pickup';
-import Link from 'next/link';
 
 interface ProductionRow {
   productName: string;
@@ -215,39 +214,6 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      <div className="mt-8">
-        <h2 className="text-lg font-display font-bold text-smitten-text">Schnellzugriff</h2>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
-            href="/admin/orders"
-            className="bg-white rounded-xl p-5 border border-smitten-cream hover:shadow-sm transition-shadow"
-          >
-            <p className="font-medium text-smitten-text">Bestellungen</p>
-            <p className="text-xs text-smitten-text/40 mt-1">Verwalten und als abgeholt markieren</p>
-          </Link>
-          <Link
-            href="/admin/products"
-            className="bg-white rounded-xl p-5 border border-smitten-cream hover:shadow-sm transition-shadow"
-          >
-            <p className="font-medium text-smitten-text">Produkte</p>
-            <p className="text-xs text-smitten-text/40 mt-1">Sortiment verwalten</p>
-          </Link>
-          <Link
-            href="/admin/notifications"
-            className="bg-white rounded-xl p-5 border border-smitten-cream hover:shadow-sm transition-shadow"
-          >
-            <p className="font-medium text-smitten-text">Benachrichtigungen</p>
-            <p className="text-xs text-smitten-text/40 mt-1">Abholbereit-Meldungen senden</p>
-          </Link>
-          <Link
-            href="/admin/settings"
-            className="bg-white rounded-xl p-5 border border-smitten-cream hover:shadow-sm transition-shadow"
-          >
-            <p className="font-medium text-smitten-text">Einstellungen</p>
-            <p className="text-xs text-smitten-text/40 mt-1">Wochenzyklus, Export</p>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }

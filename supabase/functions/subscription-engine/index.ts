@@ -2017,8 +2017,6 @@ async function requireSubscriptionOwner(
   const jsonErr = (error: string, status: number) => json({ error }, status);
 
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-  if (authErr || !user) return jsonErr("Unauthorized", 401);
 
   const { data: sub, error: subErr } = await supabase
     .from("subscriptions")
@@ -2026,6 +2024,16 @@ async function requireSubscriptionOwner(
     .eq("id", subscriptionId)
     .single();
   if (subErr || !sub) return jsonErr("Subscription not found", 404);
+
+  // Trusted server-side caller (the website's admin API routes, requireAdmin
+  // there): acts on the subscription owner's behalf, e.g. pausing an Abo for
+  // a customer standing at the counter. Browsers never hold this key.
+  if (SUPABASE_SERVICE_ROLE_KEY.length > 0 && token === SUPABASE_SERVICE_ROLE_KEY) {
+    return { userId: sub.customer_id as string };
+  }
+
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return jsonErr("Unauthorized", 401);
   if (sub.customer_id !== user.id) return jsonErr("Nicht autorisiert.", 403);
 
   return { userId: user.id };

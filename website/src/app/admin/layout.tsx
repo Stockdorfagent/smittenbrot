@@ -6,16 +6,41 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { AdminToasts } from '@/components/admin/toast';
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/orders', label: 'Bestellungen' },
-  { href: '/admin/products', label: 'Produkte' },
-  { href: '/admin/discounts', label: 'Rabattcodes' },
-  { href: '/admin/pickup-locations', label: 'Abholorte' },
-  { href: '/admin/closures', label: 'Schließzeiten' },
-  { href: '/admin/notifications', label: 'Benachrichtigungen' },
-  { href: '/admin/customers', label: 'Kunden' },
-  { href: '/admin/settings', label: 'Einstellungen' },
+/**
+ * Client-side UX gate only — the real boundary is Postgres RLS (is_admin())
+ * plus requireAdmin in every admin API route. The env var keeps this in sync
+ * with the server-side ADMIN_EMAIL; the literal is the deployed default.
+ */
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'sophia@smittenbrot.de';
+
+/** Grouped by how the owner works: daily operations, people, bookkeeping. */
+const navGroups = [
+  {
+    title: 'Betrieb',
+    items: [
+      { href: '/admin', label: 'Dashboard' },
+      { href: '/admin/orders', label: 'Bestellungen' },
+      { href: '/admin/products', label: 'Produkte' },
+      { href: '/admin/pickup-locations', label: 'Abholorte' },
+      { href: '/admin/closures', label: 'Schließzeiten' },
+    ],
+  },
+  {
+    title: 'Kunden',
+    items: [
+      { href: '/admin/customers', label: 'Kunden' },
+      { href: '/admin/subscriptions', label: 'Abos' },
+      { href: '/admin/discounts', label: 'Rabattcodes' },
+      { href: '/admin/notifications', label: 'Benachrichtigungen' },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { href: '/admin/exports', label: 'Exporte' },
+      { href: '/admin/settings', label: 'Einstellungen' },
+    ],
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -36,8 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
     const user = session.user;
-    const admin =
-      user.email === 'sophia@smittenbrot.de';
+    const admin = user.email === ADMIN_EMAIL;
     if (!admin) {
       router.push('/login');
       return;
@@ -84,24 +108,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="text-xs text-smitten-text/40 mt-0.5">Admin Bereich</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-smitten-primary text-white'
-                    : 'text-smitten-text/70 hover:bg-smitten-cream hover:text-smitten-primary'
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 p-4 space-y-5 overflow-y-auto">
+          {navGroups.map((group) => (
+            <div key={group.title}>
+              <p className="px-4 mb-1 text-[11px] font-medium uppercase tracking-wider text-smitten-text/40">
+                {group.title}
+              </p>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-smitten-primary text-white'
+                          : 'text-smitten-text/70 hover:bg-smitten-cream hover:text-smitten-primary'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-smitten-cream">
@@ -126,34 +159,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </svg>
           </button>
           <div className="hidden lg:block" />
+          {/* Working header, nothing else: the legal links belong to the shop
+              footer, not to the owner's toolbar, and the second logout was a
+              duplicate of the sidebar's. */}
           <div className="flex items-center gap-4">
             <span className="text-sm text-smitten-text/60">Smittenbrot Admin</span>
-            <div className="flex items-center gap-4">
-              <a href="/impressum" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                Impressum
-              </a>
-              <span className="text-smitten-text/30">·</span>
-              <a href="/datenschutz" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                Datenschutz
-              </a>
-              <span className="text-smitten-text/30">·</span>
-                <a href="/zahlung-abholung" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                  Zahlung
-                </a>
-              <span className="text-smitten-text/30">·</span>
-                <a href="/agb" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                  AGB
-                </a>
-                <a href="/contact" className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors">
-                  Kontakt
-                </a>
-              <button
-              onClick={handleLogout}
+            <Link
+              href="/"
               className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors"
             >
-              Abmelden
-            </button>
-          </div>
+              Zum Shop
+            </Link>
           </div>
         </header>
 

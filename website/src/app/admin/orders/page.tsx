@@ -98,11 +98,24 @@ export default function AdminOrdersPage() {
   const [invoiceTo, setInvoiceTo] = useState('');
   const [hideTestOrders, setHideTestOrders] = useState(true);
   const [showPast, setShowPast] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPast]);
+
+  // Deep link from the customers page: /admin/orders?kunde=<email> lands here
+  // pre-filtered — and with the history loaded, because "show me this
+  // customer's orders" almost always means the past ones too. Read from
+  // window instead of useSearchParams() to stay out of Suspense territory.
+  useEffect(() => {
+    const kunde = new URLSearchParams(window.location.search).get('kunde');
+    if (kunde) {
+      setSearch(kunde);
+      setShowPast(true);
+    }
+  }, []);
 
   async function loadData() {
     setLoading(true);
@@ -220,6 +233,14 @@ export default function AdminOrdersPage() {
 
   const filteredOrders = orders.filter((o) => {
     if (hideTestOrders && (o.order_number ?? '').startsWith('TEST-')) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hit =
+        (o.customer_name ?? '').toLowerCase().includes(q) ||
+        (o.customer_email ?? '').toLowerCase().includes(q) ||
+        (o.order_number ?? '').toLowerCase().includes(q);
+      if (!hit) return false;
+    }
     if (statusFilter && o.status !== statusFilter) return false;
     if (locationFilter && o.pickup_location_id !== locationFilter) return false;
     if (dayFilter) {
@@ -238,6 +259,13 @@ export default function AdminOrdersPage() {
       <h1 className="text-2xl font-display font-bold text-smitten-text">Bestellungen</h1>
 
       <div className="mt-4 flex flex-wrap gap-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Kunde oder Bestellnummer..."
+          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent w-56"
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}

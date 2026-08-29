@@ -205,7 +205,7 @@ export default function AdminCustomersPage() {
                     </p>
                     <p className="mt-2">
                       <a
-                        href={`/admin/orders`}
+                        href={`/admin/orders?kunde=${encodeURIComponent(c.email)}`}
                         className="text-smitten-primary hover:underline"
                       >
                         Bestellungen anzeigen →
