@@ -32,7 +32,7 @@ export const orderStatusAdminLabels: Record<string, string> = {
   processing: 'In Bearbeitung',
   grace_period_open: 'Änderungsfenster',
   locked_for_production: 'Für Produktion gesperrt',
-  fulfilled: 'Abgeholt',
+  fulfilled: 'Erledigt',
   refunded: 'Rückerstattet',
   cancelled: 'Storniert',
 };
@@ -49,4 +49,45 @@ export const cycleLabels: Record<string, string> = {
   week_a: 'Woche A',
   week_b: 'Woche B',
   hidden: 'Versteckt',
+};
+
+// ── Operational order buckets ────────────────────────────────
+//
+// The raw pipeline statuses (scheduled, grace_period_open,
+// locked_for_production, …) exist for the charge engine, not for a human
+// working through a bake day. The owner thinks in three questions: is this
+// only PLANNED (an Abo that will order — great for planning, not yet real),
+// is it PAID and therefore to bake, or is it DONE? These buckets translate,
+// so "Für Produktion gesperrt" never has to be understood at the counter.
+// The technical status stays visible in the order's expanded detail.
+
+export type OrderBucket = 'vorgemerkt' | 'zu_backen' | 'unbezahlt' | 'erledigt' | 'storniert';
+
+export function orderBucket(o: {
+  status: string;
+  payment_status: string;
+  order_type: string;
+}): OrderBucket {
+  if (o.status === 'cancelled' || o.status === 'refunded') return 'storniert';
+  if (o.status === 'fulfilled') return 'erledigt';
+  if (o.payment_status === 'paid') return 'zu_backen';
+  // Pending subscription order: the Abo will order at the cutoff — planning
+  // info. A pending ONE-TIME order is an abandoned checkout.
+  return o.order_type === 'subscription' ? 'vorgemerkt' : 'unbezahlt';
+}
+
+export const orderBucketLabels: Record<OrderBucket, string> = {
+  vorgemerkt: 'Vorgemerkt (Abo)',
+  zu_backen: 'Zu backen',
+  unbezahlt: 'Unbezahlt',
+  erledigt: 'Erledigt',
+  storniert: 'Storniert/Erstattet',
+};
+
+export const orderBucketTones: Record<OrderBucket, 'blue' | 'amber' | 'gray' | 'green' | 'red'> = {
+  vorgemerkt: 'blue',
+  zu_backen: 'amber',
+  unbezahlt: 'gray',
+  erledigt: 'green',
+  storniert: 'red',
 };

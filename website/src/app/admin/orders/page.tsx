@@ -12,7 +12,12 @@ import {
   notificationChannelLabels,
   orderStatusAdminLabels,
   paymentStatusLabels,
+  orderBucket,
+  orderBucketLabels,
+  orderBucketTones,
+  type OrderBucket,
 } from '@/lib/adminLabels';
+import { showToast } from '@/components/admin/toast';
 
 interface OrderWithItems extends Order {
   items?: (OrderItem & { product_name?: string })[];
@@ -88,8 +93,10 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [dayFilter, setDayFilter] = useState<string>('');
+  const [bucketFilter, setBucketFilter] = useState<'' | OrderBucket>('');
+  const [dateFilter, setDateFilter] = useState<string>('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notificationsByOrder, setNotificationsByOrder] = useState<Record<string, OrderNotification[]>>({});
@@ -231,6 +238,19 @@ export default function AdminOrdersPage() {
     (o.order_number ?? '').startsWith('TEST-'),
   ).length;
 
+  // Every distinct pickup date in the loaded window — "all of today's
+  // orders at once" is one selection, instead of a weekday filter that mixed
+  // several weeks.
+  const pickupDates = [...new Set(
+    orders
+      .filter((o) => !(hideTestOrders && (o.order_number ?? '').startsWith('TEST-')))
+      .map((o) => o.fulfillment_date),
+  )].sort();
+  const dateLabel = (d: string) =>
+    new Date(d + 'T12:00:00').toLocaleDateString('de-DE', {
+      weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+
   const filteredOrders = orders.filter((o) => {
     if (hideTestOrders && (o.order_number ?? '').startsWith('TEST-')) return false;
     if (search) {
@@ -241,16 +261,65 @@ export default function AdminOrdersPage() {
         (o.order_number ?? '').toLowerCase().includes(q);
       if (!hit) return false;
     }
-    if (statusFilter && o.status !== statusFilter) return false;
+    if (bucketFilter && orderBucket(o) !== bucketFilter) return false;
     if (locationFilter && o.pickup_location_id !== locationFilter) return false;
-    if (dayFilter) {
-      const d = new Date(o.fulfillment_date);
-      const dayName = d.toLocaleDateString('de-DE', { weekday: 'long' });
-      if (dayFilter === 'wed' && dayName !== 'Mittwoch') return false;
-      if (dayFilter === 'sat' && dayName !== 'Samstag') return false;
-    }
+    if (dateFilter && o.fulfillment_date !== dateFilter) return false;
     return true;
   });
+
+  // Only "Zu backen" orders can be announced — the bulk bar works on these.
+  const eligibleIds = filteredOrders
+    .filter((o) => orderBucket(o) === 'zu_backen')
+    .map((o) => o.id);
+  const selectedEligible = eligibleIds.filter((id) => selected.has(id));
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /**
+   * One dispatch call for the whole bake day: notify every selected order and
+   * mark the successfully notified ones "Erledigt". The route partitions —
+   * one unpaid order does not block the other twenty — and reports skipped
+   * and failed ones by name.
+   */
+  async function bulkNotify() {
+    const ids = selectedEligible;
+    if (ids.length === 0) return;
+    if (!confirm(`Abholbenachrichtigung an ${ids.length} Kund(en) senden und die Bestellungen als erledigt markieren?`)) return;
+    setBulkBusy(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/send-pickup-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ order_ids: ids }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBulkBusy(false);
+    if (!res.ok) {
+      showToast(data.error ?? 'Benachrichtigungen konnten nicht gesendet werden.');
+      return;
+    }
+    const notifiedIds: string[] = data.notified_ids ?? [];
+    if (notifiedIds.length > 0) {
+      setOrders((prev) => prev.map((o) =>
+        notifiedIds.includes(o.id) ? { ...o, status: 'fulfilled' as Order['status'] } : o,
+      ));
+      showToast(`${notifiedIds.length} Kund(en) benachrichtigt und erledigt.`, 'success');
+    }
+    for (const sk of (data.skipped ?? []) as { name: string; reason: string }[]) {
+      showToast(`Übersprungen: ${sk.name} (${sk.reason})`);
+    }
+    for (const f of (data.failed ?? []) as { orderId: string; error: string }[]) {
+      showToast(`Fehlgeschlagen: ${f.orderId.substring(0, 8)} — ${f.error}`);
+    }
+    setSelected(new Set());
+  }
 
   if (loading) return <AdminLoading what="Bestellungen" />;
 
@@ -267,23 +336,24 @@ export default function AdminOrdersPage() {
           className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent w-56"
         />
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={bucketFilter}
+          onChange={(e) => setBucketFilter(e.target.value as '' | OrderBucket)}
           className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
           <option value="">Alle Status</option>
-          {Object.entries(orderStatusAdminLabels).map(([key, label]) => (
+          {Object.entries(orderBucketLabels).map(([key, label]) => (
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
         <select
-          value={dayFilter}
-          onChange={(e) => setDayFilter(e.target.value)}
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
           className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
-          <option value="">Alle Tage</option>
-          <option value="wed">Mittwoch</option>
-          <option value="sat">Samstag</option>
+          <option value="">Alle Abholtage</option>
+          {pickupDates.map((d) => (
+            <option key={d} value={d}>{dateLabel(d)}</option>
+          ))}
         </select>
         <select
           value={locationFilter}
@@ -317,6 +387,39 @@ export default function AdminOrdersPage() {
         </label>
       </div>
 
+      {eligibleIds.length > 0 && (
+        <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-sm text-smitten-text">
+            <input
+              type="checkbox"
+              checked={selectedEligible.length === eligibleIds.length && eligibleIds.length > 0}
+              onChange={(e) =>
+                setSelected(e.target.checked ? new Set(eligibleIds) : new Set())
+              }
+              className="accent-smitten-primary"
+            />
+            Alle „Zu backen“ auswählen ({eligibleIds.length})
+          </label>
+          <button
+            onClick={bulkNotify}
+            disabled={selectedEligible.length === 0 || bulkBusy}
+            className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            {bulkBusy
+              ? 'Wird gesendet...'
+              : `Abholbereit melden & erledigen (${selectedEligible.length})`}
+          </button>
+          {selectedEligible.length > 0 && (
+            <button
+              onClick={() => setSelected(new Set())}
+              className="px-3 py-2 text-xs text-smitten-text/60 hover:text-smitten-text"
+            >
+              Auswahl aufheben
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-end gap-3 flex-wrap">
         <div>
           <label className="block text-xs text-smitten-text/60 mb-1">Rechnungen von</label>
@@ -348,10 +451,23 @@ export default function AdminOrdersPage() {
                 key={order.id}
                 className="bg-white rounded-xl border border-smitten-cream overflow-hidden"
               >
-                <button
-                  onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
-                  className="w-full text-left p-4 hover:bg-smitten-bg/50 transition-colors"
-                >
+                <div className="w-full text-left p-4 hover:bg-smitten-bg/50 transition-colors flex items-center gap-3">
+                  {orderBucket(order) === 'zu_backen' && (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(order.id)}
+                      onChange={() => toggleSelected(order.id)}
+                      className="accent-smitten-primary shrink-0"
+                      title="Für Sammel-Benachrichtigung auswählen"
+                    />
+                  )}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setExpandedId(expandedId === order.id ? null : order.id); }}
+                    className="flex-1 min-w-0 cursor-pointer"
+                  >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-smitten-text truncate">
@@ -379,20 +495,22 @@ export default function AdminOrdersPage() {
                           Wird bei Produktion zugewiesen
                         </span>
                       )}
-                      <StatusPill tone={
-                        order.status === 'fulfilled' ? 'green' :
-                        order.status === 'cancelled' ? 'red' :
-                        order.status === 'locked_for_production' ? 'amber' :
-                        order.status === 'refunded' ? 'purple' : 'blue'
-                      }>
-                        {orderStatusAdminLabels[order.status] || order.status}
+                      <StatusPill tone={orderBucketTones[orderBucket(order)]}>
+                        {orderBucketLabels[orderBucket(order)]}
                       </StatusPill>
-                      <StatusPill tone={
-                        order.payment_status === 'paid' ? 'green' :
-                        order.payment_status === 'failed' ? 'red' : 'gray'
-                      }>
-                        {paymentStatusLabels[order.payment_status] || order.payment_status}
-                      </StatusPill>
+                      {/* The bucket already implies the normal payment state —
+                          this pill only appears when payment is the story
+                          (failed, refunded, or paid despite Erledigt/Storno). */}
+                      {(order.payment_status === 'failed' ||
+                        order.payment_status === 'refunded' ||
+                        (order.payment_status === 'paid' && orderBucket(order) !== 'zu_backen')) && (
+                        <StatusPill tone={
+                          order.payment_status === 'paid' ? 'green' :
+                          order.payment_status === 'failed' ? 'red' : 'gray'
+                        }>
+                          {paymentStatusLabels[order.payment_status] || order.payment_status}
+                        </StatusPill>
+                      )}
                       <div className="text-right">
                         <span className="text-sm font-medium text-smitten-accent">
                           {formatPrice(order.total_cents)}
@@ -404,7 +522,8 @@ export default function AdminOrdersPage() {
                       </div>
                     </div>
                   </div>
-                </button>
+                  </div>
+                </div>
 
                 {expandedId === order.id && (
                   <div className="px-4 pb-4 border-t border-smitten-cream pt-3">
@@ -426,6 +545,10 @@ export default function AdminOrdersPage() {
                         ))}
                       </tbody>
                     </table>
+
+                    <p className="mt-3 text-[10px] text-smitten-text/30 font-mono">
+                      Technisch: {order.status} ({orderStatusAdminLabels[order.status]}) · Zahlung: {order.payment_status}
+                    </p>
 
                     {/* What the customer was actually told about THIS order.
                         The question that prompted this panel — "he says he got
@@ -485,7 +608,7 @@ export default function AdminOrdersPage() {
                           <button
                             onClick={async () => {
                               if (!confirmTickOff(order, { allowUnpaid: false })) return;
-                              if (confirm('Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' senden und Bestellung als abgeholt markieren?')) {
+                              if (confirm('Abholbenachrichtigung an ' + (order.customer_name || order.customer_email) + ' senden und Bestellung als erledigt markieren?')) {
                                 setSending(prev => ({ ...prev, [order.id]: true }));
                                 const { data: { session } } = await supabase.auth.getSession();
                                 const res = await fetch('/api/send-pickup-notification', {
@@ -507,12 +630,12 @@ export default function AdminOrdersPage() {
                             disabled={sending[order.id]}
                             className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                           >
-                            {sending[order.id] ? 'Wird gesendet...' : 'Abholbenachrichtigung senden & abhaken'}
+                            {sending[order.id] ? 'Wird gesendet...' : 'Abholbereit melden & erledigen'}
                           </button>
                           <button
                             onClick={async () => {
                               if (!confirmTickOff(order, { allowUnpaid: true })) return;
-                              if (confirm('Bestellung als abgeholt markieren (ohne Benachrichtigung)?')) {
+                              if (confirm('Bestellung als erledigt markieren (ohne Benachrichtigung)?')) {
                                 const updated = await orderAction(order.id, 'mark_fulfilled', { allowUnpaid: true });
                                 if (updated) {
                                   setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'fulfilled' as Order['status'] } : o));
@@ -521,7 +644,7 @@ export default function AdminOrdersPage() {
                             }}
                             className="px-3 py-1.5 border border-smitten-cream text-smitten-text/60 text-xs rounded-lg hover:border-smitten-text/30 transition-colors"
                           >
-                            Nur abhaken
+                            Nur erledigen
                           </button>
                         </>
                       )}
