@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { berlinTodayISO } from '@/lib/pickup';
 import { Product, formatPrice } from '@/lib/types';
 
 const cycleLabels: Record<string, string> = {
@@ -63,10 +64,13 @@ export default function AdminProductsPage() {
   }
 
   async function checkCapacityWarning(productId: string, newCapacity: number) {
+    // Only orders that still have to be baked: without the date bound the
+    // warning counted open orders from PAST pickup days too.
     const { data: orders } = await supabase
       .from('orders')
       .select('id')
-      .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production']);
+      .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production'])
+      .gte('fulfillment_date', berlinTodayISO());
 
     if (!orders || orders.length === 0) return true;
 
@@ -88,10 +92,13 @@ export default function AdminProductsPage() {
   }
 
   async function checkDisableWarning(productId: string) {
+    // Only orders that still have to be baked: without the date bound the
+    // warning counted open orders from PAST pickup days too.
     const { data: orders } = await supabase
       .from('orders')
       .select('id')
-      .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production']);
+      .in('status', ['scheduled', 'processing', 'grace_period_open', 'locked_for_production'])
+      .gte('fulfillment_date', berlinTodayISO());
 
     if (!orders || orders.length === 0) return true;
 

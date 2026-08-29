@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Product, Order, OrderItem, formatPrice } from '@/lib/types';
+import { formatPrice } from '@/lib/types';
+import { berlinTodayISO } from '@/lib/pickup';
 import Link from 'next/link';
 
 interface ProductionRow {
@@ -81,7 +82,7 @@ export default function AdminDashboard() {
           .neq('status', 'cancelled');
 
         const orderIds = (orders || []).map(o => o.id);
-        let itemsMap: Record<string, number> = {};
+        const itemsMap: Record<string, number> = {};
         if (orderIds.length > 0) {
           const { data: items } = await supabase
             .from('order_items')
@@ -110,13 +111,17 @@ export default function AdminDashboard() {
         .eq('status', 'active');
       setActiveSubs(subCount || 0);
 
-      // Revenue queries
-      const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      // Revenue queries. Berlin calendar month, bounded on BOTH sides:
+      // without the upper bound, any already-paid order with a pickup date in
+      // a FUTURE month inflated "Umsatz diesen Monat".
+      const [y, m] = berlinTodayISO().split('-').map(Number);
+      const monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().split('T')[0];
       const { data: monthOrders } = await supabase
         .from('orders')
         .select('total_cents')
         .gte('fulfillment_date', monthStart)
+        .lte('fulfillment_date', monthEnd)
         .eq('payment_status', 'paid');
       setRevenueMonth((monthOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
 

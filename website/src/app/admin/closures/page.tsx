@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { berlinTodayISO } from '@/lib/pickup';
 
 interface Closure {
   id: string;
@@ -58,7 +59,10 @@ export default function AdminClosuresPage() {
   }
 
   async function deleteClosure(closure: Closure) {
-    const msg = `Diese Schließzeit betrifft ${subCount} aktive Abonnements, die pausiert werden. Wirklich löschen?`;
+    // The old text claimed deletion would pause ${subCount} subscriptions —
+    // it was the CREATE-side effect, pasted onto delete, and used the global
+    // active-subscription count on top. Say what actually happens.
+    const msg = `Schließzeit ${closure.start_date} bis ${closure.end_date} wirklich löschen? Der Banner verschwindet und die Tage sind wieder bestellbar.`;
     if (!confirm(msg)) return;
     const { data: { session } } = await supabase.auth.getSession();
     await fetch('/api/closures', {
@@ -69,16 +73,17 @@ export default function AdminClosuresPage() {
     loadData();
   }
 
+  // Pure YYYY-MM-DD string comparison on the Berlin calendar date. The old
+  // Date-object version parsed the dates as UTC midnight and then set LOCAL
+  // hours on them, so the active/past classification was off by up to a day
+  // around the boundaries.
   function isActive(closure: Closure): boolean {
-    const now = new Date();
-    const start = new Date(closure.start_date);
-    const end = new Date(closure.end_date);
-    end.setHours(23, 59, 59, 999);
-    return now >= start && now <= end;
+    const today = berlinTodayISO();
+    return closure.start_date <= today && closure.end_date >= today;
   }
 
   function isPast(closure: Closure): boolean {
-    return new Date(closure.end_date) < new Date();
+    return closure.end_date < berlinTodayISO();
   }
 
   if (loading) {

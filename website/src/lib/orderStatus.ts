@@ -7,6 +7,8 @@
  * phone and in a browser should not be told two different things.
  */
 
+import { berlinTodayISO } from './pickup';
+
 /** A `scheduled` order that is already paid is confirmed, not merely planned. */
 type StatusInput = {
   status: string;
@@ -39,12 +41,7 @@ export function isReadyForPickup(order: StatusInput): boolean {
   // `fulfilled` in one click, so on the pickup day `fulfilled` means
   // "announced", not "collected". Ready for the rest of that day; collected
   // from the next day on. ISO dates compare lexically.
-  const now = new Date();
-  const today =
-    `${now.getFullYear()}-` +
-    `${String(now.getMonth() + 1).padStart(2, '0')}-` +
-    `${String(now.getDate()).padStart(2, '0')}`;
-  return order.fulfillment_date >= today;
+  return order.fulfillment_date >= berlinTodayISO();
 }
 
 /**

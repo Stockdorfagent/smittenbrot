@@ -64,6 +64,7 @@ export default function AdminSettingsPage() {
   });
   const [savingSeller, setSavingSeller] = useState(false);
   const [sellerSaved, setSellerSaved] = useState(false);
+  const [sellerError, setSellerError] = useState('');
 
   // Invoice mode state
   const [invoiceMode, setInvoiceMode] = useState<'production' | 'test'>('production');
@@ -112,15 +113,24 @@ export default function AdminSettingsPage() {
     setLoading(false);
   }
 
+  /**
+   * Through /api/admin/system-actions: flipping the invoice numbering series
+   * has bookkeeping consequences, so it is server-checked and audited there.
+   */
   async function toggleInvoiceMode() {
     setTogglingMode(true);
     const newMode = invoiceMode === 'production' ? 'test' : 'production';
-    const { error } = await supabase
-      .from('system_settings')
-      .update({ invoice_mode: newMode, updated_at: new Date().toISOString() })
-      .eq('id', 1);
-    if (!error) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/admin/system-actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ action: 'set_invoice_mode', invoice_mode: newMode }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
       setInvoiceMode(newMode);
+    } else {
+      alert(data.error ?? 'Moduswechsel fehlgeschlagen.');
     }
     setTogglingMode(false);
   }
@@ -161,27 +171,41 @@ export default function AdminSettingsPage() {
   async function saveSellerInfo() {
     setSavingSeller(true);
     setSellerSaved(false);
-    if (sellerInfo?.id) {
-      await supabase
-        .from('seller_info')
-        .update({ ...sellerForm, updated_at: new Date().toISOString() })
-        .eq('id', sellerInfo.id);
-    } else {
-      await supabase.from('seller_info').insert(sellerForm);
-    }
+    setSellerError('');
+    // This used to set "Gespeichert" unconditionally — an RLS rejection or a
+    // network failure showed the green success message anyway.
+    const { error } = sellerInfo?.id
+      ? await supabase
+          .from('seller_info')
+          .update({ ...sellerForm, updated_at: new Date().toISOString() })
+          .eq('id', sellerInfo.id)
+      : await supabase.from('seller_info').insert(sellerForm);
     setSavingSeller(false);
+    if (error) {
+      setSellerError(`Speichern fehlgeschlagen: ${error.message}`);
+      return;
+    }
     setSellerSaved(true);
     setTimeout(() => setSellerSaved(false), 3000);
   }
 
+  /**
+   * Through the same week-cycle-switch function the cron uses (via
+   * /api/admin/system-actions), so a manual switch shows up in the audit log
+   * and cannot drift from the function's semantics. The old direct table
+   * write did neither.
+   */
   async function switchWeek() {
     if (!weekCycle) return;
-    const newWeek = weekCycle.current_week === 'A' ? 'B' : 'A';
-    const { error } = await supabase
-      .from('week_cycle')
-      .update({ current_week: newWeek, switched_at: new Date().toISOString() })
-      .eq('id', weekCycle.id);
-    if (!error) loadData();
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/admin/system-actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ action: 'switch_week' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) loadData();
+    else alert(data.error ?? 'Wochenwechsel fehlgeschlagen.');
   }
 
   async function saveCapacities() {
@@ -309,7 +333,8 @@ export default function AdminSettingsPage() {
       ),
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // BOM like the other exports — without it Excel mangles the umlauts.
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -383,13 +408,20 @@ export default function AdminSettingsPage() {
       'Konto;Gegenkonto;BU-Schlüssel;Datum;Umsatz;Soll/Haben;Belegdatum;Belegfeld1;Buchungstext',
     ];
 
+    // One query for every credit note in the range instead of one per order
+    // inside the loop — the old N+1 made a year's export issue hundreds of
+    // sequential requests.
+    const { data: creditNotes } = await supabase
+      .from('credit_notes')
+      .select('*')
+      .in('order_id', orders.map((o) => o.id));
+    const creditNoteByOrder = new Map(
+      (creditNotes ?? []).map((cn) => [cn.order_id as string, cn]),
+    );
+
     for (const order of orders) {
       // Skip cancelled orders that have a credit note — the Storno handles the reversal
-      const { data: creditNote } = await supabase
-        .from('credit_notes')
-        .select('*')
-        .eq('order_id', order.id)
-        .maybeSingle();
+      const creditNote = creditNoteByOrder.get(order.id);
 
       if (creditNote) {
         // Storno reversal entry (negative booking)
@@ -473,6 +505,9 @@ export default function AdminSettingsPage() {
             {savingSeller ? 'Speichere...' : 'Speichern'}
           </button>
         </div>
+        {sellerError && (
+          <p className="mt-3 text-sm text-red-600">{sellerError}</p>
+        )}
         {sellerSaved && (
           <p className="mt-2 text-sm text-green-600">Verkäuferinformationen gespeichert.</p>
         )}
