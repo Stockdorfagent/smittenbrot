@@ -15,8 +15,6 @@ interface ProductionRow {
 export default function AdminDashboard() {
   const [productionRows, setProductionRows] = useState<ProductionRow[]>([]);
   const [productionDay, setProductionDay] = useState<string>('');
-  const [orderCount, setOrderCount] = useState<number>(0);
-  const [fulfilledCount, setFulfilledCount] = useState<number>(0);
   const [activeSubs, setActiveSubs] = useState<number>(0);
   const [revenueMonth, setRevenueMonth] = useState<number>(0);
   const [revenueDay, setRevenueDay] = useState<number>(0);
@@ -55,17 +53,12 @@ export default function AdminDashboard() {
           const info = byDate[date];
           if (info.fulfilled < info.total) {
             targetDate = date;
-            setOrderCount(info.total);
-            setFulfilledCount(info.fulfilled);
             break;
           }
         }
         if (!targetDate && sortedDates.length > 0) {
           // All fulfilled — show the next future date
           targetDate = sortedDates[sortedDates.length - 1];
-          const last = byDate[targetDate];
-          setOrderCount(last.total);
-          setFulfilledCount(last.total);
         }
       }
 
@@ -169,13 +162,6 @@ export default function AdminDashboard() {
           <p className="text-sm text-smitten-text/60">Gesamtumsatz</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(totalRevenue)}</p>
         </div>
-        {productionDay && (
-        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
-          <p className="text-sm text-smitten-text/60">Fortschritt {productionDay}</p>
-          <p className="text-3xl font-display font-bold text-smitten-text mt-1">{fulfilledCount} / {orderCount}</p>
-          <p className="text-xs text-smitten-text/40 mt-1">abgeholt / gesamt</p>
-        </div>
-        )}
       </div>
 
       <div className="mt-8">
