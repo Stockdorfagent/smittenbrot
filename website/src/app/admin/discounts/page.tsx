@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { StatusPill } from '@/components/admin/StatusPill';
+import { formatPrice } from '@/lib/types';
 
 interface Discount {
   id: string;
@@ -21,10 +24,6 @@ const typeLabels: Record<string, string> = {
   percentage: 'Prozent',
   fixed: 'Fixbetrag',
 };
-
-function formatCents(cents: number): string {
-  return `€${(cents / 100).toFixed(2).replace('.', ',')}`;
-}
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
@@ -189,13 +188,7 @@ export default function AdminDiscountsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Rabattcodes...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Rabattcodes" />;
 
   return (
     <div>
@@ -374,7 +367,7 @@ export default function AdminDiscountsPage() {
                     </td>
                     <td className="px-4 py-3 text-smitten-text/70">{typeLabels[d.type] || d.type}</td>
                     <td className="px-4 py-3 text-right font-medium text-smitten-text">
-                      {d.type === 'percentage' ? `${d.value}%` : formatCents(d.value)}
+                      {d.type === 'percentage' ? `${d.value}%` : formatPrice(d.value)}
                     </td>
                     <td className="px-4 py-3 text-right text-smitten-text">
                       {(d.usage_count ?? 0).toLocaleString()}
@@ -386,15 +379,9 @@ export default function AdminDiscountsPage() {
                       {formatDate(d.expires_at)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        !d.active
-                          ? 'bg-gray-100 text-gray-500'
-                          : isExpired
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-green-100 text-green-700'
-                      }`}>
+                      <StatusPill tone={!d.active ? 'gray' : isExpired ? 'amber' : 'green'} className="inline-block font-medium">
                         {!d.active ? 'Inaktiv' : isExpired ? 'Abgelaufen' : 'Aktiv'}
-                      </span>
+                      </StatusPill>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
 import { formatPrice } from '@/lib/types';
 import { berlinTodayISO } from '@/lib/pickup';
 import Link from 'next/link';
@@ -146,13 +147,7 @@ export default function AdminDashboard() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Dashboard...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Dashboard" />;
 
   return (
     <div>

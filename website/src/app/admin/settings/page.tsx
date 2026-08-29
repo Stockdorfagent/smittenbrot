@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Product } from '@/lib/types';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { showToast } from '@/components/admin/toast';
+import { cycleLabels } from '@/lib/adminLabels';
+import { buildCsv, downloadCsv } from '@/lib/csv';
+import { Product, formatPrice } from '@/lib/types';
 
 interface WeekCycle {
   id: string;
@@ -210,17 +214,21 @@ export default function AdminSettingsPage() {
 
   async function saveCapacities() {
     setSavingCapacity(true);
-    const updates = products.map((p) => {
-      if (editingCapacity[p.id] !== p.capacity) {
-        return supabase
-          .from('products')
-          .update({ capacity: editingCapacity[p.id] })
-          .eq('id', p.id);
-      }
-      return Promise.resolve();
-    });
-    await Promise.all(updates);
+    const changed = products.filter(
+      (p) => editingCapacity[p.id] !== undefined && editingCapacity[p.id] !== p.capacity,
+    );
+    const results = await Promise.all(
+      changed.map((p) =>
+        supabase.from('products').update({ capacity: editingCapacity[p.id] }).eq('id', p.id),
+      ),
+    );
     setSavingCapacity(false);
+    const failed = results.filter((r) => r.error);
+    if (failed.length > 0) {
+      showToast(`${failed.length} Kapazität(en) nicht gespeichert: ${failed[0].error!.message}`);
+    } else if (changed.length > 0) {
+      showToast('Kapazitäten gespeichert.', 'success');
+    }
     loadData();
   }
 
@@ -257,29 +265,7 @@ export default function AdminSettingsPage() {
       };
     });
 
-    const headers = Object.keys(rows[0]);
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) =>
-        headers
-          .map((h) => {
-            const val = (row as Record<string, unknown>)[h];
-            const str = String(val ?? '');
-            return str.includes(',') || str.includes('"') || str.includes('\n')
-              ? `"${str.replace(/"/g, '""')}"`
-              : str;
-          })
-          .join(','),
-      ),
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rechnungsdaten-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`rechnungsdaten-${new Date().toISOString().split('T')[0]}.csv`, buildCsv(rows));
   }
 
   async function exportCsv() {
@@ -317,30 +303,7 @@ export default function AdminSettingsPage() {
       };
     });
 
-    const headers = Object.keys(rows[0]);
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) =>
-        headers
-          .map((h) => {
-            const val = (row as Record<string, unknown>)[h];
-            const str = String(val ?? '');
-            return str.includes(',') || str.includes('"') || str.includes('\n')
-              ? `"${str.replace(/"/g, '""')}"`
-              : str;
-          })
-          .join(','),
-      ),
-    ].join('\n');
-
-    // BOM like the other exports — without it Excel mangles the umlauts.
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bestellungen-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`bestellungen-${new Date().toISOString().split('T')[0]}.csv`, buildCsv(rows));
   }
 
   async function exportStripeFees() {
@@ -366,14 +329,7 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      // Trigger CSV download
-      const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = data.filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsv(data.filename, data.csv);
 
       setStripeFeeSummary(data.summary);
     } catch (err: any) {
@@ -467,25 +423,12 @@ export default function AdminSettingsPage() {
       ].join(';'));
     }
 
-    const csvContent = '\uFEFF' + lines.join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `datev-${receiptDateFrom}-${receiptDateTo || 'bis'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`datev-${receiptDateFrom}-${receiptDateTo || 'bis'}.csv`, lines.join('\r\n'));
     setExportMsg(`${orders.length} Rechnungen als DATEV-Buchungsstapel exportiert.`);
     setTimeout(() => setExportMsg(''), 5000);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Einstellungen...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Einstellungen" />;
 
   return (
     <div>
@@ -775,9 +718,9 @@ export default function AdminSettingsPage() {
                 {stripeFeeSummary.days} Tage · {stripeFeeSummary.transactions} Transaktionen
               </p>
               <p className="text-smitten-text/60">
-                Brutto: €{(stripeFeeSummary.total_gross_cents / 100).toFixed(2).replace('.', ',')} ·
-                Gebühren: €{(stripeFeeSummary.total_fee_cents / 100).toFixed(2).replace('.', ',')} ·
-                Netto: €{(stripeFeeSummary.total_net_cents / 100).toFixed(2).replace('.', ',')}
+                Brutto: {formatPrice(stripeFeeSummary.total_gross_cents)} ·
+                Gebühren: {formatPrice(stripeFeeSummary.total_fee_cents)} ·
+                Netto: {formatPrice(stripeFeeSummary.total_net_cents)}
               </p>
             </div>
           )}
@@ -834,7 +777,7 @@ export default function AdminSettingsPage() {
                       {new Date(cn.created_at).toLocaleDateString('de-DE')}
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium text-red-600">
-                      −{(cn.total_gross_cents / 100).toFixed(2).replace('.', ',')} €
+                      −{formatPrice(cn.total_gross_cents)}
                     </td>
                     <td className="px-4 py-3 text-sm text-smitten-text/70">{cn.reason}</td>
                   </tr>
@@ -877,13 +820,7 @@ export default function AdminSettingsPage() {
                   <td className="px-4 py-3 text-smitten-text">{product.name}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-smitten-bg text-smitten-text/60">
-                      {product.cycle === 'permanent'
-                        ? 'Immer'
-                        : product.cycle === 'week_a'
-                        ? 'Woche A'
-                        : product.cycle === 'week_b'
-                        ? 'Woche B'
-                        : 'Versteckt'}
+                      {cycleLabels[product.cycle] ?? product.cycle}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">

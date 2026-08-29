@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
 import { berlinTodayISO } from '@/lib/pickup';
 import { Product, formatPrice } from '@/lib/types';
-
-const cycleLabels: Record<string, string> = {
-  permanent: 'Immer',
-  week_a: 'Woche A',
-  week_b: 'Woche B',
-  hidden: 'Versteckt',
-};
+import { StatusPill } from '@/components/admin/StatusPill';
+import { showToast } from '@/components/admin/toast';
+import { cycleLabels } from '@/lib/adminLabels';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -153,13 +150,15 @@ export default function AdminProductsPage() {
       })
       .eq('id', editingId);
 
-    if (!error) {
-      setEditingId(null);
-      setEditForm({});
-      setWarning(null);
-      setWarningAction(null);
-      loadProducts();
+    if (error) {
+      showToast(`Speichern fehlgeschlagen: ${error.message}`);
+      return;
     }
+    setEditingId(null);
+    setEditForm({});
+    setWarning(null);
+    setWarningAction(null);
+    loadProducts();
   }
 
   async function handleDisable(productId: string, disableAll: boolean) {
@@ -174,11 +173,13 @@ export default function AdminProductsPage() {
       .update(updates)
       .eq('id', productId);
 
-    if (!error) {
-      setWarning(null);
-      setWarningAction(null);
-      loadProducts();
+    if (error) {
+      showToast(`Deaktivieren fehlgeschlagen: ${error.message}`);
+      return;
     }
+    setWarning(null);
+    setWarningAction(null);
+    loadProducts();
   }
 
   async function emergencyDisable(product: Product) {
@@ -259,13 +260,7 @@ export default function AdminProductsPage() {
     setUploading(false);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Produkte...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Produkte" />;
 
   return (
     <div>
@@ -507,11 +502,9 @@ export default function AdminProductsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-smitten-text">{product.name}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        product.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
+                      <StatusPill tone={product.active ? 'green' : 'gray'}>
                         {product.active ? 'Aktiv' : 'Inaktiv'}
-                      </span>
+                      </StatusPill>
                     </div>
                     <p className="text-xs text-smitten-text/40 mt-0.5">
                       {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · {cycleLabels[product.cycle] || product.cycle}

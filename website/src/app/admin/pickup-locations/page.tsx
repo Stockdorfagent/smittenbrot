@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { StatusPill } from '@/components/admin/StatusPill';
+import { showToast } from '@/components/admin/toast';
 import { PickupLocation } from '@/lib/types';
 
 export default function AdminPickupLocationsPage() {
@@ -62,11 +65,13 @@ export default function AdminPickupLocationsPage() {
         sort_order: editForm.sort_order,
       })
       .eq('id', editingId);
-    if (!error) {
-      setEditingId(null);
-      setEditForm({});
-      loadLocations();
+    if (error) {
+      showToast(`Speichern fehlgeschlagen: ${error.message}`);
+      return;
     }
+    setEditingId(null);
+    setEditForm({});
+    loadLocations();
   }
 
   async function addLocation() {
@@ -82,26 +87,23 @@ export default function AdminPickupLocationsPage() {
       active: addForm.active,
       sort_order: addForm.sort_order,
     });
-    if (!error) {
-      setShowAdd(false);
-      setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', pickup_instructions: '', available_wed: true, available_sat: false, active: true, sort_order: 0 });
-      loadLocations();
+    if (error) {
+      showToast(`Anlegen fehlgeschlagen: ${error.message}`);
+      return;
     }
+    setShowAdd(false);
+    setAddForm({ name: '', address: '', cabinet_code: '', notification_template: '', pickup_instructions: '', available_wed: true, available_sat: false, active: true, sort_order: 0 });
+    loadLocations();
   }
 
   async function deleteLocation(id: string) {
     if (!confirm('Abholort wirklich löschen?')) return;
     const { error } = await supabase.from('pickup_locations').delete().eq('id', id);
-    if (!error) loadLocations();
+    if (error) showToast(`Löschen fehlgeschlagen: ${error.message}`);
+    else loadLocations();
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Abholorte...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Abholorte" />;
 
   return (
     <div>
@@ -338,11 +340,9 @@ export default function AdminPickupLocationsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-smitten-text">{loc.name}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        loc.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
+                      <StatusPill tone={loc.active ? 'green' : 'gray'}>
                         {loc.active ? 'Aktiv' : 'Inaktiv'}
-                      </span>
+                      </StatusPill>
                     </div>
                     <p className="text-xs text-smitten-text/40 mt-0.5">{loc.address}</p>
                     <p className="text-xs text-smitten-text/40">Sortierung: {loc.sort_order}</p>

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { StatusPill } from '@/components/admin/StatusPill';
+import { notificationTypeLabels, notificationChannelLabels } from '@/lib/adminLabels';
 
 interface Notification {
   id: string;
@@ -14,24 +17,6 @@ interface Notification {
   order: { order_number: string | null; fulfillment_date: string } | null;
   customer: { email: string | null; name: string | null } | null;
 }
-
-const typeLabels: Record<string, string> = {
-  order_receipt: 'Bestellbestätigung',
-  subscription_reminder: 'Abonnement-Erinnerung',
-  order_placed: 'Bestellung aufgegeben',
-  pickup_ready: 'Abholbereit',
-  payment_failed: 'Zahlung fehlgeschlagen',
-  admin_alert: 'Admin-Benachrichtigung',
-  closure_notice: 'Schließzeit-Hinweis',
-  subscription_paused: 'Abonnement pausiert',
-  subscription_cancelled: 'Abonnement gekündigt',
-};
-
-const channelLabels: Record<string, string> = {
-  push: 'Push',
-  email: 'E-Mail',
-  both: 'Beide',
-};
 
 export default function AdminNotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -55,13 +40,7 @@ export default function AdminNotificationsPage() {
     setLoading(false);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Benachrichtigungen...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Benachrichtigungen" />;
 
   return (
     <div>
@@ -88,7 +67,7 @@ export default function AdminNotificationsPage() {
               {notifications.map((n) => (
                 <tr key={n.id} className="border-b border-smitten-cream last:border-0">
                   <td className="px-4 py-3 text-smitten-text">
-                    {typeLabels[n.type] || n.type}
+                    {notificationTypeLabels[n.type] || n.type}
                   </td>
                   <td className="px-4 py-3 text-smitten-text/70">
                     {n.order?.order_number ? (
@@ -103,19 +82,15 @@ export default function AdminNotificationsPage() {
                     {n.customer?.email ?? <span className="text-smitten-text/30">—</span>}
                   </td>
                   <td className="px-4 py-3 text-smitten-text">
-                    {channelLabels[n.channel] || n.channel}
+                    {notificationChannelLabels[n.channel] || n.channel}
                   </td>
                   <td className="px-4 py-3 text-smitten-text">
                     {new Date(n.sent_at).toLocaleString('de-DE')}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      n.delivered
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
+                    <StatusPill tone={n.delivered ? 'green' : 'red'}>
                       {n.delivered ? 'Zugestellt' : 'Fehlgeschlagen'}
-                    </span>
+                    </StatusPill>
                     {n.error && (
                       <span className="ml-2 text-xs text-red-500">{n.error}</span>
                     )}

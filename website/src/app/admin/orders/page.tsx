@@ -2,9 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
 import { Order, OrderItem, PickupLocation, formatPrice } from '@/lib/types';
 import Link from 'next/link';
 import { berlinTodayISO } from '@/lib/pickup';
+import { StatusPill } from '@/components/admin/StatusPill';
+import {
+  notificationTypeLabels,
+  notificationChannelLabels,
+  orderStatusAdminLabels,
+  paymentStatusLabels,
+} from '@/lib/adminLabels';
 
 interface OrderWithItems extends Order {
   items?: (OrderItem & { product_name?: string })[];
@@ -22,19 +30,6 @@ interface OrderNotification {
   provider_message_id: string | null;
 }
 
-const notificationTypeLabels: Record<string, string> = {
-  order_receipt: 'Bestellbestätigung',
-  order_placed: 'Bestellung aufgegeben',
-  pickup_ready: 'Abholbereit',
-  payment_failed: 'Zahlung fehlgeschlagen',
-};
-
-const notificationChannelLabels: Record<string, string> = {
-  email: 'E-Mail',
-  push: 'App',
-  both: 'App + E-Mail',
-};
-
 /**
  * The day the order_id link started being written. Before this, notifications
  * were logged but not tied to an order, so an empty list for an older order
@@ -42,23 +37,6 @@ const notificationChannelLabels: Record<string, string> = {
  * loudly, since the whole point of this panel is answering that question.
  */
 const NOTIFICATION_LINK_SINCE = '2026-08-26';
-
-const statusLabels: Record<string, string> = {
-  scheduled: 'Neu',
-  processing: 'In Bearbeitung',
-  grace_period_open: 'Änderungsfenster',
-  locked_for_production: 'Für Produktion gesperrt',
-  fulfilled: 'Abgeholt',
-  refunded: 'Rückerstattet',
-  cancelled: 'Storniert',
-};
-
-const paymentLabels: Record<string, string> = {
-  pending: 'Ausstehend',
-  paid: 'Bezahlt',
-  failed: 'Fehlgeschlagen',
-  refunded: 'Rückerstattet',
-};
 
 /**
  * Guard against ticking off an order that is not ready to be ticked off.
@@ -253,13 +231,7 @@ export default function AdminOrdersPage() {
     return true;
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Bestellungen...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Bestellungen" />;
 
   return (
     <div>
@@ -272,7 +244,7 @@ export default function AdminOrdersPage() {
           className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
           <option value="">Alle Status</option>
-          {Object.entries(statusLabels).map(([key, label]) => (
+          {Object.entries(orderStatusAdminLabels).map(([key, label]) => (
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
@@ -379,22 +351,20 @@ export default function AdminOrdersPage() {
                           Wird bei Produktion zugewiesen
                         </span>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        order.status === 'fulfilled' ? 'bg-green-100 text-green-700' :
-                        order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                        order.status === 'locked_for_production' ? 'bg-amber-100 text-amber-700' :
-                        order.status === 'refunded' ? 'bg-purple-100 text-purple-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {statusLabels[order.status] || order.status}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        order.payment_status === 'paid' ? 'bg-green-100 text-green-700' :
-                        order.payment_status === 'failed' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {paymentLabels[order.payment_status] || order.payment_status}
-                      </span>
+                      <StatusPill tone={
+                        order.status === 'fulfilled' ? 'green' :
+                        order.status === 'cancelled' ? 'red' :
+                        order.status === 'locked_for_production' ? 'amber' :
+                        order.status === 'refunded' ? 'purple' : 'blue'
+                      }>
+                        {orderStatusAdminLabels[order.status] || order.status}
+                      </StatusPill>
+                      <StatusPill tone={
+                        order.payment_status === 'paid' ? 'green' :
+                        order.payment_status === 'failed' ? 'red' : 'gray'
+                      }>
+                        {paymentStatusLabels[order.payment_status] || order.payment_status}
+                      </StatusPill>
                       <div className="text-right">
                         <span className="text-sm font-medium text-smitten-accent">
                           {formatPrice(order.total_cents)}

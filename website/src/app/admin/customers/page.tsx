@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { StatusPill } from '@/components/admin/StatusPill';
+import { formatPrice } from '@/lib/types';
 
 interface CustomerWithStats {
   id: string;
@@ -99,10 +102,6 @@ export default function AdminCustomersPage() {
     }
   }
 
-  function formatPrice(cents: number): string {
-    return `€${(cents / 100).toFixed(2).replace('.', ',')}`;
-  }
-
   const filtered = rows
     .filter((c) => {
       if (!search) return true;
@@ -110,13 +109,7 @@ export default function AdminCustomersPage() {
       return (c.name || '').toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
     });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Kunden...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Kunden" />;
 
   if (error) {
     return (
@@ -176,9 +169,9 @@ export default function AdminCustomersPage() {
                         {c.name || '—'}
                       </p>
                       {c.subscription_active && (
-                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                        <StatusPill tone="green" className="shrink-0">
                           Abo
-                        </span>
+                        </StatusPill>
                       )}
                     </div>
                     <p className="text-xs text-smitten-text/60 mt-0.5">{c.email}</p>

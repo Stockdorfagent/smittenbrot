@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { AdminToasts } from '@/components/admin/toast';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard' },
@@ -62,6 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-smitten-bg flex">
+      <AdminToasts />
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-40 lg:hidden"

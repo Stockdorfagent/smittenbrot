@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { AdminLoading } from '@/components/admin/AdminLoading';
+import { StatusPill } from '@/components/admin/StatusPill';
 import { berlinTodayISO } from '@/lib/pickup';
 
 interface Closure {
@@ -86,13 +88,7 @@ export default function AdminClosuresPage() {
     return closure.end_date < berlinTodayISO();
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-smitten-text/40">Lädt Schließzeiten...</p>
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading what="Schließzeiten" />;
 
   return (
     <div>
@@ -197,21 +193,9 @@ export default function AdminClosuresPage() {
                           {new Date(closure.start_date).toLocaleDateString('de-DE')} –{' '}
                           {new Date(closure.end_date).toLocaleDateString('de-DE')}
                         </p>
-                        {active && (
-                          <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
-                            Aktiv
-                          </span>
-                        )}
-                        {past && (
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                            Vergangen
-                          </span>
-                        )}
-                        {!active && !past && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                            Geplant
-                          </span>
-                        )}
+                        {active && <StatusPill tone="red" className="font-medium">Aktiv</StatusPill>}
+                        {past && <StatusPill tone="gray">Vergangen</StatusPill>}
+                        {!active && !past && <StatusPill tone="blue">Geplant</StatusPill>}
                       </div>
                       {closure.reason && (
                         <p className="text-xs text-smitten-text/60 mt-0.5">{closure.reason}</p>
