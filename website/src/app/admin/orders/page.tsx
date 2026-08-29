@@ -73,8 +73,8 @@ function confirmTickOff(
     }
     if (!confirm(
       'ACHTUNG: Diese Bestellung ist nicht bezahlt.\n\n' +
-      'Wenn du sie als abgeholt markierst, wird sie nie belastet. ' +
-      'Trotzdem abhaken?',
+      'Wenn du sie als erledigt markierst, wird sie nie belastet. ' +
+      'Trotzdem erledigen?',
     )) return false;
   }
 
