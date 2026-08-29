@@ -432,9 +432,14 @@ export interface PickupReadyResult {
  *   4. Log to the notifications table
  *
  * Placeholders:
- *   {ORDER_NUMBER}        — Last 8 characters of the order UUID (short identifier)
+ *   {ORDER_NUMBER}        — The customer-facing order number
  *   {PICKUP_LOCATION}     — Name of the pickup location
- *   {CODE}                — Last 6 characters of the order UUID (pickup code)
+ *   {CODE}                — The location's cabinet code
+ *   {NAME}                — The customer's first name, exactly as they wrote
+ *                           it (never rewritten); disappears cleanly when the
+ *                           order has no name. Using it in the template also
+ *                           SUPPRESSES the automatic "Hallo <Vorname>," lead-in
+ *                           of the email, so nobody is greeted twice.
  *   {EXTRA_TEXT}          — Optional extra text (unlock codes, instructions, etc.)
  *
  * @param orderIds    Array of order UUIDs to send pickup-ready notifications for
@@ -519,10 +524,19 @@ export async function send_pickup_ready(
         ? template
         : template.replace(/Bestellnummer\s*\{ORDER_NUMBER\}/gi, "Bestellung {ORDER_NUMBER}");
 
+      // First name exactly as the customer wrote it (never rewrite names —
+      // "S. Smittenberg" greets as "S."). With no name on the order, the
+      // placeholder vanishes ALONG WITH its leading space, so
+      // "Hallo {NAME}!" degrades to "Hallo!" instead of "Hallo !".
+      const firstName = ((order.customer_name as string | null) ?? "").trim().split(/\s+/)[0] ?? "";
+      const templateHasName = /\{NAME\}/i.test(template2);
+
       const renderedBody = template2
         .replace(/\{ORDER_NUMBER\}/g, orderNumber)
         .replace(/\{PICKUP_LOCATION\}/g, locationName)
         .replace(/\{CODE\}/g, code)
+        .replace(/\s?\{NAME\}/gi, firstName ? ` ${firstName}` : "")
+        .replace(/^ /, "")
         .replace(/\{EXTRA_TEXT\}/g, extraText ?? "");
 
       // Append extraText if it wasn't used in template (e.g. if template has no {EXTRA_TEXT})
@@ -532,8 +546,9 @@ export async function send_pickup_ready(
 
       // 5. Build the email. House style: normal body type, brand palette, no
       //    emojis, and red used sparingly — here only for the order number.
-      const firstName = ((order.customer_name as string | null) ?? "").trim().split(/\s+/)[0];
-      const greeting = firstName ? `Hallo ${firstName},` : "Hallo,";
+      // When the owner's template already addresses the customer via {NAME},
+      // the automatic lead-in would greet twice — her greeting wins.
+      const greeting = templateHasName ? "" : firstName ? `Hallo ${firstName},` : "Hallo,";
       const bodyHtml = renderedBody
         .replace(/\n/g, "<br>")
         // the number is the one thing worth emphasising
@@ -544,7 +559,7 @@ export async function send_pickup_ready(
 
       const htmlBody = `
         <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1A1A1A; font-size: 15px; line-height: 1.55;">
-          <p style="margin: 0 0 16px;">${greeting}</p>
+          ${greeting ? `<p style="margin: 0 0 16px;">${greeting}</p>` : ""}
           <p style="margin: 0 0 16px;">${bodyHtml}</p>
           ${extraText ? `<p style="margin: 0 0 16px;">${extraText.replace(/\n/g, "<br>")}</p>` : ""}
           <p style="margin: 0 0 16px; color: #6B7280;">
