@@ -19,6 +19,9 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// Shared secret the pg_net cron sends as Bearer (migration 026) — same
+// secret as the subscription-engine cron actions (migration 024).
+const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
 // ── Clients ──────────────────────────────────────────────────
 
@@ -183,8 +186,30 @@ serve(async (req: Request) => {
   // path segment rather than an exact "/" (which never matches when deployed).
   const action = path.replace(/\/+$/, "").split("/").pop() ?? "";
   if (action === "current") {
+    // Deliberately public: the shop and the app read the current week here.
     return await handleCurrent();
   }
-  // Root (…/week-cycle-switch) → toggle. This is what the cron calls.
+
+  // Root (…/week-cycle-switch) → toggle. Guarded: an unauthenticated toggle
+  // flips which products the whole shop sells this week. Allowed callers:
+  // the pg_net cron (CRON_SECRET from Vault, migration 026), a trusted
+  // server (the runtime-injected service key), or an authenticated user with
+  // customers.is_admin (the website's Einstellungen button forwards the
+  // admin's own JWT — deliberately not a service-key comparison, since the
+  // runtime-injected key value differs from the one our servers hold).
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const bySecret =
+    (CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+    (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY);
+  if (!bySecret) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(bearer);
+    if (authErr || !user) return jsonResponse({ error: "Unauthorized" }, 401);
+    const { data: caller } = await supabase
+      .from("customers")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+    if (!caller?.is_admin) return jsonResponse({ error: "Nicht autorisiert." }, 403);
+  }
   return await handleToggle();
 });

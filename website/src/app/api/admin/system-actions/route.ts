@@ -31,13 +31,17 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     if (action === 'switch_week') {
+      // The admin's OWN JWT — the function's toggle gate accepts a caller
+      // with customers.is_admin. (Not the service key: the runtime-injected
+      // key value differs from the one our servers hold.)
+      const callerToken = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/week-cycle-switch`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            Authorization: `Bearer ${callerToken}`,
           },
         },
       );
