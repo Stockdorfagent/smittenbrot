@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
+import { siteUrl } from '@/lib/site';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
@@ -427,6 +428,11 @@ export default function SubscriptionCreateScreen() {
             </View>
             <Text style={styles.reviewHint}>
               Wird bei jeder Lieferung berechnet. Enthält 7 % MwSt.
+            </Text>
+            {/* § 305 Abs. 2 BGB: AGB-Hinweis am Vertragsschluss, tippbar. */}
+            <Text style={styles.reviewHint}>
+              Es gelten unsere{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => Linking.openURL(siteUrl('/agb'))}>AGB</Text>.
             </Text>
             <Button title="Abonnement erstellen" onPress={handleConfirm} loading={loading} size="lg" style={styles.nextButton} />
             <Button title="Zurück" onPress={() => goToStep('products')} variant="ghost" size="sm" style={styles.backButton} />

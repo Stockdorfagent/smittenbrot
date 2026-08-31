@@ -100,6 +100,12 @@ function PaymentForm({
         </div>
       )}
 
+      {/* § 305 Abs. 2 BGB: AGB müssen BEI Vertragsschluss ausdrücklich in
+          Bezug genommen werden — der Footer-Link allein bezieht sie nicht ein. */}
+      <p className="text-xs text-smitten-text/60">
+        Es gelten unsere <Link href="/agb" target="_blank" className="underline hover:text-smitten-text">AGB</Link>.
+      </p>
+
       <div className="flex gap-3">
         <button
           type="button"
@@ -378,7 +384,8 @@ function CheckoutForm() {
             <p className="text-sm font-medium text-smitten-text">Gefällt dir? Mach ein Abo draus.</p>
             <p className="mt-1 text-xs text-smitten-text/60">
               Gleiche Produkte, gleicher Abholort, jeden {recap.dayName} — ab der nächsten Lieferung,
-              jederzeit pausierbar und kündbar.
+              jederzeit pausierbar und kündbar. Es gelten unsere{' '}
+              <Link href="/agb" target="_blank" className="underline">AGB</Link>.
             </p>
             <button
               onClick={convertToSubscription}

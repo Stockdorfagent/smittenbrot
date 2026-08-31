@@ -504,6 +504,10 @@ function SubscriptionCreateForm() {
                 {stripeError && (
                   <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{stripeError}</div>
                 )}
+                {/* AGB-Einbeziehung am Vertragsschluss (§ 305 Abs. 2 BGB). */}
+                <p className="mt-4 text-xs text-smitten-text/60">
+                  Es gelten unsere <Link href="/agb" target="_blank" className="underline hover:text-smitten-text">AGB</Link>.
+                </p>
                 <button type="submit" disabled={!stripe || stripeLoading}
                   className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
                   {stripeLoading ? 'Wird verarbeitet...' : 'Zahlungsmethode speichern & Abo starten'}

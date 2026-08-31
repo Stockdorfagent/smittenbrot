@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
 import { formatPrice as fmt } from '@/lib/format';
+import { siteUrl } from '@/lib/site';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -169,6 +170,11 @@ export default function CheckoutScreen() {
 
         <Text style={styles.hint}>
           Sichere Zahlung über Stripe. Du erhältst nach Zahlungseingang eine Bestätigung per E-Mail.
+        </Text>
+        {/* § 305 Abs. 2 BGB: AGB-Hinweis am Vertragsschluss, tippbar. */}
+        <Text style={styles.hint}>
+          Es gelten unsere{' '}
+          <Text style={{ textDecorationLine: 'underline' }} onPress={() => Linking.openURL(siteUrl('/agb'))}>AGB</Text>.
         </Text>
       </ScrollView>
     </SafeAreaView>

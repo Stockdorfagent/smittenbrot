@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useStripe } from '@stripe/stripe-react-native';
 import { theme } from '@/lib/theme';
 import { formatPrice as fmt } from '@/lib/format';
+import { siteUrl } from '@/lib/site';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
@@ -287,11 +288,20 @@ export default function OrderDetailScreen() {
         </Text>
 
         {canConvert && (
-          <TouchableOpacity style={styles.convertButton} onPress={confirmConvert} disabled={converting} activeOpacity={0.8}>
-            <Text style={styles.convertButtonText}>
-              {converting ? 'Wird eingerichtet…' : 'Daraus ein Abo machen'}
+          <>
+            <TouchableOpacity style={styles.convertButton} onPress={confirmConvert} disabled={converting} activeOpacity={0.8}>
+              <Text style={styles.convertButtonText}>
+                {converting ? 'Wird eingerichtet…' : 'Daraus ein Abo machen'}
+              </Text>
+            </TouchableOpacity>
+            {/* Das Abo ist ein eigener Vertragsschluss — AGB-Hinweis auch hier
+                (§ 305 Abs. 2 BGB), unter dem Button statt im Alert, damit der
+                Link tippbar ist. */}
+            <Text style={[styles.muted, { fontSize: theme.fontSize.sm, textAlign: 'center', marginTop: 6 }]}>
+              Für das Abo gelten unsere{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => Linking.openURL(siteUrl('/agb'))}>AGB</Text>.
             </Text>
-          </TouchableOpacity>
+          </>
         )}
 
         {canCancel && (
