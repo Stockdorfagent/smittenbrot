@@ -102,6 +102,10 @@ export default function AdminOrdersPage() {
   const [notificationsByOrder, setNotificationsByOrder] = useState<Record<string, OrderNotification[]>>({});
   const [sending, setSending] = useState<Record<string, boolean>>({});
   const [invoiceFrom, setInvoiceFrom] = useState('');
+  const [invoiceLinks, setInvoiceLinks] = useState<
+    { id: string; invoice_number: string | null; customer_name: string | null; fulfillment_date: string }[]
+  >([]);
+  const [invoicesSearched, setInvoicesSearched] = useState(false);
   const [invoiceTo, setInvoiceTo] = useState('');
   const [hideTestOrders, setHideTestOrders] = useState(true);
   const [showPast, setShowPast] = useState(false);
@@ -212,23 +216,26 @@ export default function AdminOrdersPage() {
     return (data.order as Record<string, unknown>) ?? {};
   }
 
-  async function downloadInvoices() {
+  /**
+   * List the range's invoices as links instead of window.open per order —
+   * the browser popup-blocked everything after the first tab, so a 60-order
+   * range silently opened one invoice. Links the owner clicks herself are
+   * never blocked, and she usually wants one or two anyway (the accountant
+   * gets the CSV/DATEV exports).
+   */
+  async function listInvoices() {
     if (!invoiceFrom) return;
     const to = invoiceTo || '2099-12-31';
-    const { data: orders } = await supabase
+    const { data: found } = await supabase
       .from('orders')
-      .select('id, invoice_number')
+      .select('id, invoice_number, customer_name, fulfillment_date')
       .gte('fulfillment_date', invoiceFrom)
       .lte('fulfillment_date', to)
       .not('invoice_number', 'is', null)
-      .neq('status', 'cancelled');
-    if (!orders || orders.length === 0) {
-      alert('Keine Rechnungen im gewählten Zeitraum.');
-      return;
-    }
-    for (const o of orders) {
-      window.open(`/orders/${o.id}`, '_blank');
-    }
+      .neq('status', 'cancelled')
+      .order('fulfillment_date', { ascending: true });
+    setInvoiceLinks(found ?? []);
+    setInvoicesSearched(true);
   }
 
   // Paid orders are numbered TEST-#00001… while test-invoice-mode is on
@@ -431,10 +438,26 @@ export default function AdminOrdersPage() {
           <input type="date" value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)}
             className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
         </div>
-        <button onClick={downloadInvoices}
+        <button onClick={listInvoices}
           className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
-          Rechnungen öffnen ({invoiceFrom ? `ab ${invoiceFrom}` : 'Datum wählen'})
+          Rechnungen anzeigen ({invoiceFrom ? `ab ${invoiceFrom}` : 'Datum wählen'})
         </button>
+        {invoicesSearched && (
+          <div className="basis-full">
+            {invoiceLinks.length === 0 ? (
+              <p className="text-sm text-smitten-text/60">Keine Rechnungen im gewählten Zeitraum.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {invoiceLinks.map((inv) => (
+                  <Link key={inv.id} href={`/orders/${inv.id}`} target="_blank"
+                    className="text-xs font-mono px-2 py-1 rounded border border-smitten-cream text-smitten-secondary hover:border-smitten-text/30">
+                    {inv.invoice_number} · {inv.customer_name ?? 'Gast'}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {filteredOrders.length === 0 ? (
