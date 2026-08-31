@@ -1,0 +1,14 @@
+<!-- Supabase Auth "Confirm signup" template (first-time Anmeldecode).
+     Applied via the Management API (mailer_templates_confirmation_content),
+     kept here for the record. Same structure as auth-magic-link.html, with
+     the welcome heading and Sophia's sign-off preserved. -->
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1A1A1A; font-size: 15px; line-height: 1.55;">
+  <h2 style="font-size: 20px; margin: 0 0 16px;">Willkommen bei Smittenbrot</h2>
+  <p style="margin: 0 0 16px;">Hallo,</p>
+  <p style="margin: 0 0 8px;">gib diesen Code in der Smittenbrot-App oder auf der Website ein, um dich anzumelden:</p>
+  <p style="margin: 0 0 16px; font-size: 30px; font-weight: bold; letter-spacing: 6px; color: #f8120e;">{{ .Token }}</p>
+  <p style="margin: 0 0 16px;">Der Code ist 60 Minuten g&uuml;ltig. Alternativ kannst du dich <a href="{{ .ConfirmationURL }}" style="color: #1A1A1A;">direkt &uuml;ber diesen Link anmelden</a>.</p>
+  <p style="margin: 0 0 16px; color: #6B7280; font-size: 13px;">Falls du das nicht warst, ignoriere diese E-Mail einfach.</p>
+  <p style="margin: 0 0 16px;">Liebe Gr&uuml;&szlig;e<br>Sophia</p>
+  <p style="margin: 24px 0 0; padding-top: 12px; border-top: 1px solid #E5E7EB; color: #9CA3AF; font-size: 12px;">Smittenbrot &middot; Sauerteig aus Stockdorf &middot; smittenbrot.de</p>
+</div>
