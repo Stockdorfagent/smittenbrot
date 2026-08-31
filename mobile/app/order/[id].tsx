@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { useStripe } from '@stripe/stripe-react-native';
 import { theme } from '@/lib/theme';
 import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 import { loadPickedUp, markPickedUp, unmarkPickedUp } from '@/lib/pickedUp';
+import { collectPaymentMethod } from '@/lib/stripeSetup';
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending: 'Ausstehend',
@@ -42,11 +44,14 @@ interface OrderRow {
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [collected, setCollected] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => { if (id) load(); }, [id]);
 
@@ -92,6 +97,65 @@ export default function OrderDetailScreen() {
     }
   }
 
+  /**
+   * "Mach daraus ein Abo" (tester request): same products, same Abholort,
+   * same Wochentag — created server-side by the engine, which also checks
+   * that a card is on file and starts the Abo at the NEXT delivery so this
+   * week's bread is not baked twice. needs_payment_method falls back to the
+   * shared PaymentSheet flow, then retries once.
+   */
+  async function doConvert(retryAfterCard = true): Promise<void> {
+    setConverting(true);
+    try {
+      const { error } = await supabase.functions.invoke(
+        'subscription-engine/convert-order-to-subscription',
+        { body: { order_id: id } },
+      );
+      if (!error) {
+        Alert.alert(
+          'Abo eingerichtet',
+          'Ab jetzt kommt diese Bestellung jede Woche — los geht es mit der nächsten Lieferung. Verwalten kannst du das Abo unter „Abos“.',
+          [{ text: 'Zu meinen Abos', onPress: () => router.push('/(tabs)/subscriptions') }, { text: 'OK' }],
+        );
+        return;
+      }
+      let message = 'Das hat leider nicht geklappt. Bitte versuche es erneut.';
+      let needsCard = false;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const b = await error.context.json();
+          message = b?.error ?? message;
+          needsCard = !!b?.needs_payment_method;
+        } catch { /* keep default */ }
+      }
+      if (needsCard && retryAfterCard) {
+        const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet });
+        if (card.ok) return await doConvert(false);
+        if (!card.cancelled) Alert.alert('Fehler', card.error ?? message);
+        return;
+      }
+      Alert.alert('Nicht möglich', message);
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  function confirmConvert() {
+    if (!order) return;
+    const itemsText = (order.items ?? [])
+      .map((i) => `${i.quantity}× ${i.product?.name ?? 'Produkt'}`)
+      .join('\n');
+    const dayName = new Date(order.fulfillment_date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch';
+    Alert.alert(
+      'Daraus ein Abo machen?',
+      `${itemsText}\n\nAbholort: ${order.pickup_location?.name ?? '—'}\nAbholtag: jeden ${dayName}\n\nDiese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${dayName} und wird jeweils am Bestelltag abgebucht. Jederzeit pausierbar und kündbar.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        { text: 'Abo einrichten', onPress: () => doConvert() },
+      ],
+    );
+  }
+
   if (loading) {
     return <SafeAreaView style={styles.container}><View style={styles.center}><Text style={styles.muted}>Lädt…</Text></View></SafeAreaView>;
   }
@@ -117,6 +181,14 @@ export default function OrderDetailScreen() {
     order.order_type === 'one_time' &&
     order.payment_status === 'paid' &&
     !['cancelled', 'refunded', 'fulfilled'].includes(order.status);
+
+  // Converting stays possible after collection ("das war lecker — ab jetzt
+  // jede Woche"); only cancelled/refunded orders are out.
+  const canConvert =
+    isOwnOrder &&
+    order.order_type === 'one_time' &&
+    order.payment_status === 'paid' &&
+    !['cancelled', 'refunded'].includes(order.status);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -214,6 +286,14 @@ export default function OrderDetailScreen() {
             : 'Die Zahlung erfolgt am Bestelltag. Deine Rechnung erhältst du danach per E-Mail.'}
         </Text>
 
+        {canConvert && (
+          <TouchableOpacity style={styles.convertButton} onPress={confirmConvert} disabled={converting} activeOpacity={0.8}>
+            <Text style={styles.convertButtonText}>
+              {converting ? 'Wird eingerichtet…' : 'Daraus ein Abo machen'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {canCancel && (
           <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel} disabled={cancelling} activeOpacity={0.8}>
             <Text style={styles.cancelButtonText}>{cancelling ? 'Wird storniert…' : 'Bestellung stornieren'}</Text>
@@ -266,6 +346,11 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
   totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
   note: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, textAlign: 'center', marginTop: theme.spacing.sm, marginBottom: theme.spacing.lg, lineHeight: 20 },
+  convertButton: {
+    backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md, alignItems: 'center', marginBottom: theme.spacing.sm,
+  },
+  convertButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.white },
   cancelButton: {
     borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md, alignItems: 'center',

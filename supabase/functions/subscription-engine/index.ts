@@ -2241,6 +2241,123 @@ serve(withCors(async (req: Request): Promise<Response> => {
         return json(result, result.success ? 200 : 400);
       }
 
+      /**
+       * "Mach daraus ein Abo" — turn a paid one-time order into a subscription
+       * with the same products, Abholort and weekday (tester request).
+       *
+       * Two rules make it safe:
+       * - A saved payment method is REQUIRED (the 22:00 run charges
+       *   off-session). Checkouts save the card (setup_future_usage), but if
+       *   none is on file the client gets needs_payment_method and runs its
+       *   card-setup flow first.
+       * - If the bought pickup date is still ahead, the subscription starts
+       *   PAUSED until that date. Otherwise the Mon/Thu run would generate an
+       *   Abo order for the very date the customer already bought — double
+       *   bread. The auto-resume flips it active ON that date, and the cutoff
+       *   rule makes the first Abo order the next cycle. The clients word it
+       *   as "läuft ab der nächsten Lieferung".
+       */
+      case "convert-order-to-subscription": {
+        let body: { order_id?: string };
+        try { body = await req.json(); } catch {
+          return json({ error: "Invalid JSON body" }, 400);
+        }
+        if (!body.order_id) return json({ error: "order_id is required" }, 400);
+
+        const { data: { user }, error: authErr } = await supabase.auth.getUser(bearer);
+        if (authErr || !user) return json({ error: "Unauthorized" }, 401);
+
+        const { data: order, error: ordErr } = await supabase
+          .from("orders")
+          .select("id, customer_id, customer_email, customer_name, order_type, payment_status, status, fulfillment_date, pickup_location_id")
+          .eq("id", body.order_id)
+          .single();
+        if (ordErr || !order) return json({ error: "Bestellung nicht gefunden" }, 404);
+        if (order.customer_id !== user.id) {
+          const { data: caller } = await supabase
+            .from("customers").select("is_admin").eq("id", user.id).single();
+          if (!caller?.is_admin) return json({ error: "Nicht autorisiert." }, 403);
+        }
+        if (order.order_type !== "one_time") {
+          return json({ success: false, error: "Diese Bestellung gehört bereits zu einem Abo." }, 409);
+        }
+        if (order.payment_status !== "paid" || order.status === "cancelled" || order.status === "refunded") {
+          return json({ success: false, error: "Nur eine bezahlte, nicht stornierte Bestellung kann zum Abo werden." }, 409);
+        }
+
+        // The weekly charge needs a card on file.
+        const stripeCustomer = await getOrCreateStripeCustomer(
+          order.customer_id as string,
+          (order.customer_email as string) ?? "",
+          (order.customer_name as string) ?? "",
+        );
+        const pm = stripeCustomer ? await getDefaultPaymentMethod(stripeCustomer.id) : null;
+        if (!pm) {
+          return json({
+            success: false,
+            needs_payment_method: true,
+            error: "Keine gespeicherte Zahlungsmethode — bitte zuerst eine Karte hinterlegen.",
+          }, 409);
+        }
+
+        // Only subscribable products can recur; the rest is reported back so
+        // the client can say what was left out.
+        const { data: rawItems } = await supabase
+          .from("order_items")
+          .select("quantity, products!inner ( id, name, subscribable, cycle )")
+          .eq("order_id", order.id);
+        const subItems: { product_id: string; quantity: number }[] = [];
+        const excluded: string[] = [];
+        for (const it of rawItems ?? []) {
+          const prod = it.products as unknown as { id: string; name: string; subscribable: boolean; cycle: string };
+          if (prod.subscribable === false || prod.cycle === "hidden") excluded.push(prod.name);
+          else subItems.push({ product_id: prod.id, quantity: it.quantity as number });
+        }
+        if (subItems.length === 0) {
+          return json({ success: false, error: "Keines der Produkte ist im Abo erhältlich." }, 409);
+        }
+
+        const dowNum = new Date((order.fulfillment_date as string) + "T12:00:00Z").getUTCDay();
+        const pickupDay = dowNum === 6 ? "saturday" : "wednesday";
+        const startsPaused = (order.fulfillment_date as string) >= todayInTz();
+
+        const { data: sub, error: subErr } = await supabase
+          .from("subscriptions")
+          .insert({
+            customer_id: order.customer_id,
+            pickup_location_id: order.pickup_location_id,
+            pickup_day: pickupDay,
+            status: startsPaused ? "paused" : "active",
+            paused_until: startsPaused ? order.fulfillment_date : null,
+          })
+          .select("id")
+          .single();
+        if (subErr || !sub) return json({ success: false, error: subErr?.message ?? "Abo konnte nicht angelegt werden." }, 500);
+
+        const { error: itemsErr } = await supabase
+          .from("subscription_items")
+          .insert(subItems.map((i) => ({ subscription_id: sub.id, ...i })));
+        if (itemsErr) {
+          await supabase.from("subscriptions").delete().eq("id", sub.id);
+          return json({ success: false, error: itemsErr.message }, 500);
+        }
+
+        await logAudit("order_converted_to_subscription", "subscription", sub.id, null, {
+          order_id: order.id,
+          pickup_day: pickupDay,
+          items: subItems.length,
+          excluded_items: excluded,
+          starts_paused_until: startsPaused ? order.fulfillment_date : null,
+        });
+
+        return json({
+          success: true,
+          subscription_id: sub.id,
+          pickup_day: pickupDay,
+          excluded_items: excluded,
+        });
+      }
+
       default: {
         // If no recognized action, return available endpoints
         return json({
@@ -2254,6 +2371,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
             "pause",
             "resume",
             "update-subscription",
+            "convert-order-to-subscription",
           ],
         }, 404);
       }

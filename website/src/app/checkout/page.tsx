@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
 import { getNextPickup } from '@/lib/pickup';
-import { supabase } from '@/lib/supabase';
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import Link from 'next/link';
@@ -128,6 +128,12 @@ function CheckoutForm() {
   const [name, setName] = useState(searchParams.get('name') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
+  const [recap, setRecap] = useState<{ items: string[]; locationId: string; dayName: string } | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [convertBusy, setConvertBusy] = useState(false);
+  const [convertMsg, setConvertMsg] = useState('');
+  const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [converted, setConverted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -148,6 +154,7 @@ function CheckoutForm() {
     async function loadProfile() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        setIsLoggedIn(true);
         setEmail(session.user.email || '');
         const { data: customer } = await supabase
           .from('customers').select('name').eq('id', session.user.id).single();
@@ -257,6 +264,7 @@ function CheckoutForm() {
       if (!response.ok) throw new Error(data.error || 'Payment failed');
 
       setClientSecret(data.clientSecret);
+      setPaymentIntentId(data.paymentIntentId ?? '');
       setStep('payment');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
@@ -266,8 +274,67 @@ function CheckoutForm() {
   }
 
   function handlePaymentSuccess() {
+    // Snapshot for the "Daraus ein Abo machen" recap — the cart empties now.
+    setRecap({
+      items: state.items.map((i) => `${i.quantity}× ${i.name}`),
+      locationId: state.pickupLocationId ?? '',
+      dayName:
+        new Date(getNextPickup().date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch',
+    });
     clearCart();
     setStep('success');
+  }
+
+  /**
+   * "Mach daraus ein Abo" (tester request), logged-in customers only — an Abo
+   * needs an account and the saved card. The engine creates it server-side:
+   * same products (subscribable ones), same Abholort, same Wochentag, starting
+   * with the NEXT delivery so this week's bread is not baked twice. The order
+   * id is looked up via the PaymentIntent; the webhook may still be writing,
+   * hence the short retry.
+   */
+  async function convertToSubscription() {
+    if (!paymentIntentId || !recap) return;
+    // Resolve the location name lazily — the checkout page itself only keeps
+    // the id (the success view shows the location's instructions, not its name).
+    const { data: loc } = await supabase
+      .from('pickup_locations').select('name').eq('id', recap.locationId).maybeSingle();
+    if (!confirm(
+      `Aus dieser Bestellung ein wöchentliches Abo machen?\n\n${recap.items.join('\n')}\n\n` +
+      `Abholort: ${loc?.name ?? '—'}\nAbholtag: jeden ${recap.dayName}\n\n` +
+      `Diese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${recap.dayName} ` +
+      `und wird jeweils am Bestelltag abgebucht. Jederzeit pausierbar und kündbar.`,
+    )) return;
+    setConvertBusy(true);
+    setConvertMsg('');
+    try {
+      let orderId: string | null = null;
+      for (let attempt = 0; attempt < 6 && !orderId; attempt++) {
+        const { data: found } = await supabase
+          .from('orders')
+          .select('id, payment_status')
+          .eq('stripe_payment_intent_id', paymentIntentId)
+          .maybeSingle();
+        if (found?.payment_status === 'paid') orderId = found.id;
+        else await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!orderId) {
+        setConvertMsg('Deine Bestellung wird noch verarbeitet — bitte versuche es gleich noch einmal.');
+        return;
+      }
+      const res = await invokeEdgeFunction(
+        'subscription-engine/convert-order-to-subscription',
+        { order_id: orderId },
+        'Das hat leider nicht geklappt. Du kannst ein Abo jederzeit unter „Abos“ einrichten.',
+      );
+      if (!res.ok) {
+        setConvertMsg(res.message);
+        return;
+      }
+      setConverted(true);
+    } finally {
+      setConvertBusy(false);
+    }
   }
 
   function handleBack() {
@@ -306,6 +373,32 @@ function CheckoutForm() {
             <p className="mt-2 text-sm text-amber-800">{pickupInstructions}</p>
           )}
         </div>
+        {isLoggedIn && recap && !converted && (
+          <div className="mt-6 p-4 bg-white border border-smitten-cream rounded-xl text-left">
+            <p className="text-sm font-medium text-smitten-text">Gefällt dir? Mach ein Abo draus.</p>
+            <p className="mt-1 text-xs text-smitten-text/60">
+              Gleiche Produkte, gleicher Abholort, jeden {recap.dayName} — ab der nächsten Lieferung,
+              jederzeit pausierbar und kündbar.
+            </p>
+            <button
+              onClick={convertToSubscription}
+              disabled={convertBusy}
+              className="mt-3 bg-smitten-primary text-white px-5 py-2 rounded-full text-sm hover:bg-smitten-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {convertBusy ? 'Wird eingerichtet...' : 'Daraus ein Abo machen'}
+            </button>
+            {convertMsg && <p className="mt-2 text-xs text-red-600">{convertMsg}</p>}
+          </div>
+        )}
+        {converted && (
+          <div className="mt-6 p-4 bg-white border border-smitten-cream rounded-xl text-left">
+            <p className="text-sm font-medium text-smitten-text">Dein Abo ist eingerichtet.</p>
+            <p className="mt-1 text-xs text-smitten-text/60">
+              Es liefert ab dem nächsten {recap?.dayName ?? 'Abholtag'}.{' '}
+              <Link href="/subscriptions" className="underline">Zu meinen Abos</Link>
+            </p>
+          </div>
+        )}
         <Link
           href="/products"
           className="mt-8 inline-block bg-smitten-primary text-white px-6 py-2 rounded-full text-sm"

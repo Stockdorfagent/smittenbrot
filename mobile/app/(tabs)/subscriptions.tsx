@@ -12,6 +12,7 @@ import { Button } from '@/components/Button';
 import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
 import { localDateISO } from '@/lib/pickup';
+import { collectPaymentMethod } from '@/lib/stripeSetup';
 
 const DAY_LABELS: Record<string, string> = {
   wednesday: 'Mittwochs',
@@ -105,35 +106,9 @@ export default function SubscriptionsScreen() {
   const handleUpdatePayment = async (subId: string) => {
     setBusyId(subId);
     try {
-      const { data, error } = await supabase.functions.invoke('create-setup-intent', { body: {} });
-      if (error || !data?.setupIntentClientSecret) {
-        Alert.alert('Fehler', 'Zahlungsmethode konnte nicht geladen werden.');
-        return;
-      }
-      const init = await initPaymentSheet({
-        merchantDisplayName: 'Smittenbrot',
-        setupIntentClientSecret: data.setupIntentClientSecret,
-        customerId: data.customerId,
-        customerEphemeralKeySecret: data.ephemeralKey,
-        returnURL: 'smittenbrot://stripe-redirect',
-        // Same wallets as when the subscription was created — otherwise someone
-        // who paid with Apple Pay could only switch to a plain card here.
-        applePay: {
-          merchantCountryCode: 'DE',
-        },
-        googlePay: {
-          merchantCountryCode: 'DE',
-          currencyCode: 'EUR',
-          testEnv: !(process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').startsWith('pk_live'),
-        },
-      });
-      if (init.error) {
-        Alert.alert('Fehler', init.error.message);
-        return;
-      }
-      const { error: sheetError } = await presentPaymentSheet();
-      if (sheetError) {
-        if (sheetError.code !== 'Canceled') Alert.alert('Fehler', sheetError.message);
+      const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet });
+      if (!card.ok) {
+        if (!card.cancelled) Alert.alert('Fehler', card.error ?? 'Zahlungsmethode konnte nicht gespeichert werden.');
         return;
       }
       // Reactivate THROUGH the engine, never straight into the table: resume
