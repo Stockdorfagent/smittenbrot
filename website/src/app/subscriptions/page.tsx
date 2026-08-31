@@ -7,8 +7,72 @@ import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+/**
+ * Inline card-update form for a payment_failed Abo — the web counterpart of
+ * the app's "Zahlungsmethode aktualisieren". Confirms the SetupIntent; the
+ * parent then resumes the Abo through the engine (which regenerates the next
+ * order). A 3D-Secure card redirects to /subscriptions and is finished by
+ * handleStripeReturn via the pending_payment_update sessionStorage marker.
+ */
+function CardUpdateForm({
+  subId,
+  onDone,
+  onCancel,
+}: {
+  subId: string;
+  onDone: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setBusy(true);
+    setError('');
+    // Marker for the redirect case — cleared again if no redirect happens.
+    sessionStorage.setItem('pending_payment_update', JSON.stringify({ subId }));
+    const { error: confirmError } = await stripe.confirmSetup({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}/subscriptions` },
+      redirect: 'if_required',
+    });
+    if (confirmError) {
+      sessionStorage.removeItem('pending_payment_update');
+      setError(confirmError.message || 'Fehler bei der Zahlungsmethode');
+      setBusy(false);
+      return;
+    }
+    sessionStorage.removeItem('pending_payment_update');
+    await onDone();
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-4 p-4 bg-smitten-cream rounded-xl space-y-3">
+      <p className="text-sm font-medium text-smitten-text">Neue Zahlungsmethode</p>
+      <PaymentElement />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel}
+          className="px-4 py-1.5 text-xs border border-smitten-cream rounded-full text-smitten-text hover:border-smitten-text/30 transition-colors">
+          Abbrechen
+        </button>
+        <button type="submit" disabled={!stripe || busy}
+          className="px-4 py-1.5 text-xs bg-smitten-primary text-white rounded-full hover:bg-smitten-primary/90 disabled:opacity-50 transition-colors">
+          {busy ? 'Wird gespeichert...' : 'Speichern & Abo fortsetzen'}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 interface SubItem {
   id: string;
@@ -55,6 +119,9 @@ export default function SubscriptionsPage() {
   // Only one engine action can be in flight; this is the sub it belongs to.
   // Pause, resume and cancel buttons all key their busy/disabled state off it.
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Card update for a payment_failed Abo
+  const [cardUpdate, setCardUpdate] = useState<{ subId: string; clientSecret: string } | null>(null);
+  const [banner, setBanner] = useState('');
 
   useEffect(() => {
     // Check for return from Stripe setup (3D Secure redirect)
@@ -86,7 +153,20 @@ export default function SubscriptionsPage() {
   async function handleStripeReturn(setupSecret: string) {
     // Clean URL params to prevent re-trigger on reload
     window.history.replaceState({}, '', '/subscriptions');
-    
+
+    // A card UPDATE that went through 3D-Secure lands here too.
+    const pendingUpdate = sessionStorage.getItem('pending_payment_update');
+    if (pendingUpdate) {
+      sessionStorage.removeItem('pending_payment_update');
+      const stripe = await stripePromise;
+      if (!stripe) return;
+      const { setupIntent } = await stripe.retrieveSetupIntent(setupSecret);
+      if (setupIntent?.status !== 'succeeded') return;
+      const { subId } = JSON.parse(pendingUpdate) as { subId: string };
+      await finishCardUpdate(subId);
+      return;
+    }
+
     const stored = sessionStorage.getItem('pending_subscription');
     if (!stored) return;
     sessionStorage.removeItem('pending_subscription');
@@ -181,6 +261,48 @@ export default function SubscriptionsPage() {
     loadSubscriptions();
   }
 
+  /** Fetch a SetupIntent and open the inline card form for this Abo. */
+  async function startCardUpdate(subId: string) {
+    setResumeError(null);
+    setBanner('');
+    setBusyId(subId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/create-setup-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.clientSecret) {
+        setResumeError({ id: subId, msg: data.error ?? 'Zahlungsformular konnte nicht geladen werden.' });
+        return;
+      }
+      setCardUpdate({ subId, clientSecret: data.clientSecret });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /**
+   * Card saved — reactivate through the engine, which also regenerates the
+   * next order (the app's recovery flow does exactly the same).
+   */
+  async function finishCardUpdate(subId: string) {
+    setCardUpdate(null);
+    const res = await invokeEdgeFunction(
+      'subscription-engine/resume',
+      { subscription_id: subId },
+      'Die Karte wurde gespeichert, aber das Abo konnte nicht fortgesetzt werden. Bitte versuche es erneut.',
+    );
+    if (!res.ok) {
+      setResumeError({ id: subId, msg: res.message });
+      return;
+    }
+    setBanner('Zahlungsmethode gespeichert — dein Abo läuft weiter.');
+    loadSubscriptions();
+  }
+
   async function handleCancel(subId: string) {
     if (!confirm('Möchtest du dieses Abo kündigen? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
     setBusyId(subId);
@@ -246,6 +368,11 @@ export default function SubscriptionsPage() {
       ) : (
         /* List subscriptions */
         <div className="mt-6 space-y-4">
+          {banner && (
+            <p className="p-3 bg-white border border-smitten-cream rounded-xl text-sm text-smitten-text">
+              {banner}
+            </p>
+          )}
           {subscriptions.map(sub => {
             const items = sub.subscription_items || [];
             const totalCents = items.reduce((sum, i) => sum + (i.products?.price_cents || 0) * i.quantity, 0);
@@ -311,9 +438,8 @@ export default function SubscriptionsPage() {
                 )}
                 {sub.status === 'payment_failed' && (
                   <p className="mt-2 text-sm text-red-600">
-                    Die letzte Zahlung hat nicht funktioniert. Hinterlege in der
-                    Smittenbrot-App unter &bdquo;Abos&ldquo; eine neue Zahlungsmethode,
-                    dann l&auml;uft dein Abo weiter.
+                    Die letzte Zahlung hat nicht funktioniert. Hinterlege eine neue
+                    Zahlungsmethode, dann l&auml;uft dein Abo weiter.
                   </p>
                 )}
                 {resumeError?.id === sub.id && (
@@ -340,6 +466,12 @@ export default function SubscriptionsPage() {
                       {busyId === sub.id ? 'Wird reaktiviert...' : 'Reaktivieren'}
                     </button>
                   )}
+                  {sub.status === 'payment_failed' && !cardUpdate && (
+                    <button onClick={() => startCardUpdate(sub.id)} disabled={busyId === sub.id}
+                      className="text-xs bg-smitten-primary text-white px-3 py-1.5 rounded-full hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+                      {busyId === sub.id ? 'Wird geladen...' : 'Zahlungsmethode aktualisieren'}
+                    </button>
+                  )}
                   {(sub.status === 'active' || sub.status === 'payment_failed') && (
                     <button onClick={() => handleCancel(sub.id)} disabled={busyId === sub.id}
                       className="text-xs border border-red-200 px-3 py-1.5 rounded-full text-red-500 hover:border-red-300 transition-colors disabled:opacity-50">
@@ -350,6 +482,17 @@ export default function SubscriptionsPage() {
                     <span className="text-xs text-orange-500">Kündigung wird beim nächsten Durchlauf bearbeitet</span>
                   )}
                 </div>
+
+                {/* Card update inline (payment_failed) */}
+                {cardUpdate?.subId === sub.id && (
+                  <Elements stripe={stripePromise} options={{ clientSecret: cardUpdate.clientSecret }}>
+                    <CardUpdateForm
+                      subId={sub.id}
+                      onDone={() => finishCardUpdate(sub.id)}
+                      onCancel={() => setCardUpdate(null)}
+                    />
+                  </Elements>
+                )}
 
                 {/* Pause form inline */}
                 {pausingId === sub.id && (
