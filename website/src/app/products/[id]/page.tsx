@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
+import { fetchSoldOut } from '@/lib/soldOut';
 import Link from 'next/link';
 
 export default function ProductDetailPage() {
@@ -19,6 +20,7 @@ export default function ProductDetailPage() {
   const [weekCycle, setWeekCycle] = useState<'A' | 'B'>('A');
   const [adding, setAdding] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [soldOut, setSoldOut] = useState(false);
 
   const pickup = getNextPickup();
 
@@ -41,6 +43,9 @@ export default function ProductDetailPage() {
         .limit(1)
         .single();
       if (cycleData) setWeekCycle(cycleData.current_week);
+
+      const soldOutMap = await fetchSoldOut([id], getNextPickup().date);
+      setSoldOut(!!soldOutMap[id]);
     }
     fetchData();
   }, [id]);
@@ -133,7 +138,7 @@ export default function ProductDetailPage() {
             </p>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4" hidden={soldOut}>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleQuantityChange(quantity - 1)}
@@ -171,13 +176,19 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          <button
-            onClick={handleAddToCart}
-            disabled={adding}
-            className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
-          >
-            {adding ? 'Wird hinzugefügt...' : 'In den Warenkorb'}
-          </button>
+          {soldOut ? (
+            <div className="mt-6 w-full bg-smitten-cream text-smitten-secondary py-3 rounded-full font-medium text-center">
+              Für {pickup.label} ausverkauft
+            </div>
+          ) : (
+            <button
+              onClick={handleAddToCart}
+              disabled={adding}
+              className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+            >
+              {adding ? 'Wird hinzugefügt...' : 'In den Warenkorb'}
+            </button>
+          )}
 
           <hr className="my-8 border-smitten-cream" />
 

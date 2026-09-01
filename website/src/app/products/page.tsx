@@ -5,12 +5,14 @@ import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
+import { fetchSoldOut } from '@/lib/soldOut';
 import Link from 'next/link';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [weekCycle, setWeekCycle] = useState<'A' | 'B'>('A');
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [soldOut, setSoldOut] = useState<Record<string, boolean>>({});
   const { addItem } = useCart();
 
   const pickup = getNextPickup();
@@ -50,10 +52,13 @@ export default function ProductsPage() {
           return false;
         });
         setProducts(filtered);
+        // Real availability per product (same source as the app's badge);
+        // arrives a beat later, the cards render available in the meantime.
+        setSoldOut(await fetchSoldOut(filtered.map((p) => p.id), pickup.date));
       }
     }
     fetchProducts();
-  }, [pickup.day, weekCycle]);
+  }, [pickup.day, pickup.date, weekCycle]);
 
   const handleAdd = (product: Product) => {
     addItem({
@@ -108,17 +113,23 @@ export default function ProductsPage() {
               <p className="mt-1 text-sm text-smitten-text line-clamp-2">
                 {product.description}
               </p>
-              <button
-                onClick={() => handleAdd(product)}
-                disabled={addingId === product.id}
-                className={`mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                  addingId === product.id
-                    ? 'bg-smitten-text text-white scale-[0.98]'
-                    : 'bg-smitten-accent text-white hover:bg-smitten-accent/90'
-                }`}
-              >
-                {addingId === product.id ? '✓ Hinzugefügt' : 'In den Warenkorb'}
-              </button>
+              {soldOut[product.id] ? (
+                <div className="mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold text-center bg-smitten-cream text-smitten-secondary">
+                  Ausverkauft
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleAdd(product)}
+                  disabled={addingId === product.id}
+                  className={`mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                    addingId === product.id
+                      ? 'bg-smitten-text text-white scale-[0.98]'
+                      : 'bg-smitten-accent text-white hover:bg-smitten-accent/90'
+                  }`}
+                >
+                  {addingId === product.id ? '✓ Hinzugefügt' : 'In den Warenkorb'}
+                </button>
+              )}
             </div>
           </div>
         ))}
