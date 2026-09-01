@@ -109,15 +109,22 @@ export default function OrderDetailPage() {
 
       setOrder(orderData);
 
-      // Check if order can still be cancelled (before cutoff)
-      if (orderData.payment_status === 'paid' && 
-          orderData.status !== 'cancelled' && 
-          orderData.status !== 'refunded' &&
-          orderData.status !== 'fulfilled') {
-        const now = new Date();
-        const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-        const cutDate = new Date(orderData.fulfillment_date + 'T14:00:00+02:00');
-        if (berlin < cutDate) {
+      // Cancel button only until the Bestellschluss — the same rule the
+      // refund route enforces (W3): two calendar days before pickup at
+      // 22:00 Europe/Berlin, DST-correct via wall-clock string compare.
+      // (This check used to be the stale lenient '14:00 on pickup day' rule,
+      // so the button outlived the real cutoff — tester find, 2026-09-01.)
+      if (orderData.payment_status === 'paid' &&
+          orderData.order_type === 'one_time' &&
+          !['cancelled', 'refunded', 'fulfilled', 'locked_for_production'].includes(orderData.status)) {
+        const cutoffCal = new Date(orderData.fulfillment_date + 'T12:00:00Z');
+        cutoffCal.setUTCDate(cutoffCal.getUTCDate() - 2);
+        const cutoffWall = `${cutoffCal.toISOString().slice(0, 10)}T22:00`;
+        const nowWall = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(new Date()).replace(', ', 'T');
+        if (nowWall <= cutoffWall) {
           setCanCancel(true);
         }
       }

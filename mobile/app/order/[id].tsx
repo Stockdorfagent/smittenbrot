@@ -178,11 +178,19 @@ export default function OrderDetailScreen() {
     (order.customer_id === user.id ||
       (order.customer_email ?? '').toLowerCase() === (user.email ?? '').toLowerCase());
 
+  // Mirror of the server rule in cancel-order (which is the real guard):
+  // cancelling closes at the Bestellschluss — two calendar days before the
+  // pickup at 22:00. Device clock, Germany-only, like lib/pickup. Tester
+  // find (vc 11): the button outlived the cutoff and only produced an error.
+  const cancelCutoff = new Date(order.fulfillment_date + 'T22:00:00');
+  cancelCutoff.setDate(cancelCutoff.getDate() - 2);
+
   const canCancel =
     isOwnOrder &&
     order.order_type === 'one_time' &&
     order.payment_status === 'paid' &&
-    !['cancelled', 'refunded', 'fulfilled'].includes(order.status);
+    new Date() <= cancelCutoff &&
+    !['cancelled', 'refunded', 'fulfilled', 'locked_for_production'].includes(order.status);
 
   // Converting stays possible after collection ("das war lecker — ab jetzt
   // jede Woche"); only cancelled/refunded orders are out.
