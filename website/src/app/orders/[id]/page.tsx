@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { formatPrice } from '@/lib/types';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 
@@ -25,6 +26,9 @@ interface OrderInvoice {
   fulfillment_date: string;
   status: string;
   payment_status: string;
+  order_type: string;
+  customer_id: string | null;
+  pickup_location_id: string | null;
   pickup_ready_at: string | null;
   total_cents: number;
   net_total_cents: number;
@@ -77,6 +81,11 @@ export default function OrderDetailPage() {
   const [cancelError, setCancelError] = useState('');
   const [cancelSuccess, setCancelSuccess] = useState(false);
   const [creditNote, setCreditNote] = useState<CreditNote | null>(null);
+  const [canConvert, setCanConvert] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [converted, setConverted] = useState(false);
+  const [convertMsg, setConvertMsg] = useState('');
+  const [pickupName, setPickupName] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchInvoice() {
@@ -110,6 +119,27 @@ export default function OrderDetailPage() {
         const cutDate = new Date(orderData.fulfillment_date + 'T14:00:00+02:00');
         if (berlin < cutDate) {
           setCanCancel(true);
+        }
+      }
+
+      // Same gate as the app's order page: converting stays possible after
+      // collection ("das war lecker — ab jetzt jede Woche"); only
+      // cancelled/refunded orders are out, and only the owner of the order
+      // gets the button (admins can open any order).
+      if (
+        orderData.customer_id === session.user.id &&
+        orderData.order_type === 'one_time' &&
+        orderData.payment_status === 'paid' &&
+        !['cancelled', 'refunded'].includes(orderData.status)
+      ) {
+        setCanConvert(true);
+        if (orderData.pickup_location_id) {
+          const { data: loc } = await supabase
+            .from('pickup_locations')
+            .select('name')
+            .eq('id', orderData.pickup_location_id)
+            .maybeSingle();
+          setPickupName(loc?.name ?? null);
         }
       }
 
@@ -161,6 +191,39 @@ export default function OrderDetailPage() {
     }
     fetchInvoice();
   }, [id]);
+
+  // Same flow as the checkout success card, minus the webhook polling —
+  // here the order already exists. The engine creates the Abo server-side
+  // (same products, same Abholort, same Wochentag, starting NEXT delivery).
+  async function handleConvert() {
+    if (!order) return;
+    const itemsText = items.map((i) => `${i.quantity}× ${i.product_name ?? 'Produkt'}`).join('\n');
+    const dayName =
+      new Date(order.fulfillment_date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch';
+    if (!confirm(
+      `Aus dieser Bestellung ein wöchentliches Abo machen?\n\n${itemsText}\n\n` +
+      `Abholort: ${pickupName ?? '—'}\nAbholtag: jeden ${dayName}\n\n` +
+      `Diese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${dayName} ` +
+      `und wird jeweils am Bestelltag abgebucht. Jederzeit pausierbar und kündbar.`,
+    )) return;
+    setConverting(true);
+    setConvertMsg('');
+    try {
+      const res = await invokeEdgeFunction(
+        'subscription-engine/convert-order-to-subscription',
+        { order_id: order.id },
+        'Das hat leider nicht geklappt. Du kannst ein Abo jederzeit unter „Abos“ einrichten.',
+      );
+      if (!res.ok) {
+        setConvertMsg(res.message);
+        return;
+      }
+      setConverted(true);
+      setCanConvert(false);
+    } finally {
+      setConverting(false);
+    }
+  }
 
   async function handleCancelOrder() {
     if (!confirm('Möchtest du die gesamte Bestellung stornieren? Der Betrag wird zurückerstattet.')) return;
@@ -383,6 +446,34 @@ export default function OrderDetailPage() {
             Gemäß § 14 UStG. Bei 7% MwSt. gemäß § 12 Abs. 2 UStG (ermäßigter Steuersatz).
           </p>
         </div>
+
+        {/* Order → Abo conversion (parity with the app's order page) */}
+        {canConvert && !converted && (
+          <div className="mt-8 no-print">
+            <button
+              onClick={handleConvert}
+              disabled={converting}
+              className="w-full bg-smitten-primary text-white py-3 rounded-full font-medium text-sm hover:bg-smitten-primary/90 transition-colors disabled:opacity-50"
+            >
+              {converting ? 'Wird eingerichtet...' : 'Aus dieser Bestellung ein Abo machen'}
+            </button>
+            {/* Das Abo ist ein eigener Vertragsschluss — AGB-Hinweis auch hier
+                (§ 305 Abs. 2 BGB). */}
+            <p className="mt-2 mb-6 text-xs text-center text-smitten-text/40">
+              Für das Abo gelten unsere{' '}
+              <Link href="/agb" target="_blank" className="underline">AGB</Link>.
+            </p>
+            {convertMsg && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{convertMsg}</div>
+            )}
+          </div>
+        )}
+        {converted && (
+          <div className="mt-8 no-print p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+            Dein Abo ist eingerichtet — es liefert ab der nächsten Lieferung.{' '}
+            <Link href="/subscriptions" className="underline">Zu meinen Abos</Link>
+          </div>
+        )}
 
         {/* Cancel / Refund button */}
         {canCancel && (
