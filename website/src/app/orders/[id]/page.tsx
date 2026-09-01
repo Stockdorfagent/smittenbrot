@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { formatPrice } from '@/lib/types';
-import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
+import { isReadyForPickup } from '@/lib/orderStatus';
 
 interface SellerInfo {
   name: string;
@@ -317,8 +317,7 @@ export default function OrderDetailPage() {
               <p>{sellerInfo.address_line1}</p>
               {sellerInfo.address_line2 && <p>{sellerInfo.address_line2}</p>}
               <p>{sellerInfo.postal_code} {sellerInfo.city}</p>
-              <p className="mt-2">Steuernummer: {sellerInfo.tax_id || '—'}</p>
-              {sellerInfo.vat_id && <p>USt-ID: {sellerInfo.vat_id}</p>}
+              {sellerInfo.vat_id && <p className="mt-2">USt-IdNr: {sellerInfo.vat_id}</p>}
               <p className="mt-1">{sellerInfo.email}</p>
             </div>
           </div>
@@ -343,17 +342,13 @@ export default function OrderDetailPage() {
               <th className="text-left pb-2 pr-2">Pos.</th>
               <th className="text-left pb-2 pr-2">Produkt</th>
               <th className="text-right pb-2 pr-2">Menge</th>
-              <th className="text-right pb-2 pr-2">Preis/Stück (brutto)</th>
-              <th className="text-right pb-2 pr-2">Netto</th>
-              <th className="text-right pb-2 pr-2">MwSt.</th>
-              <th className="text-right pb-2">Gesamt (brutto)</th>
+              <th className="text-right pb-2 pr-2">Preis/Stück</th>
+              <th className="text-right pb-2">Gesamt</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => {
               const grossUnit = item.unit_price_gross_cents || item.unit_price_cents;
-              const netUnit = item.unit_price_net_cents || Math.round(grossUnit / 1.07);
-              const vatUnit = item.vat_cents || (grossUnit - netUnit);
               const lineGross = grossUnit * item.quantity;
               return (
                 <tr key={item.id} className="border-b border-gray-100">
@@ -366,12 +361,6 @@ export default function OrderDetailPage() {
                   </td>
                   <td className="py-2 pr-2 text-right text-smitten-text">
                     {formatPrice(grossUnit)}
-                  </td>
-                  <td className="py-2 pr-2 text-right text-smitten-text">
-                    {formatPrice(netUnit)}
-                  </td>
-                  <td className="py-2 pr-2 text-right text-smitten-text">
-                    {formatPrice(vatUnit)}
                   </td>
                   <td className="py-2 text-right font-medium text-smitten-text">
                     {formatPrice(lineGross)}
@@ -386,11 +375,11 @@ export default function OrderDetailPage() {
         <div className="border-t border-gray-300 pt-4 mb-8 print:mb-6">
           <div className="max-w-xs ml-auto space-y-1 text-sm">
             <div className="flex justify-between text-smitten-text/70">
-              <span>Zwischensumme (netto)</span>
+              <span>Nettobetrag</span>
               <span>{formatPrice(netTotal)}</span>
             </div>
             <div className="flex justify-between text-smitten-text/70">
-              <span>MwSt. 7%</span>
+              <span>MwSt. (7 %)</span>
               <span>{formatPrice(vatTotal)}</span>
             </div>
             {(order as any).discount_code && (
@@ -400,7 +389,7 @@ export default function OrderDetailPage() {
             </div>
             )}
             <div className="flex justify-between font-bold text-base text-smitten-text pt-2 border-t border-gray-200">
-              <span>Gesamtsumme (brutto)</span>
+              <span>Gesamtsumme</span>
               <span className="text-smitten-accent">{formatPrice(order.total_cents)}</span>
             </div>
           </div>
@@ -435,16 +424,7 @@ export default function OrderDetailPage() {
                 {paymentStatusLabels[order.payment_status] || order.payment_status}
               </strong>
             </span>
-            <span>
-              Bestellstatus:{' '}
-              <strong className="text-smitten-text/70">
-                {orderStatusLabel(order)}
-              </strong>
-            </span>
           </div>
-          <p className="mt-2 text-xs text-smitten-text/40">
-            Gemäß § 14 UStG. Bei 7% MwSt. gemäß § 12 Abs. 2 UStG (ermäßigter Steuersatz).
-          </p>
         </div>
 
         {/* Order → Abo conversion (parity with the app's order page) */}
@@ -523,8 +503,7 @@ export default function OrderDetailPage() {
                   <p>{sellerInfo.address_line1}</p>
                   {sellerInfo.address_line2 && <p>{sellerInfo.address_line2}</p>}
                   <p>{sellerInfo.postal_code} {sellerInfo.city}</p>
-                  <p className="mt-2">Steuernummer: {sellerInfo.tax_id || '—'}</p>
-                  {sellerInfo.vat_id && <p>USt-ID: {sellerInfo.vat_id}</p>}
+                  {sellerInfo.vat_id && <p className="mt-2">USt-IdNr: {sellerInfo.vat_id}</p>}
                 </div>
               </div>
               <div className="md:text-right">
@@ -543,17 +522,13 @@ export default function OrderDetailPage() {
                   <th className="text-left pb-2 pr-2">Pos.</th>
                   <th className="text-left pb-2 pr-2">Produkt</th>
                   <th className="text-right pb-2 pr-2">Menge</th>
-                  <th className="text-right pb-2 pr-2">Preis/Stück (brutto)</th>
-                  <th className="text-right pb-2 pr-2">Netto</th>
-                  <th className="text-right pb-2 pr-2">MwSt.</th>
-                  <th className="text-right pb-2">Gesamt (brutto)</th>
+                  <th className="text-right pb-2 pr-2">Preis/Stück</th>
+                  <th className="text-right pb-2">Gesamt</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, idx) => {
                   const grossUnit = item.unit_price_gross_cents || item.unit_price_cents;
-                  const netUnit = item.unit_price_net_cents || Math.round(grossUnit / 1.07);
-                  const vatUnit = item.vat_cents || (grossUnit - netUnit);
                   const lineGross = -(grossUnit * item.quantity);
                   return (
                     <tr key={item.id} className="border-b border-gray-100">
@@ -561,8 +536,6 @@ export default function OrderDetailPage() {
                       <td className="py-2 pr-2 font-medium text-smitten-text">{item.product_name}</td>
                       <td className="py-2 pr-2 text-right text-smitten-text">{item.quantity}</td>
                       <td className="py-2 pr-2 text-right text-red-600">{formatPrice(grossUnit)}</td>
-                      <td className="py-2 pr-2 text-right text-red-600">{formatPrice(netUnit)}</td>
-                      <td className="py-2 pr-2 text-right text-red-600">{formatPrice(vatUnit)}</td>
                       <td className="py-2 text-right font-medium text-red-600">{formatPrice(lineGross)}</td>
                     </tr>
                   );
@@ -574,15 +547,15 @@ export default function OrderDetailPage() {
             <div className="border-t border-gray-300 pt-4 mb-8 print:mb-6">
               <div className="max-w-xs ml-auto space-y-1 text-sm">
                 <div className="flex justify-between text-red-600">
-                  <span>Zwischensumme (netto)</span>
+                  <span>Nettobetrag</span>
                   <span>&minus;{formatPrice(creditNote.total_net_cents)}</span>
                 </div>
                 <div className="flex justify-between text-red-600">
-                  <span>MwSt. 7%</span>
+                  <span>MwSt. (7 %)</span>
                   <span>&minus;{formatPrice(creditNote.total_vat_cents)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-base text-red-600 pt-2 border-t border-gray-200">
-                  <span>Gesamtsumme (brutto)</span>
+                  <span>Gesamtsumme</span>
                   <span>&minus;{formatPrice(creditNote.total_gross_cents)}</span>
                 </div>
               </div>

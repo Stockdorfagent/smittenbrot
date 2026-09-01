@@ -28,6 +28,7 @@ interface OrderItem {
 interface OrderRow {
   id: string;
   order_number: string | null;
+  invoice_number: string | null;
   order_type: string;
   status: string;
   payment_status: string;
@@ -61,7 +62,7 @@ export default function OrderDetailScreen() {
     if (id) setCollected((await loadPickedUp()).has(id));
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
+      .select('id, order_number, invoice_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
       .eq('id', id)
       .single();
     setOrder((data as unknown as OrderRow) ?? null);
@@ -199,6 +200,9 @@ export default function OrderDetailScreen() {
           {order.order_number
             ? <Text style={styles.orderNumber}>Bestellnummer {order.order_number}</Text>
             : <Text style={styles.orderNumber}>Bestellung vom {new Date(order.created_at).toLocaleDateString('de-DE')}</Text>}
+          {order.invoice_number
+            ? <Text style={styles.orderNumber}>Rechnungsnummer {order.invoice_number}</Text>
+            : null}
         </View>
 
         <View style={styles.section}>
@@ -271,12 +275,12 @@ export default function OrderDetailScreen() {
             <Text style={styles.smallValue}>{fmt(netCents)}</Text>
           </View>
           <View style={styles.itemRow}>
-            <Text style={styles.smallLabel}>zzgl. 7 % MwSt.</Text>
+            <Text style={styles.smallLabel}>MwSt. (7 %)</Text>
             <Text style={styles.smallValue}>{fmt(vatCents)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.itemRow}>
-            <Text style={styles.totalLabel}>Gesamt (brutto)</Text>
+            <Text style={styles.totalLabel}>Gesamtsumme</Text>
             <Text style={styles.totalValue}>{fmt(grossCents)}</Text>
           </View>
         </View>
@@ -285,6 +289,15 @@ export default function OrderDetailScreen() {
           {order.payment_status === 'paid'
             ? 'Deine Rechnung haben wir dir per E-Mail geschickt.'
             : 'Die Zahlung erfolgt am Bestelltag. Deine Rechnung erhältst du danach per E-Mail.'}
+        </Text>
+
+        {/* Same seller identity as on the emailed Rechnung and the website —
+            full name required: Einzelunternehmen, "Smittenbrot" alone is not
+            the vollständige Name (§ 33 UStDV / § 14 Abs. 4 Nr. 1 UStG). */}
+        <Text style={styles.sellerNote}>
+          Smittenbrot · Sophia Smittenberg{'\n'}
+          Waldstr. 1, 82131 Stockdorf{'\n'}
+          USt-IdNr: DE453765806 · info@smittenbrot.de
         </Text>
 
         {canConvert && (
@@ -358,6 +371,7 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
   totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
   note: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, textAlign: 'center', marginTop: theme.spacing.sm, marginBottom: theme.spacing.lg, lineHeight: 20 },
+  sellerNote: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, textAlign: 'center', marginBottom: theme.spacing.lg, lineHeight: 18 },
   convertButton: {
     backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md, alignItems: 'center', marginBottom: theme.spacing.sm,

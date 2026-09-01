@@ -272,6 +272,7 @@ function buildReceiptHtml(
   invoiceNumber: string,
   fulfillmentDate: string,
   pickupInstructions: string,
+  pickupName: string,
 ): string {
   const customerName = customer.name ?? "Kunde";
   const orderNumber = (order.order_number as string) || invoiceNumber;
@@ -314,6 +315,7 @@ function buildReceiptHtml(
         <tr><td style="padding: 2px 0; color: #6B7280;">Bestellnummer:</td><td style="padding: 2px 0; text-align: right;">${orderNumber}</td></tr>
         <tr><td style="padding: 2px 0; color: #6B7280;">Rechnungsdatum:</td><td style="padding: 2px 0; text-align: right;">${todayDe}</td></tr>
         <tr><td style="padding: 2px 0; color: #6B7280;">Leistungsdatum (Abholung):</td><td style="padding: 2px 0; text-align: right;">${formatIsoDe(fulfillmentDate)}</td></tr>
+        <tr><td style="padding: 2px 0; color: #6B7280;">Abholort:</td><td style="padding: 2px 0; text-align: right;">${pickupName}</td></tr>
         <tr><td style="padding: 2px 0; color: #6B7280;">Kunde:</td><td style="padding: 2px 0; text-align: right;">${customerName}</td></tr>
       </table>
 
@@ -340,8 +342,7 @@ function buildReceiptHtml(
 
       <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
       <p style="font-size: 11px; color: #6B7280; text-align: center;">
-        Smittenbrot · Sauerteig aus Stockdorf · info@smittenbrot.de<br>
-        Es gilt die ermäßigte Mehrwertsteuer von 7 % auf Lebensmittel.
+        Smittenbrot · Sauerteig aus Stockdorf · info@smittenbrot.de
       </p>
     </div>
   `.trim();
@@ -1173,12 +1174,13 @@ async function process10pmLock(): Promise<{
               }));
               const fulfillmentDate = await getFulfillmentDateFromOrder(order.id);
               const { data: pickupLoc } = fullOrder.pickup_location_id
-                ? await supabase.from("pickup_locations").select("pickup_instructions").eq("id", fullOrder.pickup_location_id as string).single()
+                ? await supabase.from("pickup_locations").select("name, address, pickup_instructions").eq("id", fullOrder.pickup_location_id as string).single()
                 : { data: null };
               const pickupInstructions = (pickupLoc?.pickup_instructions as string) ||
                 "Deine Bestellnummer steht auf der Verpackung deiner Bestellung.";
+              const pickupName = pickupLoc ? `${pickupLoc.name} (${pickupLoc.address})` : "Abholort";
 
-              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate, pickupInstructions);
+              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate, pickupInstructions, pickupName);
 
               // Send via Brevo API directly
               const brevoPayload = {
