@@ -148,7 +148,7 @@ export default function OrderDetailScreen() {
       .join('\n');
     const dayName = new Date(order.fulfillment_date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch';
     Alert.alert(
-      'Daraus ein Abo machen?',
+      'Aus dieser Bestellung ein Abo machen?',
       `${itemsText}\n\nAbholort: ${order.pickup_location?.name ?? '—'}\nAbholtag: jeden ${dayName}\n\nDiese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${dayName} und wird jeweils am Bestelltag abgebucht. Jederzeit pausierbar und kündbar.`,
       [
         { text: 'Abbrechen', style: 'cancel' },
@@ -290,14 +290,16 @@ export default function OrderDetailScreen() {
         {canConvert && (
           <>
             <TouchableOpacity style={styles.convertButton} onPress={confirmConvert} disabled={converting} activeOpacity={0.8}>
-              <Text style={styles.convertButtonText}>
-                {converting ? 'Wird eingerichtet…' : 'Daraus ein Abo machen'}
+              {/* One line, never a taller button: on narrow screens the font
+                  shrinks a touch instead of wrapping. */}
+              <Text style={styles.convertButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {converting ? 'Wird eingerichtet…' : 'Aus dieser Bestellung ein Abo machen'}
               </Text>
             </TouchableOpacity>
             {/* Das Abo ist ein eigener Vertragsschluss — AGB-Hinweis auch hier
                 (§ 305 Abs. 2 BGB), unter dem Button statt im Alert, damit der
                 Link tippbar ist. */}
-            <Text style={[styles.muted, { fontSize: theme.fontSize.sm, textAlign: 'center', marginTop: 6 }]}>
+            <Text style={[styles.muted, { fontSize: theme.fontSize.sm, textAlign: 'center', marginTop: 6, marginBottom: theme.spacing.lg }]}>
               Für das Abo gelten unsere{' '}
               <Text style={{ textDecorationLine: 'underline' }} onPress={() => Linking.openURL(siteUrl('/agb'))}>AGB</Text>.
             </Text>

@@ -104,11 +104,30 @@ export default function CheckoutScreen() {
       // 4. Success — the order is created server-side by the stripe-webhook
       //    once payment is confirmed (no successful payment ⇒ no order).
       clearCart();
-      Alert.alert(
-        'Zahlung erfolgreich',
-        'Vielen Dank! Deine Bestellung wird bestätigt und erscheint in Kürze in deinen Bestellungen.',
-      );
-      router.replace('/(tabs)/orders');
+      // Land on the Bestellbestätigung itself (like the website's success
+      // page) — that is where "Aus dieser Bestellung ein Abo machen" lives.
+      // The webhook writes the order a moment after the sheet closes, so
+      // poll briefly for it by PaymentIntent id; fall back to the list.
+      const piId = clientSecret.split('_secret')[0];
+      let orderId: string | null = null;
+      for (let i = 0; i < 10 && !orderId; i++) {
+        const { data: row } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('stripe_payment_intent_id', piId)
+          .maybeSingle();
+        if (row?.id) orderId = row.id;
+        else await new Promise((r) => setTimeout(r, 800));
+      }
+      if (orderId) {
+        router.replace(`/order/${orderId}`);
+      } else {
+        Alert.alert(
+          'Zahlung erfolgreich',
+          'Vielen Dank! Deine Bestellung wird bestätigt und erscheint in Kürze in deinen Bestellungen.',
+        );
+        router.replace('/(tabs)/orders');
+      }
     } catch (e) {
       Alert.alert('Fehler', e instanceof Error ? e.message : 'Unbekannter Fehler');
     } finally {
