@@ -156,6 +156,13 @@ function SubscriptionCreateForm() {
   }
 
   async function handleSetupPayment() {
+    // Business rule (owner, 2026-09-02): a delivery above 250 € needs
+    // individual arrangement. Same cap as checkout; the engine enforces it
+    // server-side on Abo edits.
+    if (totalCents > 25000) {
+      setStripeError('Für Abos über 250 € pro Lieferung kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren die Details individuell.');
+      return;
+    }
     setStripeLoading(true);
     setStripeError('');
     try {

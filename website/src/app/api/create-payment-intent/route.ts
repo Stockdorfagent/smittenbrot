@@ -106,6 +106,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Business rule (owner, 2026-09-02): orders above 250 € need individual
+    // arrangement (and § 33 UStDV simplified invoices stop at 250 €). The
+    // checkout surfaces `error` directly, so it carries the German sentence.
+    if (subtotalCents > 25000) {
+      return NextResponse.json({
+        error: 'Für Bestellungen über 250 € kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren Abholung und Details individuell.',
+      }, { status: 400 });
+    }
+
     if (capacityErrors.length > 0) {
       // Send admin alert about oversell attempt
       const adminEmail = process.env.ADMIN_EMAIL ?? 'sophia@smittenbrot.de';

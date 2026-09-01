@@ -1924,10 +1924,22 @@ async function updateSubscription(
     .filter((i) => i && i.product_id && Number.isFinite(i.quantity) && i.quantity > 0)
     .map((i) => ({ product_id: i.product_id, quantity: Math.min(99, Math.floor(i.quantity)) }));
   if (clean.length === 0) return { success: false, applied_this_week: false, error: "At least one item is required" };
-  const { data: prods } = await supabase.from("products").select("id, subscribable").in("id", clean.map((i) => i.product_id));
+  const { data: prods } = await supabase.from("products").select("id, subscribable, price_cents").in("id", clean.map((i) => i.product_id));
   const okIds = new Set((prods ?? []).filter((p) => p.subscribable !== false).map((p) => p.id));
   if (clean.some((i) => !okIds.has(i.product_id))) {
     return { success: false, applied_this_week: false, error: "Product not available for subscription" };
+  }
+  // Business rule (owner, 2026-09-02): a delivery above 250 € needs individual
+  // arrangement. Same cap as one-time checkout; enforced here because Abo
+  // edits are the one server-routed way to grow an existing Abo's basket.
+  const priceById = new Map((prods ?? []).map((p) => [p.id, p.price_cents as number]));
+  const deliveryCents = clean.reduce((sum, i) => sum + (priceById.get(i.product_id) ?? 0) * i.quantity, 0);
+  if (deliveryCents > 25000) {
+    return {
+      success: false,
+      applied_this_week: false,
+      error: "Für Abos über 250 € pro Lieferung kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren die Details individuell.",
+    };
   }
 
   // 3. Optional pickup-location change

@@ -151,6 +151,20 @@ serve(async (req: Request): Promise<Response> => {
     subtotalCents += product.price_cents * qty;
   }
 
+  // Business rule (owner, 2026-09-02): orders above 250 € need individual
+  // arrangement — a party-sized order has to be agreed in advance, and above
+  // 250 € the simplified-invoice rules (§ 33 UStDV) no longer cover the
+  // receipt. Server-side so no client can slip past it; checked BEFORE any
+  // capacity is reserved or a PaymentIntent exists, so nothing to unwind.
+  const MAX_ORDER_CENTS = 25000;
+  if (subtotalCents > MAX_ORDER_CENTS) {
+    return json({
+      error: "order_too_large",
+      message:
+        "Für Bestellungen über 250 € kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren Abholung und Details individuell.",
+    }, 400);
+  }
+
   // ── 2. Capacity check (reuses capacity-manager: subscription-first) ──
   const capErrors: string[] = [];
   for (const item of items) {

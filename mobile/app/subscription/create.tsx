@@ -166,6 +166,17 @@ export default function SubscriptionCreateScreen() {
       return;
     }
 
+    // Business rule (owner, 2026-09-02): a delivery above 250 € needs
+    // individual arrangement. Same cap as checkout; the engine enforces it
+    // server-side on Abo edits.
+    if (subTotalCents > 25000) {
+      Alert.alert(
+        'Große Bestellung',
+        'Für Abos über 250 € pro Lieferung kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren die Details individuell.',
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // 0. A subscription must have an active saved card so the weekly cron
