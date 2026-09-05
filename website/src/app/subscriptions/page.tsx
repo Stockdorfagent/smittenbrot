@@ -5,6 +5,7 @@ import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { berlinDatePlusDays, berlinTodayISO } from '@/lib/pickup';
 import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
+import AboExplainer from '@/components/AboExplainer';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -321,47 +322,21 @@ export default function SubscriptionsPage() {
       {loading ? (
         <p className="mt-8 text-center text-smitten-text/40">Lädt...</p>
       ) : !user ? (
-        /* Not logged in — show info page with CTA */
+        /* Not logged in — explanation + login CTA */
         <>
-          <section className="mt-8">
-            <h2 className="text-xl font-display font-bold text-smitten-text">Nie wieder Brot verpassen</h2>
-            <p className="mt-3 text-smitten-text leading-relaxed">
-              Weniger To-do für dich, mehr Zeit für gutes Brot. Mit dem Brot-Abo musst du nie wieder daran denken, rechtzeitig zu bestellen!
-            </p>
-          </section>
-
-          <section className="mt-8 bg-smitten-cream rounded-xl p-6">
-            <h3 className="font-display text-lg font-bold text-smitten-text mb-3">So funktioniert dein Abo</h3>
-            <ul className="space-y-3 text-sm text-smitten-text">
-              <li className="flex gap-3">
-                <span className="text-smitten-primary font-bold shrink-0">📧</span>
-                <span>Am Bestelltag bekommst du mittags eine <strong>Erinnerung per E-Mail</strong> (oder Push-Benachrichtigung, wenn du die App nutzt).</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-smitten-primary font-bold shrink-0">🔄</span>
-                <span>Wenn mit deiner Bestellung alles in Ordnung ist, <strong>musst du nichts tun</strong>. Die Bestellung wird automatisch um <strong>20:00 Uhr</strong> aufgegeben und der Betrag abgebucht.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-smitten-primary font-bold shrink-0">✏️</span>
-                <span>Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du <strong>bis 20:00 Uhr</strong> ganz einfach in deinem Konto erledigen.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="text-smitten-primary font-bold shrink-0">⏰</span>
-                <span>Nach 20:00 Uhr hast du noch bis <strong>22:00 Uhr</strong> Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.</span>
-              </li>
-            </ul>
-          </section>
+          <AboExplainer />
           <button onClick={() => router.push('/login?redirect=/subscriptions')}
             className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Abo einrichten
           </button>
         </>
       ) : subscriptions.length === 0 ? (
-        /* Logged in but no subscriptions */
+        /* Logged in but no subscriptions — same explanation, straight to the wizard */
         <>
           <p className="mt-6 text-smitten-text">Du hast noch kein Abo eingerichtet.</p>
+          <AboExplainer />
           <Link href="/subscriptions/create"
-            className="mt-4 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
+            className="mt-8 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Abo einrichten
           </Link>
         </>

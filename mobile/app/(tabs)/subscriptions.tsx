@@ -38,6 +38,51 @@ async function edgeErrorMessage(error: unknown, fallback: string): Promise<strin
   return fallback;
 }
 
+/**
+ * "So funktioniert dein Abo" — same four steps and the same owner copy as the
+ * website's AboExplainer (website/src/components/AboExplainer.tsx). Shown to
+ * anyone without an Abo: logged out, or logged in with an empty list. Icons
+ * instead of the website's emoji — emoji render differently per device.
+ */
+const ABO_STEPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
+  {
+    icon: 'mail-outline',
+    text: 'Am Bestelltag bekommst du mittags eine Erinnerung per Push-Benachrichtigung oder E-Mail.',
+  },
+  {
+    icon: 'refresh-outline',
+    text: 'Wenn mit deiner Bestellung alles in Ordnung ist, musst du nichts tun. Die Bestellung wird automatisch um 20:00 Uhr aufgegeben und der Betrag abgebucht.',
+  },
+  {
+    icon: 'create-outline',
+    text: 'Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du bis 20:00 Uhr ganz einfach hier in der App erledigen.',
+  },
+  {
+    icon: 'time-outline',
+    text: 'Nach 20:00 Uhr hast du noch bis 22:00 Uhr Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.',
+  },
+];
+
+function AboExplainer() {
+  return (
+    <View style={styles.explainer}>
+      <Text style={styles.explainerTitle}>Nie wieder Brot verpassen</Text>
+      <Text style={styles.explainerIntro}>
+        Weniger To-do für dich, mehr Zeit für gutes Brot. Mit dem Brot-Abo musst du nie wieder daran denken, rechtzeitig zu bestellen!
+      </Text>
+      <View style={styles.explainerCard}>
+        <Text style={styles.explainerCardTitle}>So funktioniert dein Abo</Text>
+        {ABO_STEPS.map((step) => (
+          <View key={step.icon} style={styles.explainerRow}>
+            <Ionicons name={step.icon} size={20} color={theme.colors.primary} style={styles.explainerIcon} />
+            <Text style={styles.explainerText}>{step.text}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function SubscriptionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -180,12 +225,16 @@ export default function SubscriptionsScreen() {
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Anmelden erforderlich</Text>
-          <TouchableOpacity style={styles.loginLink} onPress={() => router.push('/login')}>
-            <Text style={styles.loginText}>Zum Login</Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <Text style={styles.title}>Abonnements</Text>
+          <AboExplainer />
+          <View style={styles.emptyContainerCompact}>
+            <Text style={styles.emptyTitle}>Anmelden erforderlich</Text>
+            <TouchableOpacity style={styles.loginLink} onPress={() => router.push('/login')}>
+              <Text style={styles.loginText}>Zum Login</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -213,15 +262,18 @@ export default function SubscriptionsScreen() {
         )}
 
         {subscriptions.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Noch keine Abonnements</Text>
-            <Button
-              title="Abonnement erstellen"
-              onPress={() => router.push('/subscription/create')}
-              variant="primary"
-              style={styles.emptyButton}
-            />
-          </View>
+          <>
+            <Text style={styles.emptyText}>Du hast noch kein Abo eingerichtet.</Text>
+            <AboExplainer />
+            <View style={styles.emptyContainerCompact}>
+              <Button
+                title="Abo einrichten"
+                onPress={() => router.push('/subscription/create')}
+                variant="primary"
+                style={styles.emptyButton}
+              />
+            </View>
+          </>
         ) : (
           subscriptions.map((sub) => (
             <View key={sub.id} style={styles.subCard}>
@@ -441,9 +493,50 @@ const styles = StyleSheet.create({
   resumeButton: {
     marginTop: theme.spacing.md,
   },
-  emptyContainer: {
+  emptyContainerCompact: {
     alignItems: 'center',
-    paddingTop: 80,
+    marginTop: theme.spacing.lg,
+  },
+  explainer: {
+    marginTop: theme.spacing.sm,
+  },
+  explainerTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  explainerIntro: {
+    marginTop: theme.spacing.sm,
+    fontSize: theme.fontSize.md,
+    color: theme.colors.text,
+    lineHeight: 22,
+  },
+  explainerCard: {
+    marginTop: theme.spacing.md,
+    backgroundColor: theme.colors.cream,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+  },
+  explainerCardTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  explainerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  explainerIcon: {
+    marginTop: 1,
+  },
+  explainerText: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+    lineHeight: 20,
   },
   emptyTitle: {
     fontSize: theme.fontSize.lg,

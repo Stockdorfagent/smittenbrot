@@ -13,7 +13,10 @@ export const metadata: Metadata = {
   title: 'Smittenbrot — Handgemachtes Sauerteigbrot aus Stockdorf',
   description:
     'Handgemachtes Sauerteigbrot und Gebäck aus Stockdorf bei München. Vorbestellung und Abholung. Jetzt bestellen!',
-  icons: '/favicon.png',
+  // ?v= is a cache-buster: browsers hold on to favicons for a very long time,
+  // and the 2026-09-02 white-tile favicon never showed up for anyone who had
+  // the old transparent one cached. Bump the number whenever the files change.
+  icons: { icon: '/favicon.png?v=2', apple: '/apple-touch-icon.png?v=2' },
 };
 
 export default function RootLayout({
