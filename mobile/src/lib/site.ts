@@ -7,7 +7,7 @@
  * only thing in the app that has to change, and the app must be rebuilt for it
  * to take effect (there is no over-the-air config).
  */
-export const SITE_URL = 'https://smittenbrot-website.vercel.app';
+export const SITE_URL = 'https://smittenbrot.de';
 
 export interface SiteLink {
   label: string;

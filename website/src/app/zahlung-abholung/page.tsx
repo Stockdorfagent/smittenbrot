@@ -10,7 +10,7 @@ export default function ZahlungAbholungPage() {
       </p>
 
       <p className="mb-4">
-        Akzeptierte Zahlungsarten: Kreditkarte, Paypal, Apple Pay, Google Pay.
+        Akzeptierte Zahlungsarten: Kredit- oder Debitkarte und Google Pay.
       </p>
 
       <p className="mb-4">
