@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
     // Create SetupIntent
     const setupIntent = await getStripeClient().setupIntents.create({
       customer: stripeCustomerId ?? undefined,
-      payment_method_types: ['card', 'sepa_debit'],
+      // card only — matches the edge function; sepa_debit is not enabled on the live
+      // account and Stripe rejects a SetupIntent that lists an unavailable type.
+      payment_method_types: ['card'],
     });
 
     return NextResponse.json({
