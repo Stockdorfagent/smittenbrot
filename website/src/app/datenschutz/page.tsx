@@ -139,7 +139,7 @@ export default function DatenschutzPage() {
 
       <h3 className="font-display font-bold text-smitten-text mt-6">Kundenkonto und Registrierung</h3>
       <p>
-        Wenn du ein Kundenkonto auf dieser Website erstellst, erhebe ich folgende Daten: Name, E-Mail-Adresse und optional deinen bevorzugten Abholort. Die Verarbeitung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO.
+        Wenn du ein Kundenkonto auf dieser Website oder in der App erstellst, erhebe ich folgende Daten: Name, E-Mail-Adresse und optional Telefonnummer und bevorzugten Abholort. Die Verarbeitung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO.
       </p>
 
       <h3 className="font-display font-bold text-smitten-text mt-6">Cookies</h3>
@@ -163,12 +163,52 @@ export default function DatenschutzPage() {
         Eine Zusammenführung dieser Daten mit anderen Datenquellen wird nicht vorgenommen. Die Erfassung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO.
       </p>
 
-      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">5. Soziale Medien</h2>
+      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">5. Smittenbrot-App (iOS und Android)</h2>
+      <p>
+        Die Smittenbrot-App bietet dieselben Funktionen wie die Website: Bestellen, Bezahlen, Bestellautomatik (&bdquo;Abo&ldquo;), Kundenkonto. Sie nutzt dieselben Systeme (Supabase, Stripe, Brevo, siehe Abschnitt 3) und dieselben Rechtsgrundlagen. Zusätzlich gilt für die App Folgendes.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Anmeldung und Kundenkonto in der App</h3>
+      <p>
+        Die Anmeldung erfolgt mit deiner E-Mail-Adresse und einem einmaligen sechsstelligen Code, den du per E-Mail erhältst, alternativ mit E-Mail-Adresse und Passwort. Bei der ersten Anmeldung wird ein Kundenkonto angelegt (E-Mail-Adresse, Name; optional Telefonnummer und bevorzugter Abholort). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Damit du angemeldet bleibst, speichert die App deine Sitzungsdaten lokal auf deinem Gerät; sie werden beim Abmelden gelöscht.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Zahlungen in der App</h3>
+      <p>
+        Zahlungsdaten (Kartennummer, Ablaufdatum, Prüfziffer, Google Pay oder Apple Pay) gibst du ausschließlich in dem von Stripe bereitgestellten Zahlungsformular ein. Sie werden direkt an Stripe übertragen und von mir weder eingesehen noch gespeichert; ich erhalte von Stripe lediglich eine Referenz auf die Zahlung sowie Kartentyp und die letzten vier Ziffern. Für die Bestellautomatik hinterlegt Stripe deine Zahlungsmethode, damit die einzelnen Bestellungen zum Bestellschluss abgebucht werden können (§ 3 der AGB). Das Stripe-SDK in der App erhebt zur Betrugsprävention technische Gerätedaten (z. B. Gerätemodell, Betriebssystemversion); Einzelheiten unter <a href="https://stripe.com/de/privacy" className="text-smitten-primary underline">stripe.com/de/privacy</a>.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Push-Benachrichtigungen</h3>
+      <p>
+        Wenn du Push-Benachrichtigungen erlaubst, erzeugt dein Gerät ein Push-Token, das ich deinem Kundenkonto zuordne und speichere, um dich über den Stand deiner Bestellung (z. B. &bdquo;abholbereit&ldquo;) und über anstehende Abo-Bestellungen zu informieren. Die Zustellung erfolgt über den Push-Dienst von Expo (<strong>650 Industries, Inc.</strong>, USA) und darüber über Apple (APNs) bzw. Google (Firebase Cloud Messaging). Dabei werden das Push-Token und der Nachrichteninhalt an diese Dienste übermittelt. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), die du über die Betriebssystemeinstellungen oder in der App unter Profil jederzeit widerrufen kannst; das Token wird dann nicht mehr verwendet. Wer die App nutzt und Push erlaubt hat, erhält Benachrichtigungen über die App statt per E-Mail; Bestellbestätigungen werden weiterhin per E-Mail versandt.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Persönliche Erinnerung</h3>
+      <p>
+        Die optionale wöchentliche Erinnerung an den Bestellschluss wird ausschließlich lokal auf deinem Gerät geplant. Dafür werden keine Daten an mich oder Dritte übermittelt.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Keine Analyse, kein Tracking</h3>
+      <p>
+        Die App enthält keine Analyse-, Werbe- oder Tracking-Dienste und greift nicht auf Standort, Kontakte, Kamera oder Fotos zu. Lokal auf dem Gerät gespeichert werden neben der Sitzung nur Einstellungen (z. B. die Erinnerung) und Markierungen wie &bdquo;abgeholt&ldquo;.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">App-Stores</h3>
+      <p>
+        Die App wird über den Apple App Store (Apple Distribution International Ltd., Irland) und Google Play (Google Ireland Ltd., Irland) verteilt. Beim Herunterladen und Aktualisieren verarbeiten die Store-Betreiber Daten nach ihren eigenen Datenschutzbestimmungen; darauf habe ich keinen Einfluss.
+      </p>
+
+      <h3 className="font-display font-bold text-smitten-text mt-6">Konto löschen</h3>
+      <p>
+        Du kannst dein Kundenkonto in der App unter Profil &rarr; &bdquo;Konto löschen&ldquo; sowie auf der Website selbst löschen. Dabei werden dein Profil, deine Abos, dein Push-Token und alle nicht abgerechneten Bestellungen gelöscht. Bezahlte Bestellungen mit Rechnung bleiben wegen der steuerrechtlichen Aufbewahrungspflicht (§ 147 AO, acht Jahre) gespeichert und werden danach gelöscht.
+      </p>
+
+      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">6. Soziale Medien</h2>
       <p>
         Diese Website verwendet keine Social-Media-Plugins. Es werden keine Daten an soziale Netzwerke übermittelt.
       </p>
 
-      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">6. Deine Rechte</h2>
+      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">7. Deine Rechte</h2>
       <p className="font-medium text-smitten-text mt-4">Du hast jederzeit das Recht:</p>
       <ul className="list-disc ml-6 space-y-1">
         <li>Auskunft über deine bei mir gespeicherten personenbezogenen Daten zu erhalten (Art. 15 DSGVO)</li>
@@ -187,13 +227,13 @@ export default function DatenschutzPage() {
         Zur Ausübung deiner Rechte wende dich bitte an: info@smittenbrot.de
       </p>
 
-      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">7. Änderungen dieser Datenschutzerklärung</h2>
+      <h2 className="text-xl font-display font-bold text-smitten-text mt-10">8. Änderungen dieser Datenschutzerklärung</h2>
       <p>
         Ich behalte mir vor, diese Datenschutzerklärung anzupassen, damit sie stets den aktuellen rechtlichen Anforderungen entspricht oder um Änderungen meiner Leistungen in der Datenschutzerklärung umzusetzen. Für deinen erneuten Besuch gilt dann die neue Datenschutzerklärung.
       </p>
 
       <p className="mt-10 text-sm text-smitten-text/40 border-t border-smitten-cream pt-6">
-        Stand: Juni 2026
+        Stand: 09.09.2026
       </p>
     </div>
   );
