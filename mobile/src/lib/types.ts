@@ -55,6 +55,10 @@ export interface Product {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  /** Structured product information (migration 027). */
+  weight?: string | null;
+  ingredients?: string | null;
+  allergens?: string | null;
 }
 
 // --- Week Cycle ---

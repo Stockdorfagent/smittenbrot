@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { getNextPickup } from '@/lib/pickup';
@@ -119,7 +120,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-smitten-text line-clamp-2">
-                  {product.description}
+                  {splitDescription(product.description).main}
                 </p>
               </div>
             </Link>

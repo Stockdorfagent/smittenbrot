@@ -18,6 +18,9 @@ export default function AdminProductsPage() {
   const [newForm, setNewForm] = useState({
     name: '',
     description: '',
+    weight: '',
+    ingredients: '',
+    allergens: '',
     price_cents: 0,
     capacity: 10,
     cycle: 'permanent' as string,
@@ -141,6 +144,9 @@ export default function AdminProductsPage() {
       .update({
         name: editForm.name,
         description: editForm.description,
+        weight: editForm.weight?.trim() || null,
+        ingredients: editForm.ingredients?.trim() || null,
+        allergens: editForm.allergens?.trim() || null,
         price_cents: editForm.price_cents,
         capacity: editForm.capacity,
         sort_order: editForm.sort_order ?? 0,
@@ -219,6 +225,9 @@ export default function AdminProductsPage() {
       .insert({
         name: newForm.name,
         description: newForm.description,
+        weight: newForm.weight.trim() || null,
+        ingredients: newForm.ingredients.trim() || null,
+        allergens: newForm.allergens.trim() || null,
         price_cents: newForm.price_cents,
         capacity: newForm.capacity,
         cycle: newForm.cycle,
@@ -240,7 +249,7 @@ export default function AdminProductsPage() {
         }
       }
       setCreating(false);
-      setNewForm({ name: '', description: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, subscribable: true, active: false });
+      setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, subscribable: true, active: false });
       setNewPhoto(null);
       loadProducts();
     }
@@ -306,6 +315,23 @@ export default function AdminProductsPage() {
             <label className="block text-xs text-smitten-text/60 mb-1">Beschreibung</label>
             <textarea value={newForm.description} onChange={e => setNewForm({...newForm, description: e.target.value})} rows={3}
               className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Gewicht (z. B. „ca. 330 g“)</label>
+              <input value={newForm.weight} onChange={e => setNewForm({...newForm, weight: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-smitten-text/60 mb-1">Zutaten (kommagetrennt)</label>
+              <input value={newForm.ingredients} onChange={e => setNewForm({...newForm, ingredients: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
+            <div className="md:col-span-3">
+              <label className="block text-xs text-smitten-text/60 mb-1">Allergene (kommagetrennt) — der Hinweis zu Spuren wird automatisch ergänzt</label>
+              <input value={newForm.allergens} onChange={e => setNewForm({...newForm, allergens: e.target.value})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">Foto</label>
@@ -441,6 +467,32 @@ export default function AdminProductsPage() {
                     rows={3}
                     className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-smitten-text/60 mb-1">Gewicht (z. B. „ca. 330 g“)</label>
+                    <input
+                      value={editForm.weight ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-smitten-text/60 mb-1">Zutaten (kommagetrennt)</label>
+                    <input
+                      value={editForm.ingredients ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, ingredients: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs text-smitten-text/60 mb-1">Allergene (kommagetrennt) — der Hinweis zu Spuren wird automatisch ergänzt</label>
+                    <input
+                      value={editForm.allergens ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, allergens: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm text-smitten-text">

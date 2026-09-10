@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ProductInfo from '@/components/ProductInfo';
+import { splitDescription } from '@/lib/productInfo';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
@@ -192,40 +194,10 @@ export default function ProductDetailPage() {
 
           <hr className="my-8 border-smitten-cream" />
 
-          {(() => {
-            const desc = product.description ?? '';
-            const blankIndex = desc.indexOf('\n\n');
-            const mainDesc = blankIndex >= 0 ? desc.slice(0, blankIndex) : desc;
-            const infoSection = blankIndex >= 0 ? desc.slice(blankIndex + 2) : '';
-            return (
-              <>
-                {mainDesc && (
-                  <p className="text-smitten-text leading-relaxed mb-4">{mainDesc}</p>
-                )}
-                {infoSection && (
-                  <div className="text-smitten-text leading-relaxed whitespace-pre-line">
-                    {infoSection.split('\n').map((line, i) => {
-                      if (line.startsWith('Gewicht:') || line.startsWith('Zutaten:') || line.startsWith('Allergene:')) {
-                        const [label, ...rest] = line.split(':');
-                        return (
-                          <p key={i} className="mb-0.5">
-                            <strong>{label}:</strong>{rest.join(':')}
-                          </p>
-                        );
-                      }
-                      if (line.startsWith('In der gleichen Backstube')) {
-                        return <p key={i} className="italic mb-0.5">{line}</p>;
-                      }
-                      if (line.trim() === '') {
-                        return <div key={i} className="h-2" />;
-                      }
-                      return <p key={i} className="mb-0.5">{line}</p>;
-                    })}
-                  </div>
-                )}
-              </>
-            );
-          })()}
+          {splitDescription(product.description).main && (
+            <p className="text-smitten-text leading-relaxed mb-4">{splitDescription(product.description).main}</p>
+          )}
+          <ProductInfo product={product} />
         </div>
       </div>
     </div>

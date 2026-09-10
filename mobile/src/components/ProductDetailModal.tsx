@@ -1,4 +1,5 @@
 import { Modal, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { productInfoLines, splitDescription } from '@/lib/productInfo';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
@@ -49,10 +50,8 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
       ? [product.cover_image_url]
       : [];
 
-  const desc = product.description ?? '';
-  const blankIndex = desc.indexOf('\n\n');
-  const mainDesc = (blankIndex >= 0 ? desc.slice(0, blankIndex) : desc).trim();
-  const infoSection = blankIndex >= 0 ? desc.slice(blankIndex + 2) : '';
+  const mainDesc = splitDescription(product.description).main;
+  const infoSection = productInfoLines(product);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

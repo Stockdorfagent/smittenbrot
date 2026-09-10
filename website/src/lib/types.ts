@@ -15,6 +15,10 @@ export interface Product {
   images: string[];
   sort_order: number;
   created_at: string;
+  /** Structured product information (migration 027); rendered by <ProductInfo/>. */
+  weight: string | null;
+  ingredients: string | null;
+  allergens: string | null;
 }
 
 export interface PickupLocation {

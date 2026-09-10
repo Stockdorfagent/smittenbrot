@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
@@ -111,7 +112,7 @@ export default function ProductsPage() {
                 <span className="shrink-0 font-semibold text-smitten-text">{formatPrice(product.price_cents)}</span>
               </div>
               <p className="mt-1 text-sm text-smitten-text line-clamp-2">
-                {product.description}
+                {splitDescription(product.description).main}
               </p>
               {soldOut[product.id] ? (
                 <div className="mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold text-center bg-smitten-cream text-smitten-secondary">
