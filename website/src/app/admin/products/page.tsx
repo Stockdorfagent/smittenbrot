@@ -41,6 +41,7 @@ export default function AdminProductsPage() {
       .from('products')
       .select('*')
       .order('active', { ascending: false })
+      .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
     if (data) setProducts(data);
     setLoading(false);
@@ -142,6 +143,7 @@ export default function AdminProductsPage() {
         description: editForm.description,
         price_cents: editForm.price_cents,
         capacity: editForm.capacity,
+        sort_order: editForm.sort_order ?? 0,
         cycle: editForm.cycle,
         available_wed: editForm.available_wed,
         available_sat: editForm.available_sat,
@@ -409,6 +411,15 @@ export default function AdminProductsPage() {
                     />
                   </div>
                   <div>
+                    <label className="block text-xs text-smitten-text/60 mb-1">Reihenfolge im Shop (1 = oben)</label>
+                    <input
+                      type="number"
+                      value={editForm.sort_order ?? 0}
+                      onChange={(e) => setEditForm({ ...editForm, sort_order: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-xs text-smitten-text/60 mb-1">Zyklus</label>
                     <select
                       value={editForm.cycle || 'permanent'}
@@ -507,7 +518,7 @@ export default function AdminProductsPage() {
                       </StatusPill>
                     </div>
                     <p className="text-xs text-smitten-text/40 mt-0.5">
-                      {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · {cycleLabels[product.cycle] || product.cycle}
+                      {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · Reihenfolge: {product.sort_order} · {cycleLabels[product.cycle] || product.cycle}
                       · {product.available_wed ? 'Mi' : ''} {product.available_sat ? 'Sa' : ''}
                     </p>
                   </div>
