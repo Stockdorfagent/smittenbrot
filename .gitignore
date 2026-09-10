@@ -21,3 +21,4 @@ website/tsconfig.tsbuildinfo
 # directory rather than just its config file, because `git add -A` swept the
 # lot in once already.
 /backstube/
+.env*
