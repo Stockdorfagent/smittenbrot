@@ -4,6 +4,7 @@ import './globals.css';
 import Providers from '@/components/Providers';
 import NavBar from '@/components/NavBar';
 import ClosureBanner from '@/components/ClosureBanner';
+import PromoBanner from '@/components/PromoBanner';
 import AuthHashHandler from '@/components/AuthHashHandler';
 import FooterYear from '@/components/FooterYear';
 
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${inter.className}`}>
         <Providers>
           <AuthHashHandler />
+          <PromoBanner />
           <NavBar />
           <ClosureBanner />
           <main>{children}</main>
