@@ -54,7 +54,15 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false,
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "smittenbrot",
     "extra": {
