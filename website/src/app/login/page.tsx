@@ -104,7 +104,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.message === 'Invalid login credentials') {
-        setError('Schön, dass du wieder da bist! Am einfachsten meldest du dich ohne Passwort an – tippe unten auf „Ohne Passwort anmelden – Code per E-Mail". Oder setze über „Passwort vergessen?" ein neues Passwort.');
+        setError('E-Mail-Adresse oder Passwort stimmen nicht. Am einfachsten meldest du dich ohne Passwort an – tippe unten auf „Ohne Passwort anmelden – Code per E-Mail". Oder setze über „Passwort vergessen?" ein neues Passwort.');
       } else {
         setError(error.message);
       }
