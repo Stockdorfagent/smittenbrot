@@ -151,6 +151,23 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── Never delete the store-review demo account ──
+  // Apple and Google testers exercise "Konto löschen" with the very account we
+  // gave them (11.09.2026: deleted at 10:08, re-registered unconfirmed at 10:09,
+  // reviewer locked out). Deleting it makes the app un-reviewable; the flow is
+  // demonstrated well enough by the button + this message.
+  const REVIEW_DEMO_EMAILS = ["google-review@smittenbrot-test.de"];
+  if (REVIEW_DEMO_EMAILS.includes(user.email.toLowerCase())) {
+    return json(
+      {
+        error:
+          "Dieses Demo-Konto wird für die App-Prüfung benötigt und kann nicht gelöscht werden. " +
+          "This demo account is used for app review and cannot be deleted.",
+      },
+      403,
+    );
+  }
+
   const email = customer?.email ?? user.email;
   const name = customer?.name ?? "";
   const stripeCustomerId = customer?.stripe_customer_id as string | null | undefined;
