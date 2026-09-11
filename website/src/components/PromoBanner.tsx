@@ -14,7 +14,7 @@ export default function PromoBanner() {
   return (
     <div className="bg-black text-white text-center px-4 py-2 text-xs sm:text-sm">
       {PROMO.text}{' '}
-      <span className="font-bold tracking-wide text-smitten-primary">{PROMO.code}</span>
+      <span className="font-bold tracking-wide text-smitten-primary">{PROMO.code}</span>!
     </div>
   );
 }
