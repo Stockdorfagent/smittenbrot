@@ -18,7 +18,7 @@ export default function FAQPage() {
     },
     {
       q: 'Wie kann ich bezahlen?',
-      a: 'Du kannst ganz einfach per Kreditkarte oder Google Pay bezahlen. Die Zahlung wird sicher über Stripe abgewickelt.',
+      a: 'Du kannst ganz einfach per Kredit- oder Debitkarte, Apple Pay oder Google Pay bezahlen. Die Zahlung wird sicher über Stripe abgewickelt.',
     },
     {
       q: 'Kann ich meine Bestellung stornieren?',

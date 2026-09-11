@@ -37,7 +37,7 @@ const faqs: { q: string; a: string }[] = [
   },
   {
     q: 'How can I pay?',
-    a: 'By card, and with Google Pay on Android devices. Payment is handled securely by Stripe. Payment is always in advance — cash on collection is not possible.',
+    a: 'By card, Apple Pay or Google Pay. Payment is handled securely by Stripe. Payment is always in advance — cash on collection is not possible.',
   },
   {
     q: 'Can I cancel my order?',
@@ -86,7 +86,7 @@ export default function EnglishPage() {
       <h2 className="mt-10 text-xl font-display font-bold">In short</h2>
       <ul className="mt-3 space-y-2 leading-relaxed">
         <li>· Order by <strong>Monday 22:00</strong> for Wednesday, or <strong>Thursday 22:00</strong> for Saturday.</li>
-        <li>· Pay in advance by card (Google Pay on Android).</li>
+        <li>· Pay in advance by card, Apple Pay or Google Pay.</li>
         <li>· Collect from the self-service cabinet at Waldstraße 1, Stockdorf.</li>
         <li>· You get an email when your order is ready.</li>
       </ul>
