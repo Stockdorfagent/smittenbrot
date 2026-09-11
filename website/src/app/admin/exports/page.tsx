@@ -50,10 +50,13 @@ export default function AdminExportsPage() {
 
     const rows = orders.map((order) => {
       const items = (order.order_items || []);
-      const netTotal = Math.round(order.total_cents / 1.07);
-      const vatTotal = order.total_cents - netTotal;
+      // Prefer the stored net/VAT (written at payment time); fall back to the
+      // 7 % split for legacy rows without them.
+      const netTotal = order.net_total_cents ?? Math.round(order.total_cents / 1.07);
+      const vatTotal = order.vat_total_cents ?? order.total_cents - netTotal;
       return {
         invoice_number: order.invoice_number || '',
+        order_number: order.order_number || '',
         customer_name: order.customer_name || '',
         customer_email: order.customer_email || '',
         fulfillment_date: order.fulfillment_date || '',
@@ -61,6 +64,8 @@ export default function AdminExportsPage() {
         total_net_cents: netTotal,
         total_vat_cents: vatTotal,
         vat_rate: 0.07,
+        discount_code: order.discount_code || '',
+        discount_cents: order.discount_cents || 0,
         payment_status: order.payment_status || '',
         items_count: items.length,
       };
@@ -93,11 +98,15 @@ export default function AdminExportsPage() {
         .join('; ');
       return {
         ID: order.id,
+        Bestellnummer: order.order_number || '',
+        Rechnungsnummer: order.invoice_number || '',
         Datum: order.fulfillment_date,
         Kunde: order.customer_name || order.customer_email || 'Gast',
         Typ: order.order_type === 'subscription' ? 'Abonnement' : 'Einmalig',
         Artikel: items,
         Summe_Cent: order.total_cents,
+        Rabattcode: order.discount_code || '',
+        Rabatt_Cent: order.discount_cents || 0,
         Status: order.status,
         Zahlung: order.payment_status,
         Abholort: (order.pickup_locations as { name?: string })?.name || '',
