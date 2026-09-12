@@ -53,6 +53,13 @@
         "track": "alpha",
         "releaseStatus": "completed"
       }
+    },
+    "production-play": {
+      "android": {
+        "serviceAccountKeyPath": "../../.credentials/firebase-service-account.json",
+        "track": "production",
+        "releaseStatus": "completed"
+      }
     }
   }
 }
