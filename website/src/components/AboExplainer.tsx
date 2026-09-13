@@ -42,6 +42,11 @@ export default function AboExplainer() {
           </li>
         </ul>
       </section>
+
+      <p className="mt-6 text-sm text-smitten-secondary leading-relaxed">
+        Kein Abo, aber trotzdem nicht vergessen? In der App kannst du dir unter Profil eine Bestell-Erinnerung
+        vor dem Bestellschluss einstellen und jede Woche selbst entscheiden.
+      </p>
     </>
   );
 }

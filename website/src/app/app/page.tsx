@@ -85,6 +85,10 @@ export default function AppPage() {
         sobald dein Brot für dich bereitliegt. Und wenn du magst, richtest du ein
         Abo ein und musst nie wieder an den Bestellschluss denken.
       </p>
+      <p className="mt-3 text-smitten-text leading-relaxed">
+        Lieber jede Woche selbst entscheiden? Dann stell dir in der App eine Bestell-Erinnerung ein: Sie meldet
+        sich zu deiner Wunschzeit vor dem Bestellschluss, mehr nicht. Kein Abo, keine Verpflichtung.
+      </p>
 
       <div className="mt-8">
         <h2 className="text-xl font-display font-bold text-smitten-text">

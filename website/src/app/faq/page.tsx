@@ -13,6 +13,10 @@ export default function FAQPage() {
       a: 'Wähle einfach deine gewünschten Produkte aus und gehe zur Kasse. Der nächstmögliche Abholtag wird automatisch ausgewählt. Bestellen kannst du ganz unkompliziert als Gast oder mit Kundenkonto.',
     },
     {
+      q: 'Kann ich mich an den Bestellschluss erinnern lassen?',
+      a: 'Ja. In der App kannst du unter Profil eine Bestell-Erinnerung einstellen, mit Wochentag und Uhrzeit nach Wahl, zum Beispiel montags um 9 Uhr für den Mittwoch. Die Erinnerung ist unabhängig vom Abo: Du entscheidest jede Woche selbst, ob und was du bestellst.',
+    },
+    {
       q: 'Bis wann kann ich bestellen?',
       a: 'Für die Abholung am Mittwoch kannst du bis Montag um 22:00 Uhr bestellen. Für die Abholung am Samstag ist die Bestellung bis Donnerstag um 22:00 Uhr möglich.',
     },
