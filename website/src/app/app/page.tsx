@@ -10,7 +10,7 @@
  * invitation by email and do not use this page.
  */
 const PLAY_URL: string | null = null;
-const APP_STORE_URL: string | null = null;
+const APP_STORE_URL: string | null = 'https://apps.apple.com/de/app/smittenbrot/id6793602303';
 
 function StoreLink({
   href,
