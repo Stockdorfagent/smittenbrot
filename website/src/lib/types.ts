@@ -19,6 +19,8 @@ export interface Product {
   weight: string | null;
   ingredients: string | null;
   allergens: string | null;
+  /** URL name, generated from the product name by a DB trigger (migration 028). */
+  slug: string | null;
 }
 
 export interface PickupLocation {

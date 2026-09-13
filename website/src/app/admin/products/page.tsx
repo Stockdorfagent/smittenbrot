@@ -150,6 +150,7 @@ export default function AdminProductsPage() {
         price_cents: editForm.price_cents,
         capacity: editForm.capacity,
         sort_order: editForm.sort_order ?? 0,
+        slug: editForm.slug?.trim() || null,
         cycle: editForm.cycle,
         available_wed: editForm.available_wed,
         available_sat: editForm.available_sat,
@@ -442,6 +443,15 @@ export default function AdminProductsPage() {
                       type="number"
                       value={editForm.sort_order ?? 0}
                       onChange={(e) => setEditForm({ ...editForm, sort_order: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-smitten-text/60 mb-1">Adresse (smittenbrot.de/products/…)</label>
+                    <input
+                      value={editForm.slug ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, slug: e.target.value })}
+                      placeholder="wird aus dem Namen erzeugt"
                       className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                     />
                   </div>

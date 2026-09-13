@@ -88,7 +88,7 @@ export default function ProductsPage() {
             key={product.id}
             className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
           >
-            <Link href={`/products/${product.id}`}>
+            <Link href={`/products/${product.slug ?? product.id}`}>
               <div className="aspect-[4/3] bg-smitten-cream overflow-hidden">
                 {product.cover_image_url ? (
                   <img
@@ -104,7 +104,7 @@ export default function ProductsPage() {
             </Link>
             <div className="flex flex-col flex-1 p-4">
               <div className="flex items-baseline justify-between gap-2">
-                <Link href={`/products/${product.id}`}>
+                <Link href={`/products/${product.slug ?? product.id}`}>
                   <h3 className="font-bold text-smitten-text hover:underline">
                     {product.name}
                   </h3>

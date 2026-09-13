@@ -28,12 +28,19 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // /products/<slug> is the canonical address; old /products/<uuid> links
+      // (emails, bookmarks) keep working and are redirected to the slug.
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       const { data: productData } = await supabase
         .from('products')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq(isUuid ? 'id' : 'slug', id)
+        .maybeSingle();
       if (productData) {
+        if (isUuid && productData.slug) {
+          router.replace(`/products/${productData.slug}`);
+          return;
+        }
         setProduct(productData);
         setSelectedImage(productData.cover_image_url || (productData.images?.[0] ?? null));
       }

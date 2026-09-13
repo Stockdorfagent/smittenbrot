@@ -95,7 +95,7 @@ export default function HomePage() {
           {products.slice(0, 3).map(product => (
             <Link
               key={product.id}
-              href={`/products/${product.id}`}
+              href={`/products/${product.slug ?? product.id}`}
               className="group block bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
             >
               <div className="aspect-[4/3] bg-smitten-cream overflow-hidden">
