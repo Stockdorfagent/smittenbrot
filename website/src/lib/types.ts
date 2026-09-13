@@ -39,6 +39,8 @@ export interface PickupLocation {
 }
 
 export interface Order {
+  /** Stripe payment_method_details.type (+ /wallet), migration 029. */
+  payment_method?: string | null;
   id: string;
   customer_id: string | null;
   order_type: 'one_time' | 'subscription';

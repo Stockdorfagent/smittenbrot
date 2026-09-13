@@ -590,6 +590,7 @@ async function createOrderFromPaymentIntent(
   // the invoice match the charge. All products are 7% VAT, so net = gross/1.07.
   const paidUpdate: Record<string, unknown> = {
     payment_status: "paid",
+    payment_method: await paymentMethodOf(paymentIntent),
     updated_at: new Date().toISOString(),
   };
   if (discountCents > 0) {
@@ -658,6 +659,27 @@ async function createOrderFromPaymentIntent(
  * Does NOT change fulfillment status — that is managed independently.
  * Naturally idempotent: skips if payment_status is already 'paid'.
  */
+/**
+ * How the customer paid, for Admin → Bestellungen and the exports (migration
+ * 029): Stripe's payment_method_details.type, plus "/wallet" for Apple Pay /
+ * Google Pay ("card/apple_pay"). Never throws — a missing value must not
+ * interfere with marking the order paid.
+ */
+async function paymentMethodOf(paymentIntent: Stripe.PaymentIntent): Promise<string | null> {
+  try {
+    const lc = paymentIntent.latest_charge;
+    if (!lc) return null;
+    const charge = typeof lc === "string" ? await stripe.charges.retrieve(lc) : lc;
+    const pmd = charge.payment_method_details;
+    if (!pmd?.type) return null;
+    const wallet = pmd.type === "card" ? pmd.card?.wallet?.type : undefined;
+    return wallet ? `${pmd.type}/${wallet}` : pmd.type;
+  } catch (e) {
+    console.warn(`[stripe-webhook] payment method lookup failed for ${paymentIntent.id}:`, e);
+    return null;
+  }
+}
+
 async function handlePaymentIntentSucceeded(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
@@ -688,7 +710,11 @@ async function handlePaymentIntentSucceeded(
 
   const { error } = await supabase
     .from("orders")
-    .update({ payment_status: "paid", updated_at: new Date().toISOString() })
+    .update({
+      payment_status: "paid",
+      payment_method: await paymentMethodOf(paymentIntent),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", order.id);
 
   if (error) {

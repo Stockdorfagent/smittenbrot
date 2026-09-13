@@ -91,3 +91,17 @@ export const orderBucketTones: Record<OrderBucket, 'blue' | 'amber' | 'gray' | '
   erledigt: 'green',
   storniert: 'red',
 };
+
+/** orders.payment_method (migration 029): Stripe type, plus /wallet for Apple/Google Pay. */
+export const paymentMethodLabels: Record<string, string> = {
+  card: 'Karte',
+  'card/apple_pay': 'Apple Pay',
+  'card/google_pay': 'Google Pay',
+  'card/link': 'Link',
+  paypal: 'PayPal',
+  sepa_debit: 'SEPA-Lastschrift',
+};
+export function paymentMethodLabel(pm: string | null | undefined): string {
+  if (!pm) return '';
+  return paymentMethodLabels[pm] ?? pm;
+}

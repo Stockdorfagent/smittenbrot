@@ -16,6 +16,7 @@ import {
   orderBucketLabels,
   orderBucketTones,
   type OrderBucket,
+  paymentMethodLabel,
 } from '@/lib/adminLabels';
 import { showToast } from '@/components/admin/toast';
 
@@ -621,6 +622,9 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div className="mt-3 flex items-center gap-2">
+                      {order.payment_method && (
+                        <p className="text-xs text-smitten-secondary">Zahlungsart: {paymentMethodLabel(order.payment_method)}</p>
+                      )}
                       {order.discount_code && (
                         <p className="text-xs text-green-600">
                           Rabattcode {order.discount_code}: -{formatPrice(order.discount_cents || 0)}

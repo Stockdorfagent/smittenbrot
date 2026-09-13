@@ -66,6 +66,7 @@ export default function AdminExportsPage() {
         vat_rate: 0.07,
         discount_code: order.discount_code || '',
         discount_cents: order.discount_cents || 0,
+        payment_method: order.payment_method || '',
         payment_status: order.payment_status || '',
         items_count: items.length,
       };
@@ -107,6 +108,7 @@ export default function AdminExportsPage() {
         Summe_Cent: order.total_cents,
         Rabattcode: order.discount_code || '',
         Rabatt_Cent: order.discount_cents || 0,
+        Zahlungsart: order.payment_method || '',
         Status: order.status,
         Zahlung: order.payment_status,
         Abholort: (order.pickup_locations as { name?: string })?.name || '',
