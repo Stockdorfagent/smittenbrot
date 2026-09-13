@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     const prose = (p.description ?? '').split('\n\n')[0].trim();
     const desc = prose.length > 160 ? prose.slice(0, 157).trimEnd() + '…' : prose;
     return {
-      title: p.name,
+      title: { absolute: `${p.name} | Smittenbrot` },
       description: desc || `${p.name} von Smittenbrot, Sauerteigbäckerei in Stockdorf.`,
       alternates: { canonical: `/products/${p.slug ?? params.id}` },
       openGraph: { title: `${p.name} | Smittenbrot`, description: desc, images: p.cover_image_url ? [{ url: p.cover_image_url }] : undefined },
