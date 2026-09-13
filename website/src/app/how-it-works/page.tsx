@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: "So funktioniert's",
+  description: 'Zweimal pro Woche gebacken, nur auf Vorbestellung: Bestellschluss, Backtage und Abholung in Stockdorf bei Smittenbrot.',
+  alternates: { canonical: '/how-it-works' },
+};
 export default function HowItWorksPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-16 text-smitten-text leading-relaxed">

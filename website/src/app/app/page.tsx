@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Die Smittenbrot App',
+  description: 'Brot vorbestellen, bezahlen und benachrichtigt werden, sobald es bereitliegt. Die Smittenbrot App für iPhone und Android.',
+  alternates: { canonical: '/app' },
+};
 /**
  * The app is distributed through the stores only — no direct APK download.
  *

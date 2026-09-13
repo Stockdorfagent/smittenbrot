@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Datenschutz',
+  description: 'Datenschutzerklärung für die Website und die App von Smittenbrot.',
+  alternates: { canonical: '/datenschutz' },
+};
 export default function DatenschutzPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-16 text-smitten-text leading-relaxed text-sm space-y-6">

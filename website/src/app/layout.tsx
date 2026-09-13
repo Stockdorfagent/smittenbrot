@@ -10,14 +10,46 @@ import FooterYear from '@/components/FooterYear';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
+const SITE = 'https://smittenbrot.de';
+const DESCRIPTION =
+  'Handgemachtes Sauerteigbrot aus Stockdorf bei München. Online vorbestellen, mittwochs oder samstags abholen, auf Wunsch als wöchentliches Abo.';
+
 export const metadata: Metadata = {
-  title: 'Smittenbrot — Handgemachtes Sauerteigbrot aus Stockdorf',
-  description:
-    'Handgemachtes Sauerteigbrot und Gebäck aus Stockdorf bei München. Vorbestellung und Abholung. Jetzt bestellen!',
+  metadataBase: new URL(SITE),
+  title: { default: 'Smittenbrot – Sauerteigbrot aus Stockdorf', template: '%s | Smittenbrot' },
+  description: DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    locale: 'de_DE',
+    siteName: 'Smittenbrot',
+    url: SITE,
+    title: 'Smittenbrot – Sauerteigbrot aus Stockdorf',
+    description: DESCRIPTION,
+    images: [{ url: '/apple-touch-icon.png', width: 180, height: 180, alt: 'Smittenbrot' }],
+  },
+  robots: { index: true, follow: true },
   // ?v= is a cache-buster: browsers hold on to favicons for a very long time,
   // and the 2026-09-02 white-tile favicon never showed up for anyone who had
   // the old transparent one cached. Bump the number whenever the files change.
   icons: { icon: '/favicon.png?v=2', apple: '/apple-touch-icon.png?v=2' },
+};
+
+/** Structured data for Google: the bakery as a local business (address from the Impressum/AGB). */
+const BAKERY_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'Bakery',
+  name: 'Smittenbrot',
+  url: SITE,
+  image: `${SITE}/apple-touch-icon.png`,
+  description: DESCRIPTION,
+  telephone: '+49 176 72272842',
+  email: 'info@smittenbrot.de',
+  address: { '@type': 'PostalAddress', streetAddress: 'Waldstr. 1', postalCode: '82131', addressLocality: 'Stockdorf', addressCountry: 'DE' },
+  areaServed: ['Stockdorf', 'Gauting', 'Krailling', 'Planegg', 'München'],
+  priceRange: '€',
+  servesCuisine: 'Sauerteigbrot',
+  sameAs: ['https://apps.apple.com/de/app/smittenbrot/id6793602303'],
 };
 
 export default function RootLayout({
@@ -27,6 +59,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
+      <head>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(BAKERY_JSON_LD) }} />
+      </head>
       <body className={`${inter.variable} ${inter.className}`}>
         <Providers>
           <AuthHashHandler />

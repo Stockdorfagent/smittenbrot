@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Häufige Fragen',
+  description: 'Antworten rund um Bestellung, Bestellschluss, Zahlung, Abholung und Abo bei Smittenbrot.',
+  alternates: { canonical: '/faq' },
+};
 export default function FAQPage() {
   const faqs = [
     {

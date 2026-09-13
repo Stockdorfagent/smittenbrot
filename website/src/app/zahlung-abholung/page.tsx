@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Zahlung & Abholung',
+  description: 'Bezahlen per Karte, PayPal, Apple Pay oder Google Pay; Abholung mittwochs und samstags in Stockdorf.',
+  alternates: { canonical: '/zahlung-abholung' },
+};
 export default function ZahlungAbholungPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-16 text-smitten-text leading-relaxed">

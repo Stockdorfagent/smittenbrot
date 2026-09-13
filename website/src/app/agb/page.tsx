@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'AGB',
+  description: 'Allgemeine Geschäftsbedingungen von Smittenbrot: Bestellung, Bestellautomatik (Abo), Zahlung, Stornierung und Abholung.',
+  alternates: { canonical: '/agb' },
+};
 // AGB — Fassung vom 09.09.2026 (Bestellautomatik statt Abonnementvertrag, App im
 // Geltungsbereich, § 312i-Informationen, Stornierung 22:00 Uhr, gesetzliche Haftung).
 // Frühere Fassungen: git history dieser Datei (z. B. `git log -p -- website/src/app/agb/page.tsx`).

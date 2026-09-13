@@ -1,3 +1,11 @@
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Impressum',
+  description: 'Impressum von Smittenbrot, Sophia Smittenberg, Stockdorf.',
+  alternates: { canonical: '/impressum' },
+};
 export default function ImpressumPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-16">
