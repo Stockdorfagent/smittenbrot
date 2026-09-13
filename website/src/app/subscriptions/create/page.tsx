@@ -28,8 +28,6 @@ type Step = 'products' | 'overview' | 'account';
 
 function SubscriptionCreateForm() {
   const router = useRouter();
-  const stripe = useStripe();
-  const elements = useElements();
   const [step, setStep] = useState<Step>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [weekCycle, setWeekCycle] = useState<'A' | 'B'>('A');
@@ -192,31 +190,6 @@ function SubscriptionCreateForm() {
   }
 
   const [clientSecret, setClientSecret] = useState('');
-
-  async function handleStripeSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setStripeLoading(true);
-    setStripeError('');
-
-    const { error: submitError } = await stripe.confirmSetup({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/subscriptions`,
-      },
-      redirect: 'if_required',
-    });
-
-    if (submitError) {
-      setStripeError(submitError.message || 'Fehler bei der Zahlungsmethode');
-      setStripeLoading(false);
-      return;
-    }
-
-    // Payment method saved - now create the subscription
-    await handleSubmitSubscription();
-    setStripeLoading(false);
-  }
 
   async function handleSubmitSubscription() {
     if (!user || items.length === 0) return;
@@ -491,10 +464,13 @@ function SubscriptionCreateForm() {
             <p className="text-xs text-smitten-secondary mb-4">
               PayPal, Apple Pay und Google Pay lassen keine automatischen wöchentlichen Abbuchungen zu. Deshalb geht das Abo nur mit Karte, auch wenn du deine Bestellungen sonst anders bezahlst.
             </p>
-            <button onClick={handleSetupPayment}
-              className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-              Karte hinterlegen
+            <button onClick={handleSetupPayment} disabled={stripeLoading}
+              className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+              {stripeLoading ? 'Einen Moment …' : 'Karte hinterlegen'}
             </button>
+            {stripeError && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-left">{stripeError}</div>
+            )}
           </div>
           <div className="mt-6 flex justify-center gap-4">
             <button onClick={() => setStep('overview')} className="text-smitten-secondary hover:underline text-sm">← Zurück</button>
@@ -503,27 +479,22 @@ function SubscriptionCreateForm() {
         </div>
       )}
 
-      {/* Stripe payment element */}
-      {step === 'account' && user && showStripe && (
+      {/* Card setup: Stripe's PaymentElement needs an Elements instance that
+          was created WITH the SetupIntent client secret — hence the inner
+          <Elements options={{ clientSecret }}> here (same pattern as the
+          checkout). Rendering it under a secret-less Elements throws. */}
+      {step === 'account' && user && showStripe && clientSecret && (
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-xl border border-smitten-cream p-6">
             <h3 className="font-display font-bold text-smitten-text mb-4">Zahlungsmethode</h3>
-            {stripe && elements && (
-              <form onSubmit={handleStripeSubmit}>
-                <PaymentElement />
-                {stripeError && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{stripeError}</div>
-                )}
-                {/* AGB-Einbeziehung am Vertragsschluss (§ 305 Abs. 2 BGB). */}
-                <p className="mt-4 text-xs text-smitten-text/60">
-                  Es gelten unsere <Link href="/agb" target="_blank" className="underline hover:text-smitten-text">AGB</Link>.
-                </p>
-                <button type="submit" disabled={!stripe || stripeLoading}
-                  className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
-                  {stripeLoading ? 'Wird verarbeitet...' : 'Zahlungsmethode speichern & Abo starten'}
-                </button>
-              </form>
-            )}
+            <Elements stripe={stripePromise} options={{ clientSecret, locale: 'de' }}>
+              <SetupForm
+                onSaved={async () => {
+                  // Payment method saved - now create the subscription
+                  await handleSubmitSubscription();
+                }}
+              />
+            </Elements>
           </div>
         </div>
       )}
@@ -531,13 +502,54 @@ function SubscriptionCreateForm() {
   );
 }
 
-export default function SubscriptionCreatePage() {
+/** The card form itself; must live inside the <Elements> created with the SetupIntent secret. */
+function SetupForm({ onSaved }: { onSaved: () => Promise<void> }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function handleStripeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setBusy(true);
+    setErr('');
+    const { error: submitError } = await stripe.confirmSetup({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}/subscriptions` },
+      redirect: 'if_required',
+    });
+    if (submitError) {
+      setErr(submitError.message || 'Fehler bei der Zahlungsmethode');
+      setBusy(false);
+      return;
+    }
+    await onSaved();
+    setBusy(false);
+  }
+
   return (
-    <Elements stripe={stripePromise}>
-      <SubscriptionCreateForm />
-    </Elements>
+    <form onSubmit={handleStripeSubmit}>
+      <PaymentElement />
+      {err && (
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{err}</div>
+      )}
+      {/* AGB-Einbeziehung am Vertragsschluss (§ 305 Abs. 2 BGB). */}
+      <p className="mt-4 text-xs text-smitten-text/60">
+        Es gelten unsere <Link href="/agb" target="_blank" className="underline hover:text-smitten-text">AGB</Link>.
+      </p>
+      <button type="submit" disabled={!stripe || busy}
+        className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+        {busy ? 'Wird verarbeitet...' : 'Zahlungsmethode speichern & Abo starten'}
+      </button>
+    </form>
   );
 }
+
+export default function SubscriptionCreatePage() {
+  return <SubscriptionCreateForm />;
+}
+
 function getNextPickup(): { label: string; cutoffLabel: string } {
   const now = new Date();
   const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
