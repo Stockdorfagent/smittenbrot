@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Über Smittenbrot',
+  title: { absolute: 'Über Smittenbrot' },
   description: 'Wer hinter Smittenbrot steckt: eine kleine Sauerteig-Backstube in Stockdorf bei München, gebacken nach dem No-Waste-Prinzip nur auf Vorbestellung.',
   alternates: { canonical: '/about' },
 };

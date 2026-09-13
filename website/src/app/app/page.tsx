@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Die Smittenbrot App',
+  title: { absolute: 'Die Smittenbrot App' },
   description: 'Brot vorbestellen, bezahlen und benachrichtigt werden, sobald es bereitliegt. Die Smittenbrot App für iPhone und Android.',
   alternates: { canonical: '/app' },
 };
