@@ -485,12 +485,15 @@ function SubscriptionCreateForm() {
             Du bist angemeldet. Dein Abo wird eingerichtet, sobald du ein Zahlungsmittel hinterlegt hast.
           </p>
           <div className="bg-white rounded-xl border border-smitten-cream p-6">
-            <p className="text-sm text-smitten-text mb-4">
-              Hinterlege jetzt deine Zahlungsdaten für die wöchentliche Abbuchung.
+            <p className="text-sm text-smitten-text mb-2">
+              Für dein Abo hinterlegst du einmal eine Karte. Sie wird nur für die Abo-Bestellungen belastet, jeweils zum Bestellschluss.
+            </p>
+            <p className="text-xs text-smitten-secondary mb-4">
+              PayPal, Apple Pay und Google Pay lassen keine automatischen wöchentlichen Abbuchungen zu. Deshalb geht das Abo nur mit Karte, auch wenn du deine Bestellungen sonst anders bezahlst.
             </p>
             <button onClick={handleSetupPayment}
               className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-              Zahlungsdaten eingeben
+              Karte hinterlegen
             </button>
           </div>
           <div className="mt-6 flex justify-center gap-4">

@@ -58,6 +58,10 @@ const ABO_STEPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
     text: 'Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du bis 20:00 Uhr ganz einfach hier in der App erledigen.',
   },
   {
+    icon: 'card-outline',
+    text: 'Beim Einrichten hinterlegst du einmal eine Karte; sie wird nur für die Abo-Bestellungen belastet. PayPal, Apple Pay und Google Pay erlauben keine automatischen Abbuchungen, deshalb geht das Abo nur mit Karte.',
+  },
+  {
     icon: 'time-outline',
     text: 'Nach 20:00 Uhr hast du noch bis 22:00 Uhr Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.',
   },

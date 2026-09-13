@@ -440,6 +440,10 @@ export default function SubscriptionCreateScreen() {
             <Text style={styles.reviewHint}>
               Wird bei jeder Lieferung berechnet. Enthält 7 % MwSt.
             </Text>
+            <Text style={styles.reviewHint}>
+              Abgebucht wird von einer Karte, die du einmal hinterlegst. PayPal, Apple Pay und Google Pay erlauben
+              keine automatischen Abbuchungen, deshalb geht das Abo nur mit Karte.
+            </Text>
             {/* § 305 Abs. 2 BGB: AGB-Hinweis am Vertragsschluss, tippbar. */}
             <Text style={styles.reviewHint}>
               Es gelten unsere{' '}

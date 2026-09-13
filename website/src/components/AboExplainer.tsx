@@ -33,6 +33,10 @@ export default function AboExplainer() {
             <span>Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du <strong>bis 20:00 Uhr</strong> ganz einfach in deinem Konto erledigen.</span>
           </li>
           <li className="flex gap-3">
+            <span className="text-smitten-primary font-bold shrink-0">💳</span>
+            <span>Beim Einrichten hinterlegst du einmal eine <strong>Karte</strong>; sie wird nur für die Abo-Bestellungen belastet. PayPal, Apple Pay und Google Pay erlauben keine automatischen Abbuchungen, deshalb geht das Abo nur mit Karte.</span>
+          </li>
+          <li className="flex gap-3">
             <span className="text-smitten-primary font-bold shrink-0">⏰</span>
             <span>Nach 20:00 Uhr hast du noch bis <strong>22:00 Uhr</strong> Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.</span>
           </li>
