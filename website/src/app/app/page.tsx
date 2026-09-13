@@ -12,14 +12,26 @@
 const PLAY_URL: string | null = null;
 const APP_STORE_URL: string | null = 'https://apps.apple.com/de/app/smittenbrot/id6793602303';
 
+/**
+ * Official store badges (free to use; Apple: min 40 px high on screen, clear
+ * space ¼ of the height, only once the app is available; Google: min 28 px,
+ * clear space ¼, no modification). Files: public/badges/app-store-de.svg
+ * ("Laden im App Store", Apple's German artwork) and google-play-de.png
+ * ("Jetzt bei Google Play"). While a store URL is null we show a plain text
+ * card instead of the badge, as both brand guidelines require.
+ */
 function StoreLink({
   href,
   store,
   hint,
+  badge,
+  badgeAlt,
 }: {
   href: string | null;
   store: string;
   hint: string;
+  badge: string;
+  badgeAlt: string;
 }) {
   if (!href) {
     return (
@@ -29,16 +41,17 @@ function StoreLink({
       </div>
     );
   }
-
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex-1 rounded-xl border border-smitten-text bg-smitten-text p-5 transition-opacity hover:opacity-90"
+      aria-label={`${store}: ${hint}`}
+      className="flex-1 rounded-xl border border-smitten-cream bg-white p-5 flex flex-col items-start gap-3 transition-colors hover:border-smitten-text"
     >
-      <p className="font-display font-bold text-white">{store}</p>
-      <p className="mt-1 text-sm text-white/80">{hint}</p>
+      <p className="text-sm text-smitten-secondary">{hint}</p>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={badge} alt={badgeAlt} className="h-12 w-auto" />
     </a>
   );
 }
@@ -71,8 +84,8 @@ export default function AppPage() {
         </h2>
         <p className="mt-2 text-sm text-smitten-text">{availability}</p>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row">
-          <StoreLink href={PLAY_URL} store="Google Play" hint="Für Android" />
-          <StoreLink href={APP_STORE_URL} store="App Store" hint="Für iPhone" />
+          <StoreLink href={PLAY_URL} store="Google Play" hint="Für Android" badge="/badges/google-play-de.png" badgeAlt="Jetzt bei Google Play" />
+          <StoreLink href={APP_STORE_URL} store="App Store" hint="Für iPhone" badge="/badges/app-store-de.svg" badgeAlt="Laden im App Store" />
         </div>
       </div>
 
