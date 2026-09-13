@@ -15,9 +15,13 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not need camera access.",
         "NSPhotoLibraryUsageDescription": "This app does not need photo library access.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "de",
+        "CFBundleLocalizations": [
+          "de"
+        ]
       },
-      "buildNumber": "23"
+      "buildNumber": "24"
     },
     "android": {
       "adaptiveIcon": {
@@ -73,6 +77,9 @@
         "projectId": "60b1dbbc-f675-4169-bd0d-114e4e6cd013"
       }
     },
-    "owner": "stockdorfagent"
+    "owner": "stockdorfagent",
+    "locales": {
+      "de": "./locales/de.json"
+    }
   }
 }
