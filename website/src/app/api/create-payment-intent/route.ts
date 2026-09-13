@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
+const PAYPAL_ENABLED = process.env.PAYPAL_ENABLED === '1';
+
 function getStripeClient() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
@@ -255,9 +257,14 @@ export async function POST(req: NextRequest) {
         amount: finalAmount, // cents (already discounted)
         currency: 'eur',
         customer: stripeCustomerId,
-        setup_future_usage: customer_id ? 'off_session' : undefined,
         metadata,
-        payment_method_types: ['card'],
+        // PayPal is offered only once it is activated on the Stripe account
+        // (PAYPAL_ENABLED=1 in the Vercel env); listing an inactive type makes
+        // Stripe reject the PaymentIntent and would break every checkout.
+        payment_method_types: PAYPAL_ENABLED ? ['card', 'paypal'] : ['card'],
+        // Save the card for later (Abo card-update, saved-card checkout). Scoped
+        // to card: PayPal would need Stripe's recurring-PayPal approval first.
+        payment_method_options: customer_id ? { card: { setup_future_usage: 'off_session' } } : undefined,
       },
       { idempotencyKey }
     );
