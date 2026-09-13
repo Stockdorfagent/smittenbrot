@@ -25,7 +25,7 @@ function StoreLink({
     return (
       <div className="flex-1 rounded-xl border border-smitten-cream bg-white p-5">
         <p className="font-display font-bold text-smitten-text">{store}</p>
-        <p className="mt-1 text-sm text-smitten-secondary">In Vorbereitung</p>
+        <p className="mt-1 text-sm text-smitten-secondary">Kommt in Kürze</p>
       </div>
     );
   }
@@ -45,28 +45,31 @@ function StoreLink({
 
 export default function AppPage() {
   const live = PLAY_URL || APP_STORE_URL;
-
+  const availability =
+    PLAY_URL && APP_STORE_URL
+      ? 'Es gibt sie für iPhone und für Android.'
+      : APP_STORE_URL
+        ? 'Für iPhone gibt es die App im App Store. Die Android-Version ist gerade bei Google in der Prüfung und kommt in den nächsten Tagen.'
+        : PLAY_URL
+          ? 'Für Android gibt es die App bei Google Play. Die iPhone-Version ist gerade bei Apple in der Prüfung und kommt in den nächsten Tagen.'
+          : 'Ich bereite die Veröffentlichung für iPhone und Android gerade vor. Sobald es so weit ist, findest du die App hier.';
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-display font-bold text-smitten-text">
-        Smittenbrot App
+        Die Smittenbrot App
       </h1>
       <p className="mt-4 text-smitten-text leading-relaxed">
-        Bestelle dein Brot und Gebäck direkt von deinem Smartphone – schneller,
-        bequemer und immer auf dem neuesten Stand. Mit einem Abo musst du nie
-        wieder daran denken, rechtzeitig zu bestellen.
+        Mit der App hast du mein Brot immer dabei. Du siehst, was ich diese Woche
+        backe, bestellst in ein paar Sekunden vor und bekommst eine Nachricht,
+        sobald dein Brot im Abholschrank liegt. Und wenn du magst, richtest du ein
+        Abo ein und musst nie wieder an den Bestellschluss denken.
       </p>
 
       <div className="mt-8">
         <h2 className="text-xl font-display font-bold text-smitten-text">
           {live ? 'App laden' : 'Bald in den App-Stores'}
         </h2>
-        <p className="mt-2 text-sm text-smitten-text">
-          {live
-            ? 'Die App gibt es für Android und iPhone – Updates kommen automatisch.'
-            : 'Wir bereiten die Veröffentlichung für Android und iPhone vor. Sobald es losgeht, findest du die App hier.'}
-        </p>
-
+        <p className="mt-2 text-sm text-smitten-text">{availability}</p>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row">
           <StoreLink href={PLAY_URL} store="Google Play" hint="Für Android" />
           <StoreLink href={APP_STORE_URL} store="App Store" hint="Für iPhone" />
@@ -78,8 +81,8 @@ export default function AppPage() {
           Auch ohne App
         </h2>
         <p className="mt-2 text-sm text-smitten-text">
-          Du kannst alles auch hier auf der Website bestellen – Einzelbestellungen
-          und Abos, mit demselben Konto wie in der App.
+          Alles geht genauso hier auf der Website: einzelne Bestellungen und Abos,
+          mit demselben Konto wie in der App.
         </p>
       </div>
     </div>
