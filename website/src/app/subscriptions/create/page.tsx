@@ -70,6 +70,18 @@ function SubscriptionCreateForm() {
       if (session?.user) setUser(session.user);
     });
     fetchData();
+    // Restore what the customer had picked before a back-navigation, a login
+    // round trip or a 3-D Secure redirect, so nothing has to be chosen twice.
+    try {
+      const raw = sessionStorage.getItem('pending_subscription');
+      if (raw) {
+        const saved = JSON.parse(raw) as { items?: SubItem[]; pickupLocationId?: string; pickupDay?: 'wednesday' | 'saturday' | 'both' };
+        if (saved.items?.length) setItems(saved.items);
+        if (saved.pickupLocationId) setSelectedLocation(saved.pickupLocationId);
+        if (saved.pickupDay) setPickupDay(saved.pickupDay);
+        if (saved.items?.length && saved.pickupLocationId) setStep('overview');
+      }
+    } catch { /* ignore a malformed entry */ }
   }, []);
 
   async function fetchData() {
@@ -173,13 +185,29 @@ function SubscriptionCreateForm() {
         pickupDay,
       }));
       
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/create-setup-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
-        body: JSON.stringify({ email }),
-      });
+      // A page restored from the browser's back/forward cache can hold an
+      // expired access token; ask the client for a current one, and if the
+      // server still says 401, refresh once and retry before giving up.
+      const call = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        return fetch('/api/create-setup-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+          body: JSON.stringify({ email }),
+        });
+      };
+      let res = await call();
+      if (res.status === 401) {
+        await supabase.auth.refreshSession();
+        res = await call();
+      }
       const data = await res.json();
+      if (res.status === 401) {
+        setStripeError('Deine Anmeldung ist abgelaufen. Bitte melde dich kurz neu an, deine Auswahl bleibt erhalten.');
+        setStripeLoading(false);
+        router.push('/login?redirect=/subscriptions/create');
+        return;
+      }
       if (!res.ok) { setStripeError(data.error || 'Fehler'); setStripeLoading(false); return; }
       setClientSecret(data.clientSecret);
       setShowStripe(true);
@@ -214,6 +242,7 @@ function SubscriptionCreateForm() {
       });
     }
 
+    try { sessionStorage.removeItem('pending_subscription'); } catch { /* ignore */ }
     setSuccess(true);
     setSubmitting(false);
   }
