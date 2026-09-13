@@ -74,7 +74,7 @@ export default function AppPage() {
       <p className="mt-4 text-smitten-text leading-relaxed">
         Mit der App hast du mein Brot immer dabei. Du siehst, was ich diese Woche
         backe, bestellst in ein paar Sekunden vor und bekommst eine Nachricht,
-        sobald dein Brot im Abholschrank liegt. Und wenn du magst, richtest du ein
+        sobald dein Brot für dich bereitliegt. Und wenn du magst, richtest du ein
         Abo ein und musst nie wieder an den Bestellschluss denken.
       </p>
 
