@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { formatPrice } from '@/lib/types';
+import { paymentMethodLabel, orderStatusAdminLabels } from '@/lib/adminLabels';
 
 /**
  * All bookkeeping exports in one place — they lived on the Einstellungen
@@ -13,6 +14,14 @@ import { formatPrice } from '@/lib/types';
  */
 export default function AdminExportsPage() {
   const [exportMsg, setExportMsg] = useState('');
+  // Date range for the two bookkeeping exports (Bestellungen by Abholtag,
+  // Rechnungsdaten by Bestell-/Rechnungsdatum). Empty = everything.
+  const [orderFrom, setOrderFrom] = useState('');
+  const [orderTo, setOrderTo] = useState('');
+  // Production export: one line per product, only orders still to be baked.
+  const [prodFrom, setProdFrom] = useState('');
+  const [prodTo, setProdTo] = useState('');
+  const [prodMsg, setProdMsg] = useState('');
   const [receiptDateFrom, setReceiptDateFrom] = useState('');
   const [receiptDateTo, setReceiptDateTo] = useState('');
 
@@ -36,11 +45,14 @@ export default function AdminExportsPage() {
   async function exportInvoiceCsv() {
     setExportMsg('');
 
-    const { data: orders } = await supabase
+    let q = supabase
       .from('orders')
       .select('*, order_items(*), pickup_locations(name)')
       .order('fulfillment_date', { ascending: false })
       .limit(10000);
+    if (orderFrom) q = q.gte('created_at', `${orderFrom}T00:00:00`);
+    if (orderTo) q = q.lte('created_at', `${orderTo}T23:59:59`);
+    const { data: orders } = await q;
 
     if (!orders || orders.length === 0) {
       setExportMsg('Keine Bestellungen zum Exportieren vorhanden.');
@@ -72,17 +84,20 @@ export default function AdminExportsPage() {
       };
     });
 
-    downloadCsv(`rechnungsdaten-${new Date().toISOString().split('T')[0]}.csv`, buildCsv(rows));
+    downloadCsv(`rechnungsdaten-${orderFrom || 'alle'}-${orderTo || 'heute'}.csv`, buildCsv(rows));
   }
 
   async function exportCsv() {
     setExportMsg('');
 
-    const { data: orders } = await supabase
+    let q = supabase
       .from('orders')
       .select('*, order_items(*, products(name)), pickup_locations(name)')
       .order('fulfillment_date', { ascending: false })
       .limit(10000);
+    if (orderFrom) q = q.gte('fulfillment_date', orderFrom);
+    if (orderTo) q = q.lte('fulfillment_date', orderTo);
+    const { data: orders } = await q;
 
     if (!orders || orders.length === 0) {
       setExportMsg('Keine Bestellungen zum Exportieren vorhanden.');
@@ -115,7 +130,59 @@ export default function AdminExportsPage() {
       };
     });
 
-    downloadCsv(`bestellungen-${new Date().toISOString().split('T')[0]}.csv`, buildCsv(rows));
+    downloadCsv(`bestellungen-${orderFrom || 'alle'}-${orderTo || 'heute'}.csv`, buildCsv(rows));
+  }
+
+  /**
+   * Produktionsexport (owner, 15.09.2026): what still has to be baked. One line
+   * per product line, so an order with three products yields three lines that
+   * share the order number. Only status 'scheduled' (paid, not yet locked/
+   * fulfilled/cancelled). Optional Abholtag range; default = everything open.
+   */
+  async function exportProductionCsv() {
+    setProdMsg('');
+    let q = supabase
+      .from('orders')
+      .select('order_number, created_at, fulfillment_date, order_type, customer_name, customer_email, total_cents, discount_code, discount_cents, payment_method, status, payment_status, pickup_locations(name), order_items(quantity, unit_price_cents, products(name))')
+      .eq('status', 'scheduled')
+      .order('fulfillment_date', { ascending: true })
+      .order('order_number', { ascending: true })
+      .limit(10000);
+    if (prodFrom) q = q.gte('fulfillment_date', prodFrom);
+    if (prodTo) q = q.lte('fulfillment_date', prodTo);
+    const { data: orders, error } = await q;
+    if (error) { setProdMsg(`Fehler: ${error.message}`); return; }
+    if (!orders || orders.length === 0) {
+      setProdMsg('Keine offenen Bestellungen im gewählten Zeitraum.');
+      setTimeout(() => setProdMsg(''), 4000);
+      return;
+    }
+    const rows: Record<string, string | number>[] = [];
+    for (const o of orders) {
+      const items = (o.order_items || []) as { quantity: number; unit_price_cents: number; products?: { name?: string } | null }[];
+      for (const it of items) {
+        rows.push({
+          Bestellnummer: o.order_number || '',
+          Bestelldatum: (o.created_at || '').slice(0, 10),
+          Abholtag: o.fulfillment_date || '',
+          Typ: o.order_type === 'subscription' ? 'Abo' : 'Einmalig',
+          Name: o.customer_name || o.customer_email || '',
+          Produkt: it.products?.name || 'Unbekannt',
+          Menge: it.quantity,
+          Einzelpreis_Cent: it.unit_price_cents,
+          Gesamtpreis_Bestellung_Cent: o.total_cents,
+          Rabattcode: o.discount_code || '',
+          Rabatt_Cent: o.discount_cents || 0,
+          Zahlungsart: paymentMethodLabel(o.payment_method),
+          Status: orderStatusAdminLabels[o.status] || o.status,
+          Zahlung: o.payment_status || '',
+          Abholort: (o.pickup_locations as { name?: string } | null)?.name || '',
+        });
+      }
+    }
+    downloadCsv(`produktion-${prodFrom || 'offen'}-${prodTo || 'alle'}.csv`, buildCsv(rows));
+    setProdMsg(`${rows.length} Zeilen aus ${orders.length} Bestellungen exportiert.`);
+    setTimeout(() => setProdMsg(''), 6000);
   }
 
   async function exportStripeFees() {
@@ -250,8 +317,21 @@ export default function AdminExportsPage() {
             Datenexport
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Alle Bestellungen als CSV-Datei exportieren (max. 10.000 Einträge).
+            Bestellungen und Rechnungsdaten als CSV (max. 10.000 Einträge). Ohne Datum: alles.
+            Bestellungen werden nach Abholtag gefiltert, Rechnungsdaten nach Bestell-/Rechnungsdatum.
           </p>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
+              <input type="date" value={orderFrom} onChange={e => setOrderFrom(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
+              <input type="date" value={orderTo} onChange={e => setOrderTo(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+          </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               onClick={exportCsv}
@@ -269,6 +349,33 @@ export default function AdminExportsPage() {
           {exportMsg && (
             <p className="mt-3 text-sm text-smitten-text/60">{exportMsg}</p>
           )}
+        </div>
+
+        <div className="bg-white rounded-xl border border-smitten-cream p-5">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Produktionsexport
+          </h2>
+          <p className="text-sm text-smitten-text/60 mt-2">
+            Was noch gebacken werden muss: nur Bestellungen im Status „Vorgemerkt“, eine Zeile pro Produkt
+            (drei Produkte = drei Zeilen mit derselben Bestellnummer). Ohne Datum: alle offenen Bestellungen.
+          </p>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Abholtag von</label>
+              <input type="date" value={prodFrom} onChange={e => setProdFrom(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">bis (optional)</label>
+              <input type="date" value={prodTo} onChange={e => setProdTo(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            </div>
+            <button onClick={exportProductionCsv}
+              className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
+              Produktionsliste exportieren (CSV)
+            </button>
+          </div>
+          {prodMsg && <p className="mt-3 text-sm text-smitten-text/60">{prodMsg}</p>}
         </div>
 
         <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
