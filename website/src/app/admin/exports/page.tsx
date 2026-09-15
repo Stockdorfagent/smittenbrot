@@ -144,16 +144,18 @@ export default function AdminExportsPage() {
     let q = supabase
       .from('orders')
       .select('order_number, created_at, fulfillment_date, order_type, customer_name, customer_email, total_cents, discount_code, discount_cents, payment_method, status, payment_status, pickup_locations(name), order_items(quantity, unit_price_cents, products(name))')
-      .eq('status', 'scheduled')
+      // everything that has to be (or was) baked for the chosen pickup days;
+      // only cancelled/refunded orders are left out
+      .not('status', 'in', '("cancelled","refunded")')
       .order('fulfillment_date', { ascending: true })
       .order('order_number', { ascending: true })
       .limit(10000);
-    if (prodFrom) q = q.gte('fulfillment_date', prodFrom);
-    if (prodTo) q = q.lte('fulfillment_date', prodTo);
+    if (!prodFrom) { setProdMsg('Bitte einen Abholtag wählen.'); return; }
+    q = q.gte('fulfillment_date', prodFrom).lte('fulfillment_date', prodTo || prodFrom);
     const { data: orders, error } = await q;
     if (error) { setProdMsg(`Fehler: ${error.message}`); return; }
     if (!orders || orders.length === 0) {
-      setProdMsg('Keine offenen Bestellungen im gewählten Zeitraum.');
+      setProdMsg('Keine Bestellungen für diesen Abholtag.');
       setTimeout(() => setProdMsg(''), 4000);
       return;
     }
@@ -180,7 +182,7 @@ export default function AdminExportsPage() {
         });
       }
     }
-    downloadCsv(`produktion-${prodFrom || 'offen'}-${prodTo || 'alle'}.csv`, buildCsv(rows));
+    downloadCsv(`produktion-${prodFrom}${prodTo && prodTo !== prodFrom ? '-' + prodTo : ''}.csv`, buildCsv(rows));
     setProdMsg(`${rows.length} Zeilen aus ${orders.length} Bestellungen exportiert.`);
     setTimeout(() => setProdMsg(''), 6000);
   }
@@ -356,17 +358,18 @@ export default function AdminExportsPage() {
             Produktionsexport
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Was noch gebacken werden muss: nur Bestellungen im Status „Neu“ (in der App: „Vorgemerkt“), eine Zeile pro Produkt
-            (drei Produkte = drei Zeilen mit derselben Bestellnummer). Ohne Datum: alle offenen Bestellungen.
+            Alles, was für einen Abholtag gebacken wird: alle Bestellungen dieses Tages außer stornierten, eine Zeile pro
+            Produkt (drei Produkte = drei Zeilen mit derselben Bestellnummer). Nach dem Bestellschluss ziehen, dann ist die
+            Liste vollständig.
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
             <div>
-              <label className="block text-xs text-smitten-text/60 mb-1">Abholtag von</label>
+              <label className="block text-xs text-smitten-text/60 mb-1">Abholtag</label>
               <input type="date" value={prodFrom} onChange={e => setProdFrom(e.target.value)}
                 className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
             </div>
             <div>
-              <label className="block text-xs text-smitten-text/60 mb-1">bis (optional)</label>
+              <label className="block text-xs text-smitten-text/60 mb-1">bis (optional, für mehrere Tage)</label>
               <input type="date" value={prodTo} onChange={e => setProdTo(e.target.value)}
                 className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
             </div>
