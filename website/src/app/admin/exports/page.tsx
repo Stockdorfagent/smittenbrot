@@ -356,7 +356,7 @@ export default function AdminExportsPage() {
             Produktionsexport
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Was noch gebacken werden muss: nur Bestellungen im Status „Vorgemerkt“, eine Zeile pro Produkt
+            Was noch gebacken werden muss: nur Bestellungen im Status „Neu“ (in der App: „Vorgemerkt“), eine Zeile pro Produkt
             (drei Produkte = drei Zeilen mit derselben Bestellnummer). Ohne Datum: alle offenen Bestellungen.
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
