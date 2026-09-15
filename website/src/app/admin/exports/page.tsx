@@ -187,6 +187,30 @@ export default function AdminExportsPage() {
     setTimeout(() => setProdMsg(''), 6000);
   }
 
+  /** Same data as the CSV, but written into the owner's Excel plan (templates/production-plan.xlsx) by the server. */
+  async function exportProductionPlanXlsx() {
+    setProdMsg('');
+    if (!prodFrom) { setProdMsg('Bitte einen Abholtag wählen.'); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    const params = new URLSearchParams({ from: prodFrom, ...(prodTo ? { to: prodTo } : {}) });
+    const res = await fetch(`/api/admin/production-plan?${params}`, {
+      headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setProdMsg(`Fehler: ${j.error || res.statusText}`);
+      return;
+    }
+    const blob = await res.blob();
+    const name = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || `${prodFrom}_production-plan.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    setProdMsg(`${name} erstellt.`);
+    setTimeout(() => setProdMsg(''), 6000);
+  }
+
   async function exportStripeFees() {
     setStripeFeeError('');
     setStripeFeeSummary(null);
@@ -360,7 +384,8 @@ export default function AdminExportsPage() {
           <p className="text-sm text-smitten-text/60 mt-2">
             Alles, was für einen Abholtag gebacken wird: alle Bestellungen dieses Tages außer stornierten, eine Zeile pro
             Produkt (drei Produkte = drei Zeilen mit derselben Bestellnummer). Nach dem Bestellschluss ziehen, dann ist die
-            Liste vollständig.
+            Liste vollständig. „Produktionsplan (Excel)“ füllt deine Excel-Vorlage (Tab „Orders“) und rechnet die
+            anderen Tabs beim Öffnen neu; die Datei heißt nach dem (letzten) Abholtag.
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
             <div>
@@ -373,9 +398,13 @@ export default function AdminExportsPage() {
               <input type="date" value={prodTo} onChange={e => setProdTo(e.target.value)}
                 className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
             </div>
-            <button onClick={exportProductionCsv}
+            <button onClick={exportProductionPlanXlsx}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
-              Produktionsliste exportieren (CSV)
+              Produktionsplan (Excel)
+            </button>
+            <button onClick={exportProductionCsv}
+              className="px-4 py-2 bg-smitten-accent text-white text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors">
+              Nur die Liste (CSV)
             </button>
           </div>
           {prodMsg && <p className="mt-3 text-sm text-smitten-text/60">{prodMsg}</p>}

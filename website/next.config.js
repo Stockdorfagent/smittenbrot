@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The production-plan route reads templates/production-plan.xlsx at runtime;
+  // Vercel only ships files the bundler can trace, so include them explicitly.
+  experimental: {
+    outputFileTracingIncludes: { '/api/admin/production-plan': ['./templates/**'] },
+  },
   images: {
     domains: ['your-storage.supabase.co'],
   },
