@@ -34,7 +34,10 @@ export default function AdminExportsPage() {
     transactions: number;
     total_gross_cents: number;
     total_fee_cents: number;
+    stripe_fee_cents: number;
+    paypal_fee_cents: number;
     total_net_cents: number;
+    payouts_cents: number;
   } | null>(null);
   const [stripeFeeError, setStripeFeeError] = useState('');
 
@@ -440,10 +443,16 @@ export default function AdminExportsPage() {
 
         <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">
-            Stripe-Gebühren
+            Zahlungsgebühren (Stripe + PayPal)
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Exportiere die von Stripe erhobenen Transaktionsgebühren als CSV. Enthält Bruttoumsatz, Gebühren und Nettobetrag pro Tag.
+            Eine Zeile pro Zahlung, Erstattung und Auszahlung mit Bestell- und Rechnungsnummer, Brutto, Stripe-Gebühr,
+            PayPal-Gebühr und Netto (Tage nach Berliner Zeit), dazu Tages- und Gesamtsummen. Auszahlungen an die Bank
+            werden separat ausgewiesen und nicht in den Umsatz gerechnet.
+          </p>
+          <p className="text-xs text-smitten-text/60 mt-1">
+            Wichtig für die Buchhaltung: Stripe-Gebühren stehen auf der Stripe-Rechnung. PayPal-Gebühren reicht Stripe
+            nur durch — sie stehen ausschließlich auf den PayPal-Belegen (PayPal-Konto → Berichte).
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
             <div>
@@ -458,7 +467,7 @@ export default function AdminExportsPage() {
             </div>
             <button onClick={exportStripeFees} disabled={stripeFeeLoading}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
-              {stripeFeeLoading ? 'Lade...' : 'Stripe-Gebühren exportieren'}
+              {stripeFeeLoading ? 'Lade...' : 'Zahlungsgebühren exportieren (CSV)'}
             </button>
           </div>
           {stripeFeeSummary && (
@@ -469,8 +478,11 @@ export default function AdminExportsPage() {
               </p>
               <p className="text-smitten-text/60">
                 Brutto: {formatPrice(stripeFeeSummary.total_gross_cents)} ·
-                Gebühren: {formatPrice(stripeFeeSummary.total_fee_cents)} ·
+                Stripe-Gebühren: {formatPrice(stripeFeeSummary.stripe_fee_cents)} ·
+                PayPal-Gebühren: {formatPrice(stripeFeeSummary.paypal_fee_cents)} ·
+                Gebühren gesamt: {formatPrice(stripeFeeSummary.total_fee_cents)} ·
                 Netto: {formatPrice(stripeFeeSummary.total_net_cents)}
+                {stripeFeeSummary.payouts_cents > 0 && <> · Auszahlungen an Bank: {formatPrice(stripeFeeSummary.payouts_cents)}</>}
               </p>
             </div>
           )}
