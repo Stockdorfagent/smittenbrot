@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { requireAdmin } from '@/lib/apiAuth';
+import { paymentMethodLabel } from '@/lib/adminLabels';
 
 /**
  * Zahlungsgebühren export (Stripe + PayPal) — one CSV line per Stripe balance
@@ -67,13 +68,6 @@ const TYPE_LABELS: Record<string, string> = {
   stripe_fee: 'Stripe-Gebühr',
   application_fee: 'Plattformgebühr',
   transfer: 'Transfer',
-};
-
-const PM_LABELS: Record<string, string> = {
-  card: 'Karte',
-  paypal: 'PayPal',
-  link: 'Link',
-  sepa_debit: 'SEPA-Lastschrift',
 };
 
 /** Balance transaction types that count as revenue movement (Brutto/Netto). */
@@ -148,13 +142,17 @@ export async function POST(req: NextRequest) {
       const s = t.source as Stripe.Charge | Stripe.Refund | Stripe.Payout | string | null;
       const sourceId = typeof s === 'string' ? s : s?.id ?? '';
       const order = orderByPi.get(piOf(t));
-      // Payment method: from the charge itself; for refunds via the order row.
+      // Payment method in the same "type/wallet" form the webhook stores on the
+      // order (card, card/link, card/apple_pay, paypal …) so the label matches
+      // the Bestellungen export; refunds fall back to the order row.
       let pmRaw = '';
       if (s && typeof s !== 'string' && (s as Stripe.Charge).object === 'charge') {
-        pmRaw = (s as Stripe.Charge).payment_method_details?.type ?? '';
+        const pmd = (s as Stripe.Charge).payment_method_details;
+        const wallet = pmd?.type === 'card' ? pmd.card?.wallet?.type : undefined;
+        pmRaw = pmd?.type ? (wallet ? `${pmd.type}/${wallet}` : pmd.type) : '';
       }
-      if (!pmRaw && order?.payment_method) pmRaw = order.payment_method.split('/')[0];
-      const pm = pmRaw ? (PM_LABELS[pmRaw] ?? pmRaw) : '';
+      if (!pmRaw && order?.payment_method) pmRaw = order.payment_method;
+      const pm = paymentMethodLabel(pmRaw);
       return {
         date, time, type: t.type,
         typeLabel: TYPE_LABELS[t.type] ?? t.type,
