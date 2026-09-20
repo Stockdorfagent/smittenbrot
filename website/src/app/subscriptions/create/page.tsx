@@ -429,7 +429,7 @@ function SubscriptionCreateForm() {
       {step === 'account' && !user && (
         <div className="max-w-md mx-auto">
           <p className="text-center text-smitten-text mb-6">
-            Für ein Abo benötigst du ein Konto. So kannst du jederzeit Pausen einlegen, Produkte ändern oder kündigen.
+            Für ein Abo benötigst du ein Konto. So kannst du jederzeit Pausen einlegen, Produkte ändern oder die Dauerbestellung beenden.
           </p>
           <div className="bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
             <div>

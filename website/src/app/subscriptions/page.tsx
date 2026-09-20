@@ -93,8 +93,8 @@ interface SubscriptionRow extends Subscription {
 const statusLabels: Record<string, string> = {
   active: 'Aktiv',
   paused: 'Pausiert',
-  cancellation_pending: 'Kündigung läuft',
-  cancelled: 'Gekündigt',
+  cancellation_pending: 'Wird beendet',
+  cancelled: 'Beendet',
   payment_failed: 'Zahlung fehlgeschlagen',
 };
 
@@ -305,7 +305,7 @@ export default function SubscriptionsPage() {
   }
 
   async function handleCancel(subId: string) {
-    if (!confirm('Möchtest du diese Dauerbestellung kündigen? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
+    if (!confirm('Möchtest du diese Dauerbestellung beenden? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
     setBusyId(subId);
     await supabase
       .from('subscriptions')
@@ -450,11 +450,11 @@ export default function SubscriptionsPage() {
                   {(sub.status === 'active' || sub.status === 'payment_failed') && (
                     <button onClick={() => handleCancel(sub.id)} disabled={busyId === sub.id}
                       className="text-xs border border-red-200 px-3 py-1.5 rounded-full text-red-500 hover:border-red-300 transition-colors disabled:opacity-50">
-                      {busyId === sub.id ? 'Wird gekündigt...' : 'Kündigen'}
+                      {busyId === sub.id ? 'Wird beendet...' : 'Dauerbestellung beenden'}
                     </button>
                   )}
                   {sub.status === 'cancellation_pending' && (
-                    <span className="text-xs text-orange-500">Kündigung wird beim nächsten Durchlauf bearbeitet</span>
+                    <span className="text-xs text-orange-500">Wird beim nächsten Durchlauf beendet</span>
                   )}
                 </div>
 
