@@ -68,7 +68,7 @@ function CardUpdateForm({
         </button>
         <button type="submit" disabled={!stripe || busy}
           className="px-4 py-1.5 text-xs bg-smitten-primary text-white rounded-full hover:bg-smitten-primary/90 disabled:opacity-50 transition-colors">
-          {busy ? 'Wird gespeichert...' : 'Speichern & Abo fortsetzen'}
+          {busy ? 'Wird gespeichert...' : 'Speichern & Dauerbestellung fortsetzen'}
         </button>
       </div>
     </form>
@@ -294,18 +294,18 @@ export default function SubscriptionsPage() {
     const res = await invokeEdgeFunction(
       'subscription-engine/resume',
       { subscription_id: subId },
-      'Die Karte wurde gespeichert, aber das Abo konnte nicht fortgesetzt werden. Bitte versuche es erneut.',
+      'Die Karte wurde gespeichert, aber die Dauerbestellung konnte nicht fortgesetzt werden. Bitte versuche es erneut.',
     );
     if (!res.ok) {
       setResumeError({ id: subId, msg: res.message });
       return;
     }
-    setBanner('Zahlungsmethode gespeichert — dein Abo läuft weiter.');
+    setBanner('Zahlungsmethode gespeichert — deine Dauerbestellung läuft weiter.');
     loadSubscriptions();
   }
 
   async function handleCancel(subId: string) {
-    if (!confirm('Möchtest du dieses Abo kündigen? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
+    if (!confirm('Möchtest du diese Dauerbestellung kündigen? Bereits bezahlte Bestellungen bleiben bestehen.')) return;
     setBusyId(subId);
     await supabase
       .from('subscriptions')
@@ -317,7 +317,7 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-display font-bold text-smitten-text">Meine Abos</h1>
+      <h1 className="text-3xl font-display font-bold text-smitten-text">Meine Dauerbestellungen</h1>
 
       {loading ? (
         <p className="mt-8 text-center text-smitten-text/40">Lädt...</p>
@@ -327,17 +327,17 @@ export default function SubscriptionsPage() {
           <AboExplainer />
           <button onClick={() => router.push('/login?redirect=/subscriptions')}
             className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-            Abo einrichten
+            Dauerbestellung einrichten
           </button>
         </>
       ) : subscriptions.length === 0 ? (
         /* Logged in but no subscriptions — same explanation, straight to the wizard */
         <>
-          <p className="mt-6 text-smitten-text">Du hast noch kein Abo eingerichtet.</p>
+          <p className="mt-6 text-smitten-text">Du hast noch keine Dauerbestellung eingerichtet.</p>
           <AboExplainer />
           <Link href="/subscriptions/create"
             className="mt-8 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-            Abo einrichten
+            Dauerbestellung einrichten
           </Link>
         </>
       ) : (
@@ -414,7 +414,7 @@ export default function SubscriptionsPage() {
                 {sub.status === 'payment_failed' && (
                   <p className="mt-2 text-sm text-red-600">
                     Die letzte Zahlung hat nicht funktioniert. Hinterlege eine neue
-                    Zahlungsmethode, dann l&auml;uft dein Abo weiter.
+                    Zahlungsmethode, dann l&auml;uft deine Dauerbestellung weiter.
                   </p>
                 )}
                 {resumeError?.id === sub.id && (
@@ -472,9 +472,9 @@ export default function SubscriptionsPage() {
                 {/* Pause form inline */}
                 {pausingId === sub.id && (
                   <div className="mt-4 p-4 bg-smitten-cream rounded-xl space-y-3">
-                    <p className="text-sm font-medium text-smitten-text">Abo pausieren</p>
+                    <p className="text-sm font-medium text-smitten-text">Dauerbestellung pausieren</p>
                     <p className="text-xs text-smitten-text/60">
-                      Die Pause beginnt sofort. Danach l&auml;uft dein Abo automatisch weiter.
+                      Die Pause beginnt sofort. Danach l&auml;uft deine Dauerbestellung automatisch weiter.
                     </p>
                     <div>
                       <label className="block text-xs text-smitten-text mb-1">Pausieren bis</label>
@@ -501,7 +501,7 @@ export default function SubscriptionsPage() {
 
           <Link href="/subscriptions/create"
             className="block text-center mt-4 bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
-            Weiteres Abo einrichten
+            Weitere Dauerbestellung einrichten
           </Link>
         </div>
       )}
