@@ -87,7 +87,8 @@ export default function AppPage() {
       </p>
       <p className="mt-3 text-smitten-text leading-relaxed">
         Lieber jede Woche selbst entscheiden? Dann stell dir in der App eine Bestell-Erinnerung ein: Sie meldet
-        sich zu deiner Wunschzeit vor dem Bestellschluss, mehr nicht. Kein Abo, keine Verpflichtung.
+        sich zu deiner Wunschzeit vor dem Bestellschluss, mehr nicht. Kein Abo, keine Verpflichtung. Ohne App
+        bekommst du die Erinnerung per E-Mail, einschaltbar in deinem Profil auf der Website.
       </p>
 
       <div className="mt-8">

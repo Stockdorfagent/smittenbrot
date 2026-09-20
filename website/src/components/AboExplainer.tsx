@@ -48,7 +48,9 @@ export default function AboExplainer() {
       <section className="mt-8">
         <h3 className="font-display text-lg font-bold text-smitten-text">Lieber jede Woche selbst entscheiden?</h3>
         <p className="mt-3 text-sm text-smitten-secondary leading-relaxed">
-          In der App kannst du unter Profil eine Bestell-Erinnerung vor dem Bestellschluss einstellen. So wirst du
+          Dann lass dich einfach an den Bestellschluss erinnern: In der App stellst du unter Profil eine
+          Bestell-Erinnerung mit Wochentag und Uhrzeit nach Wahl ein. Ohne App bekommst du die Erinnerung per
+          E-Mail, am Bestelltag um 12:00 Uhr, einschaltbar in deinem Profil auf der Website. So wirst du
           rechtzeitig erinnert und bestellst nur dann, wenn du Brot brauchst.
         </p>
       </section>

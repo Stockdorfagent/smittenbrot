@@ -666,6 +666,112 @@ async function process12pmReminders(): Promise<{
 }
 
 /**
+ * 1b. processOrderReminders()  — Bestell-Erinnerung per E-Mail (website-only feature, 20.09.2026)
+ *
+ * Called Monday/Thursday 12:00 Berlin (crons order-reminder-mon/-thu, migration 030).
+ * For customers who opted in on /profile (customers.reminder_wednesday / reminder_saturday)
+ * and do NOT have a Dauerbestellung for that pickup day, send ONE e-mail: "today until
+ * 22:00 you can still order for <pickup date>". Skipped when the customer already has an
+ * order for that date, when the bake day is closed, or when they run an active Abo for
+ * that day (those get the Abo reminder at the same time). E-mail only, never push: the
+ * app has its own local reminders (mobile/src/lib/reminder.ts) — owner's decision.
+ *
+ * `dayOverride` ('wednesday' | 'saturday') is for forced manual/test runs on other weekdays.
+ */
+async function processOrderReminders(dayOverride?: string): Promise<{
+  processed: number;
+  skipped: { subscribers: number; alreadyOrdered: number; noEmail: number };
+  fulfillmentDate: string | null;
+  errors: string[];
+}> {
+  const dow = currentDayOfWeek();
+  const day = dayOverride === "wednesday" || dayOverride === "saturday"
+    ? dayOverride
+    : dow === 1 ? "wednesday" : dow === 4 ? "saturday" : null;
+  const none = { subscribers: 0, alreadyOrdered: 0, noEmail: 0 };
+  if (!day) {
+    console.log(`[subscription-engine] processOrderReminders: not an order day (dow=${dow}), nothing to do.`);
+    return { processed: 0, skipped: none, fulfillmentDate: null, errors: [] };
+  }
+  const flagColumn = day === "wednesday" ? "reminder_wednesday" : "reminder_saturday";
+  const fulfillmentDate = dayOverride
+    ? getNextDateForPickupDay(day as "wednesday" | "saturday")
+    : getNextFulfillmentDate();
+
+  // Closed bake day → no reminder (there is nothing to order for).
+  const { data: closure } = await supabase
+    .from("closures")
+    .select("id")
+    .lte("start_date", fulfillmentDate)
+    .gte("end_date", fulfillmentDate)
+    .limit(1)
+    .maybeSingle();
+  if (closure) {
+    console.log(`[subscription-engine] processOrderReminders: ${fulfillmentDate} is a closure day, skipping.`);
+    return { processed: 0, skipped: none, fulfillmentDate, errors: [] };
+  }
+
+  const { data: customers, error: custErr } = await supabase
+    .from("customers")
+    .select("id, email, name, unsubscribe_token")
+    .eq(flagColumn, true);
+  if (custErr) return { processed: 0, skipped: none, fulfillmentDate, errors: [custErr.message] };
+  if (!customers || customers.length === 0) {
+    console.log("[subscription-engine] processOrderReminders: nobody opted in.");
+    return { processed: 0, skipped: none, fulfillmentDate, errors: [] };
+  }
+  const ids = customers.map((c) => c.id as string);
+
+  // Who has an Abo running for this day (they get the 12:00 Abo reminder instead)?
+  const { data: subs } = await supabase
+    .from("subscriptions")
+    .select("customer_id")
+    .in("customer_id", ids)
+    .eq("status", "active")
+    .in("pickup_day", [day, "both"])
+    .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
+  const subscriberIds = new Set((subs ?? []).map((r) => r.customer_id as string));
+
+  // Who already ordered for that pickup date?
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("customer_id")
+    .in("customer_id", ids)
+    .eq("fulfillment_date", fulfillmentDate)
+    .not("status", "in", "(cancelled,refunded)");
+  const orderedIds = new Set((orders ?? []).map((r) => r.customer_id as string));
+
+  const skipped = { ...none };
+  const errors: string[] = [];
+  let processed = 0;
+  for (const c of customers) {
+    const id = c.id as string;
+    if (subscriberIds.has(id)) { skipped.subscribers++; continue; }
+    if (orderedIds.has(id)) { skipped.alreadyOrdered++; continue; }
+    const email = (c.email as string | null) ?? "";
+    if (!email.trim()) { skipped.noEmail++; continue; }
+    try {
+      await dispatchNotification(id, "order_reminder", "email", {
+        fulfillment_date: fulfillmentDate,
+        pickup_day: day,
+        customer_id: id,
+        unsubscribe_token: c.unsubscribe_token,
+        name: c.name,
+      });
+      processed++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Customer ${id}: ${msg}`);
+    }
+  }
+  console.log(
+    `[subscription-engine] processOrderReminders(${day}, ${fulfillmentDate}): ${processed} sent, ` +
+      `skipped ${JSON.stringify(skipped)}, ${errors.length} errors`,
+  );
+  return { processed, skipped, fulfillmentDate, errors };
+}
+
+/**
  * 2. process_8pm_order_placement()
  *
  * Called at Monday/Thursday 20:00.
@@ -2121,6 +2227,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
     "process-8pm-order-placement", "process_8pm_order_placement",
     "process-10pm-lock", "process_10pm_lock",
     "process-cancellations", "process_cancellations",
+    "process-order-reminders", "process_order_reminders",
   ]);
   if (CRON_ONLY.has(action)) {
     const ok =
@@ -2140,8 +2247,11 @@ serve(withCors(async (req: Request): Promise<Response> => {
     "process_8pm_order_placement": 20,
     "process-10pm-lock": 22,
     "process_10pm_lock": 22,
+    "process-order-reminders": 12,
+    "process_order_reminders": 12,
   };
   const expectedHour = GUARDED_HOURS[action];
+  let forcedRun = false;
   if (expectedHour !== undefined) {
     // `?force=1` bypasses the hour guard for manual/testing invocation — but
     // forcing the 22:00 charge loop early is exactly what an outsider must
@@ -2155,6 +2265,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
       url.searchParams.get("force") === "1" &&
       ((CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
         (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY));
+    forcedRun = forced;
     if (!forced) {
       const h = berlinHour();
       if (h !== expectedHour) {
@@ -2171,6 +2282,14 @@ serve(withCors(async (req: Request): Promise<Response> => {
       case "process-12pm-reminders":
       case "process_12pm_reminders": {
         const result = await process12pmReminders();
+        return json(result);
+      }
+
+      case "process-order-reminders":
+      case "process_order_reminders": {
+        // `day=` only for forced (cron-secret/service-key) test runs on other weekdays.
+        const dayParam = forcedRun ? (url.searchParams.get("day") ?? undefined) : undefined;
+        const result = await processOrderReminders(dayParam);
         return json(result);
       }
 
@@ -2381,6 +2500,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
             "process-8pm-order-placement",
             "process-10pm-lock",
             "process-cancellations",
+            "process-order-reminders",
             "process-single-subscription",
             "pause",
             "resume",

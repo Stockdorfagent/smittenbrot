@@ -6,7 +6,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Email unsubscribe landing page. The reminder emails link here with the
 // customer id + their unguessable unsubscribe_token. A valid match turns off
-// email reminders (reminder_email = false). Idempotent; re-enable in Profil.
+// ALL e-mail reminders: the Abo reminder (reminder_email) and the per-day
+// Bestell-Erinnerung (reminder_wednesday/saturday). Idempotent; re-enable in Profil.
 export const dynamic = 'force-dynamic';
 
 async function unsubscribe(customerId?: string, token?: string): Promise<'ok' | 'invalid'> {
@@ -23,7 +24,7 @@ async function unsubscribe(customerId?: string, token?: string): Promise<'ok' | 
 
   const { error: updErr } = await supabase
     .from('customers')
-    .update({ reminder_email: false })
+    .update({ reminder_email: false, reminder_wednesday: false, reminder_saturday: false })
     .eq('id', customerId);
   if (updErr) return 'invalid';
   return 'ok';

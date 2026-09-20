@@ -843,6 +843,37 @@ const NOTIFICATION_TEMPLATES: Record<
       html: `<p style="margin:0">${text}</p>${itemsHtml}${unsub}`,
     };
   },
+  // Bestell-Erinnerung for customers WITHOUT a Dauerbestellung (website opt-in per pickup
+  // day, engine action process-order-reminders). E-mail only. House style: no emojis,
+  // dd.mm.yyyy, red only for the one thing worth emphasising, greet once, sign as Sophia.
+  order_reminder: (d) => {
+    const date = formatDe(d.fulfillment_date);
+    const weekday = d.pickup_day === "saturday" ? "Samstag" : "Mittwoch";
+    const firstName = (typeof d.name === "string" ? d.name : "").trim().split(/\s+/)[0] ?? "";
+    const greeting = firstName ? `Hallo ${firstName},` : "Hallo,";
+    const text =
+      `heute ist Bestellschluss: Bis 22:00 Uhr kannst du dein Brot für die Abholung am ` +
+      `${weekday}, ${date} bestellen. Danach ist eine Bestellung für diesen Tag nicht mehr möglich.`;
+    const unsub =
+      d.customer_id && d.unsubscribe_token
+        ? `<p style="margin-top:24px;font-size:12px;color:#6B7280">` +
+          `Keine Bestell-Erinnerungen mehr? ` +
+          `<a href="${SITE_URL}/abmelden?c=${d.customer_id}&t=${d.unsubscribe_token}" style="color:#6B7280;text-decoration:underline">Hier abmelden</a>` +
+          ` oder in deinem Profil ändern.</p>`
+        : "";
+    return {
+      title: `Heute ist Bestellschluss für die Abholung am ${date}`,
+      body: `${greeting} ${text} Jetzt bestellen: ${SITE_URL}`,
+      html:
+        `<div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1A1A1A; font-size: 15px; line-height: 1.55;">` +
+        `<p style="margin: 0 0 16px;">${greeting}</p>` +
+        `<p style="margin: 0 0 16px;">${text.replace("Bis 22:00 Uhr", `Bis <strong style="color: #f8120e;">22:00 Uhr</strong>`)}</p>` +
+        `<p style="margin: 0 0 24px;"><a href="${SITE_URL}" style="display:inline-block;background:#1A1A1A;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:999px;font-weight:600;">Jetzt bestellen</a></p>` +
+        `<p style="margin: 0;">Liebe Grüße<br>Sophia</p>` +
+        unsub +
+        `</div>`,
+    };
+  },
   order_placed: (d) => ({
     title: "Deine Abo-Bestellung wurde aufgegeben",
     body:

@@ -14,7 +14,7 @@ export default function FAQPage() {
     },
     {
       q: 'Kann ich mich an den Bestellschluss erinnern lassen?',
-      a: 'Ja. In der App kannst du unter Profil eine Bestell-Erinnerung einstellen, mit Wochentag und Uhrzeit nach Wahl, zum Beispiel montags um 9 Uhr für den Mittwoch. Die Erinnerung ist unabhängig vom Abo: Du entscheidest jede Woche selbst, ob und was du bestellst.',
+      a: 'Ja. In der App kannst du unter Profil eine Bestell-Erinnerung einstellen, mit Wochentag und Uhrzeit nach Wahl, zum Beispiel montags um 9 Uhr für den Mittwoch. Ohne App geht es per E-Mail: In deinem Profil auf der Website wählst du, ob du montags und/oder donnerstags um 12:00 Uhr erinnert werden möchtest. Die Erinnerung ist unabhängig vom Abo: Du entscheidest jede Woche selbst, ob und was du bestellst.',
     },
     {
       q: 'Bis wann kann ich bestellen?',

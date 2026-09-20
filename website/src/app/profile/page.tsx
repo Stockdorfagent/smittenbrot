@@ -18,6 +18,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [reminderEmail, setReminderEmail] = useState(true);
+  const [reminderWed, setReminderWed] = useState(false);
+  const [reminderSat, setReminderSat] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
@@ -42,13 +44,15 @@ export default function ProfilePage() {
 
       const { data: customer } = await supabase
         .from('customers')
-        .select('name, phone, preferred_pickup_location_id, reminder_email')
+        .select('name, phone, preferred_pickup_location_id, reminder_email, reminder_wednesday, reminder_saturday')
         .eq('id', session.user.id)
         .single();
       if (customer?.name) setName(customer.name);
       if (customer?.phone) setPhone(customer.phone);
       if (customer?.preferred_pickup_location_id) setPreferredLocation(customer.preferred_pickup_location_id);
       if (customer?.reminder_email != null) setReminderEmail(customer.reminder_email);
+      setReminderWed(customer?.reminder_wednesday === true);
+      setReminderSat(customer?.reminder_saturday === true);
 
       const { data: locs } = await supabase
         .from('pickup_locations')
@@ -72,6 +76,8 @@ export default function ProfilePage() {
       phone: phone || null,
       preferred_pickup_location_id: preferredLocation || null,
       reminder_email: reminderEmail,
+      reminder_wednesday: reminderWed,
+      reminder_saturday: reminderSat,
     });
     setSaving(false);
     setSaved(true);
@@ -121,15 +127,37 @@ export default function ProfilePage() {
               onChange={e => setReminderEmail(e.target.checked)}
               className="mt-0.5 accent-smitten-accent" />
             <div>
-              <p className="text-sm font-medium text-smitten-text">Bestell-Erinnerungen per E-Mail</p>
+              <p className="text-sm font-medium text-smitten-text">Erinnerung zur Dauerbestellung per E-Mail</p>
               <p className="text-xs text-smitten-text/60">
-                Erinnerung, bevor deine Abo-Bestellung aufgegeben wird.
+                Erinnerung am Bestelltag, bevor deine Dauerbestellung automatisch aufgegeben wird.
               </p>
             </div>
           </label>
           {!reminderEmail && (
-            <p className="text-xs text-smitten-secondary mt-2">Du erhältst keine Bestell-Erinnerungen per E-Mail.</p>
+            <p className="text-xs text-smitten-secondary mt-2">Du erhältst keine Erinnerung zu deiner Dauerbestellung per E-Mail.</p>
           )}
+        </div>
+
+        {/* ── Bestell-Erinnerung without a Dauerbestellung (e-mail, Mon/Thu 12:00; migration 030) ── */}
+        <div className="pt-4 border-t border-smitten-cream">
+          <p className="text-sm font-medium text-smitten-text">Bestell-Erinnerung per E-Mail</p>
+          <p className="text-xs text-smitten-text/60 mt-1">
+            Lieber jede Woche selbst entscheiden? Dann erinnere ich dich am Bestelltag um 12:00 Uhr per
+            E-Mail, dass du bis 22:00 Uhr bestellen kannst. Keine Erinnerung, wenn du für den Tag schon
+            bestellt hast oder eine Dauerbestellung läuft.
+          </p>
+          <label className="mt-3 flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={reminderWed}
+              onChange={e => setReminderWed(e.target.checked)}
+              className="mt-0.5 accent-smitten-accent" />
+            <span className="text-sm text-smitten-text">Montags, für die Abholung am Mittwoch</span>
+          </label>
+          <label className="mt-2 flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={reminderSat}
+              onChange={e => setReminderSat(e.target.checked)}
+              className="mt-0.5 accent-smitten-accent" />
+            <span className="text-sm text-smitten-text">Donnerstags, für die Abholung am Samstag</span>
+          </label>
         </div>
 
         <button onClick={handleSave} disabled={saving}
