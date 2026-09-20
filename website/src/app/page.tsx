@@ -166,14 +166,14 @@ export default function HomePage() {
 
       {/* Abonnement */}
       <section className="max-w-3xl mx-auto px-4 py-16 md:py-24 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-smitten-primary">Abonnement</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-smitten-primary">Dauerbestellung</p>
         <h2 className="mt-3 text-2xl md:text-3xl font-bold text-smitten-text">
           Nie wieder frisches Brot verpassen
         </h2>
         <p className="mt-4 text-smitten-text leading-relaxed">
-          Mit dem Abo-Service kannst du wöchentlich wiederkehrende Bestellungen
-          aufgeben. Wähle deine Produkte, lege den Abholtag fest und ich backe
-          jede Woche für dich. Jederzeit pausierbar oder kündbar.
+          Mit deiner Dauerbestellung musst du nicht jede Woche neu bestellen.
+          Wähle deine Produkte und ich bestelle sie automatisch jede Woche für
+          dich. Deine Dauerbestellung kannst du jederzeit ändern oder pausieren.
         </p>
         <Link
           href="/subscriptions"
