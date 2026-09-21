@@ -5,7 +5,7 @@ import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { berlinDatePlusDays, berlinTodayISO } from '@/lib/pickup';
 import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
-import AboExplainer from '@/components/AboExplainer';
+import AboExplainer, { ReminderHint } from '@/components/AboExplainer';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -329,6 +329,7 @@ export default function SubscriptionsPage() {
             className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Dauerbestellung einrichten
           </button>
+          <ReminderHint />
         </>
       ) : subscriptions.length === 0 ? (
         /* Logged in but no subscriptions — same explanation, straight to the wizard */
@@ -339,6 +340,7 @@ export default function SubscriptionsPage() {
             className="mt-8 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Dauerbestellung einrichten
           </Link>
+          <ReminderHint />
         </>
       ) : (
         /* List subscriptions */

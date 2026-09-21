@@ -44,16 +44,24 @@ export default function AboExplainer() {
           </li>
         </ul>
       </section>
-
-      <section className="mt-8">
-        <h3 className="font-display text-lg font-bold text-smitten-text">Lieber jede Woche selbst entscheiden?</h3>
-        <p className="mt-3 text-sm text-smitten-secondary leading-relaxed">
-          Dann lass dich einfach an den Bestellschluss erinnern: In der App stellst du unter Profil eine
-          Bestell-Erinnerung mit Wochentag und Uhrzeit nach Wahl ein. Ohne App bekommst du die Erinnerung per
-          E-Mail, am Bestelltag um 12:00 Uhr, einschaltbar in deinem Profil auf der Website. So wirst du
-          rechtzeitig erinnert und bestellst nur dann, wenn du Brot brauchst.
-        </p>
-      </section>
     </>
+  );
+}
+
+/**
+ * The alternative to a Dauerbestellung: a reminder before the cutoff. Rendered
+ * BELOW the "Dauerbestellung einrichten" button (owner, 21.09.: less important
+ * than setting up the subscription). Deliberately short — days, times and
+ * channels are explained in the profile itself.
+ */
+export function ReminderHint() {
+  return (
+    <section className="mt-10">
+      <h3 className="font-display text-lg font-bold text-smitten-text">Lieber jede Woche selbst entscheiden?</h3>
+      <p className="mt-3 text-sm text-smitten-secondary leading-relaxed">
+        Dann lass dich einfach vor dem Bestellschluss erinnern. Die Bestell-Erinnerung stellst du in der App
+        oder online in deinem Profil ein.
+      </p>
+    </section>
   );
 }
