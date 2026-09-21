@@ -166,7 +166,7 @@ export default function HomePage() {
 
       {/* Abonnement */}
       <section className="max-w-3xl mx-auto px-4 py-16 md:py-24 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-smitten-primary">Dauerbestellung</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-smitten-primary">Abo</p>
         <h2 className="mt-3 text-2xl md:text-3xl font-bold text-smitten-text">
           Nie wieder frisches Brot verpassen
         </h2>
