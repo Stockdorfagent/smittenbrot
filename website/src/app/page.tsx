@@ -172,8 +172,9 @@ export default function HomePage() {
         </h2>
         <p className="mt-4 text-smitten-text leading-relaxed">
           Mit deiner Dauerbestellung musst du nicht jede Woche neu bestellen.
-          Wähle deine Produkte und ich bestelle sie automatisch jede Woche für
-          dich. Deine Dauerbestellung kannst du jederzeit ändern oder pausieren.
+          Wähle deine Produkte einmal aus, die Bestellung wird dann am Bestelltag
+          automatisch für dich aufgegeben. Deine Dauerbestellung kannst du
+          jederzeit ändern oder pausieren.
         </p>
         <Link
           href="/subscriptions"
