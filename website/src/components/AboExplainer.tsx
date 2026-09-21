@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 /**
  * "So funktioniert deine Dauerbestellung" — the step-by-step explanation of the
  * Dauerbestellung (customer-facing term since 20.09.2026; the code keeps
@@ -60,7 +62,8 @@ export function ReminderHint() {
       <h3 className="font-display text-lg font-bold text-smitten-text">Lieber jede Woche selbst entscheiden?</h3>
       <p className="mt-3 text-sm text-smitten-secondary leading-relaxed">
         Dann lass dich einfach vor dem Bestellschluss erinnern. Die Bestell-Erinnerung stellst du in der App
-        oder online in deinem Profil ein.
+        oder online in deinem{' '}
+        <Link href="/profile" className="underline hover:text-smitten-text">Profil</Link> ein.
       </p>
     </section>
   );
