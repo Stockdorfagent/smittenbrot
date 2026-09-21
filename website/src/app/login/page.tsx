@@ -4,6 +4,20 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Where to go after a successful login. Pages that require an account send the
+ * visitor here with ?redirect=/subscriptions etc.; until 21.09.2026 that value
+ * was ignored and everyone landed on the start page. Only same-origin paths are
+ * accepted (must start with a single "/"), so the parameter can't be abused as
+ * an open redirect. Read at click time from the URL — no useSearchParams, which
+ * would need a Suspense boundary for this statically rendered page.
+ */
+function postLoginTarget(): string {
+  if (typeof window === 'undefined') return '/';
+  const raw = new URLSearchParams(window.location.search).get('redirect') ?? '';
+  return raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -111,7 +125,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push('/');
+    router.push(postLoginTarget());
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -203,7 +217,7 @@ export default function LoginPage() {
         return;
       }
     }
-    router.push('/');
+    router.push(postLoginTarget());
   };
 
   const handleOAuth = async (provider: 'google' | 'apple') => {
