@@ -1,7 +1,8 @@
 import type { Product, ProductDisplayGroup } from './types';
 
 /**
- * Sections of the /products shop page (owner, 21.09.2026). Purely a display
+ * Sections of the /products shop page (owner, 21.09.2026; 'Extras' instead of
+ * 'Saisonales & Besonderes' since 21.09. evening: shorter, less marketing). Purely a display
  * grouping of products that are ALREADY filtered for the selected pickup day
  * and the current week — availability is decided before this runs, here only
  * the order on the page. Customer-facing labels never mention the A/B cycle.
@@ -12,7 +13,7 @@ export const DISPLAY_GROUP_ORDER: ProductDisplayGroup[] = ['classic', 'weekly', 
 export const displayGroupLabels: Record<ProductDisplayGroup, string> = {
   classic: 'Klassiker',
   weekly: 'Diese Woche',
-  special: 'Saisonales & Besonderes',
+  special: 'Extras',
 };
 
 export interface ProductSection {

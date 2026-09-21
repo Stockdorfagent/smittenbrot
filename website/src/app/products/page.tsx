@@ -73,8 +73,9 @@ export default function ProductsPage() {
     setTimeout(() => setAddingId(null), 800);
   };
 
+  // max-w-6xl (was 5xl): the one small width adjustment so four cards fit one row on wide desktops.
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-smitten-text">
         Sortiment
       </h1>
@@ -83,13 +84,13 @@ export default function ProductsPage() {
       </p>
       <p className="mt-1 text-xs text-smitten-secondary/70">Alle Preise inkl. 7 % MwSt.</p>
 
-      {/* Sections (Klassiker / Diese Woche / Saisonales & Besonderes): display grouping only —
+      {/* Sections (Klassiker / Diese Woche / Extras): display grouping only —
           `products` is already filtered for the pickup day and week, so an empty section
           (typically the specials) simply does not render. Cards are unchanged. */}
       {groupProducts(products).map((section, idx) => (
         <section key={section.group} className={idx === 0 ? 'mt-8' : 'mt-12 pt-8 border-t border-smitten-cream'}>
           <h2 className="text-lg font-semibold text-smitten-text">{section.label}</h2>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {section.products.map(product => (
           <div
             key={product.id}

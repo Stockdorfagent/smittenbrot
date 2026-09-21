@@ -3,7 +3,7 @@
 -- active / cycle / available_wed / available_sat / capacity.
 --   classic → "Klassiker"                (the weekly staples)
 --   weekly  → "Diese Woche"              (the rotating breads; the A/B cycle is never shown to customers)
---   special → "Saisonales & Besonderes"  (Panettone, Osterhase …; section hidden when nothing is available;
+--   special → "Extras"                   (Panettone, Osterhase …; section hidden when nothing is available;
 --                                         never part of a Dauerbestellung → subscribable must be false)
 alter table public.products
   add column if not exists display_group text not null default 'classic'

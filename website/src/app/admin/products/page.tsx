@@ -353,7 +353,7 @@ export default function AdminProductsPage() {
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_sat} onChange={e => setNewForm({...newForm, available_sat: e.target.checked})} className="rounded" /> Samstag</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.display_group !== 'special' && newForm.subscribable} disabled={newForm.display_group === 'special'} onChange={e => setNewForm({...newForm, subscribable: e.target.checked})} className="rounded" /> Abo-fähig{newForm.display_group === 'special' ? ' (nicht für Saisonales)' : ''}</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.display_group !== 'special' && newForm.subscribable} disabled={newForm.display_group === 'special'} onChange={e => setNewForm({...newForm, subscribable: e.target.checked})} className="rounded" /> Abo-fähig{newForm.display_group === 'special' ? ' (nicht für Extras)' : ''}</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.active} onChange={e => setNewForm({...newForm, active: e.target.checked})} className="rounded" /> Aktiv</label>
           </div>
           <div className="flex gap-2">
@@ -551,7 +551,7 @@ export default function AdminProductsPage() {
                       onChange={(e) => setEditForm({ ...editForm, subscribable: e.target.checked })}
                       className="rounded border-smitten-cream text-smitten-text focus:ring-smitten-accent"
                     />
-                    Abo-fähig{editForm.display_group === 'special' ? ' (nicht für Saisonales)' : ''}
+                    Abo-fähig{editForm.display_group === 'special' ? ' (nicht für Extras)' : ''}
                   </label>
                   <label className="flex items-center gap-2 text-sm text-smitten-text">
                     <input
