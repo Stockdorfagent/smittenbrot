@@ -82,7 +82,6 @@ export default function ProductsPage() {
       <p className="mt-2 text-sm text-smitten-secondary">
         Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
       </p>
-      <p className="mt-1 text-xs text-smitten-secondary/70">Alle Preise inkl. 7 % MwSt.</p>
 
       {/* Sections (Klassiker / Diese Woche / Extras): display grouping only —
           `products` is already filtered for the pickup day and week, so an empty section
