@@ -44,6 +44,9 @@ export const paymentStatusLabels: Record<string, string> = {
   refunded: 'Rückerstattet',
 };
 
+// Shop sections on /products (migration 031); same words as the customer sees.
+export { displayGroupLabels } from './productGroups';
+
 export const cycleLabels: Record<string, string> = {
   permanent: 'Immer',
   week_a: 'Woche A',

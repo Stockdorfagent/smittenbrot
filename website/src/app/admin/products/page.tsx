@@ -7,7 +7,7 @@ import { berlinTodayISO } from '@/lib/pickup';
 import { Product, formatPrice } from '@/lib/types';
 import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
-import { cycleLabels } from '@/lib/adminLabels';
+import { cycleLabels, displayGroupLabels } from '@/lib/adminLabels';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -24,6 +24,7 @@ export default function AdminProductsPage() {
     price_cents: 0,
     capacity: 10,
     cycle: 'permanent' as string,
+    display_group: 'classic' as Product['display_group'],
     available_wed: true,
     available_sat: true,
     subscribable: true,
@@ -152,9 +153,10 @@ export default function AdminProductsPage() {
         sort_order: editForm.sort_order ?? 0,
         slug: editForm.slug?.trim() || null,
         cycle: editForm.cycle,
+        display_group: editForm.display_group ?? 'classic',
         available_wed: editForm.available_wed,
         available_sat: editForm.available_sat,
-        subscribable: editForm.subscribable,
+        subscribable: editForm.display_group === 'special' ? false : editForm.subscribable,
         active: editForm.active,
       })
       .eq('id', editingId);
@@ -232,9 +234,10 @@ export default function AdminProductsPage() {
         price_cents: newForm.price_cents,
         capacity: newForm.capacity,
         cycle: newForm.cycle,
+        display_group: newForm.display_group,
         available_wed: newForm.available_wed,
         available_sat: newForm.available_sat,
-        subscribable: newForm.subscribable,
+        subscribable: newForm.display_group === 'special' ? false : newForm.subscribable,
         active: newForm.active,
       })
       .select()
@@ -250,7 +253,7 @@ export default function AdminProductsPage() {
         }
       }
       setCreating(false);
-      setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', available_wed: true, available_sat: true, subscribable: true, active: false });
+      setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', available_wed: true, available_sat: true, subscribable: true, active: false });
       setNewPhoto(null);
       loadProducts();
     }
@@ -311,6 +314,13 @@ export default function AdminProductsPage() {
                 <option value="week_b">Woche B</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Bereich im Shop</label>
+              <select value={newForm.display_group} onChange={e => setNewForm({...newForm, display_group: e.target.value as Product['display_group']})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white">
+                {(['classic', 'weekly', 'special'] as const).map(g => <option key={g} value={g}>{displayGroupLabels[g]}</option>)}
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">Beschreibung</label>
@@ -343,7 +353,7 @@ export default function AdminProductsPage() {
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_sat} onChange={e => setNewForm({...newForm, available_sat: e.target.checked})} className="rounded" /> Samstag</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.subscribable} onChange={e => setNewForm({...newForm, subscribable: e.target.checked})} className="rounded" /> Abo-fähig</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.display_group !== 'special' && newForm.subscribable} disabled={newForm.display_group === 'special'} onChange={e => setNewForm({...newForm, subscribable: e.target.checked})} className="rounded" /> Abo-fähig{newForm.display_group === 'special' ? ' (nicht für Saisonales)' : ''}</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.active} onChange={e => setNewForm({...newForm, active: e.target.checked})} className="rounded" /> Aktiv</label>
           </div>
           <div className="flex gap-2">
@@ -468,6 +478,16 @@ export default function AdminProductsPage() {
                       <option value="hidden">Versteckt</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-xs text-smitten-text/60 mb-1">Bereich im Shop</label>
+                    <select
+                      value={editForm.display_group ?? 'classic'}
+                      onChange={(e) => setEditForm({ ...editForm, display_group: e.target.value as Product['display_group'] })}
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    >
+                      {(['classic', 'weekly', 'special'] as const).map(g => <option key={g} value={g}>{displayGroupLabels[g]}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-smitten-text/60 mb-1">Beschreibung</label>
@@ -526,11 +546,12 @@ export default function AdminProductsPage() {
                   <label className="flex items-center gap-2 text-sm text-smitten-text">
                     <input
                       type="checkbox"
-                      checked={editForm.subscribable !== false}
+                      checked={editForm.display_group !== 'special' && editForm.subscribable !== false}
+                      disabled={editForm.display_group === 'special'}
                       onChange={(e) => setEditForm({ ...editForm, subscribable: e.target.checked })}
                       className="rounded border-smitten-cream text-smitten-text focus:ring-smitten-accent"
                     />
-                    Abo-fähig
+                    Abo-fähig{editForm.display_group === 'special' ? ' (nicht für Saisonales)' : ''}
                   </label>
                   <label className="flex items-center gap-2 text-sm text-smitten-text">
                     <input
@@ -580,7 +601,7 @@ export default function AdminProductsPage() {
                       </StatusPill>
                     </div>
                     <p className="text-xs text-smitten-text/40 mt-0.5">
-                      {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · Reihenfolge: {product.sort_order} · {cycleLabels[product.cycle] || product.cycle}
+                      {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · Reihenfolge: {product.sort_order} · {cycleLabels[product.cycle] || product.cycle} · {displayGroupLabels[product.display_group] ?? product.display_group}
                       · {product.available_wed ? 'Mi' : ''} {product.available_sat ? 'Sa' : ''}
                     </p>
                   </div>

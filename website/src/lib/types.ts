@@ -21,7 +21,11 @@ export interface Product {
   allergens: string | null;
   /** URL name, generated from the product name by a DB trigger (migration 028). */
   slug: string | null;
+  /** Shop section on /products (migration 031). Display only — never decides availability. */
+  display_group: ProductDisplayGroup;
 }
+
+export type ProductDisplayGroup = 'classic' | 'weekly' | 'special';
 
 export interface PickupLocation {
   id: string;

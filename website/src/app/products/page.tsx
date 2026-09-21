@@ -7,6 +7,7 @@ import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
 import { fetchSoldOut } from '@/lib/soldOut';
+import { groupProducts } from '@/lib/productGroups';
 import Link from 'next/link';
 
 export default function ProductsPage() {
@@ -82,8 +83,14 @@ export default function ProductsPage() {
       </p>
       <p className="mt-1 text-xs text-smitten-secondary/70">Alle Preise inkl. 7 % MwSt.</p>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {products.map(product => (
+      {/* Sections (Klassiker / Diese Woche / Saisonales & Besonderes): display grouping only —
+          `products` is already filtered for the pickup day and week, so an empty section
+          (typically the specials) simply does not render. Cards are unchanged. */}
+      {groupProducts(products).map((section, idx) => (
+        <section key={section.group} className={idx === 0 ? 'mt-8' : 'mt-12 pt-8 border-t border-smitten-cream'}>
+          <h2 className="text-lg font-semibold text-smitten-text">{section.label}</h2>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {section.products.map(product => (
           <div
             key={product.id}
             className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
@@ -134,12 +141,14 @@ export default function ProductsPage() {
             </div>
           </div>
         ))}
-        {products.length === 0 && (
-          <p className="col-span-full text-center text-smitten-secondary py-10">
-            Für diesen Tag sind keine Produkte verfügbar.
-          </p>
-        )}
-      </div>
+          </div>
+        </section>
+      ))}
+      {products.length === 0 && (
+        <p className="mt-8 text-center text-smitten-secondary py-10">
+          Für diesen Tag sind keine Produkte verfügbar.
+        </p>
+      )}
     </div>
   );
 }
