@@ -116,7 +116,12 @@ export default function ProductsPage() {
                     {product.name}
                   </h3>
                 </Link>
-                <span className="shrink-0 font-semibold text-smitten-text">{formatPrice(product.price_cents)}</span>
+                {/* PAngV: the VAT hint must be on any page a customer can order from (BGH I ZR 143/04), so it
+                    sits under each price in the same quiet grey as on the detail page. */}
+                <span className="shrink-0 flex flex-col items-end">
+                  <span className="font-semibold text-smitten-text">{formatPrice(product.price_cents)}</span>
+                  <span className="text-[11px] leading-tight text-smitten-text/40">inkl. MwSt.</span>
+                </span>
               </div>
               <p className="mt-1 text-sm text-smitten-text line-clamp-2">
                 {splitDescription(product.description).main}
