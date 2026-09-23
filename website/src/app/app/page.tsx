@@ -13,11 +13,11 @@ export const metadata: Metadata = {
  * shows as "in Vorbereitung" instead of a dead link.
  *   Google Play: https://play.google.com/store/apps/details?id=de.smittenbrot.app
  *   App Store:   https://apps.apple.com/de/app/id6793602303
- * Both 404 until the listings are actually published (checked 20.08.2026):
+ * App Store live since 13.09.2026, Google Play live since 23.09.2026 (PLAY_URL filled in by launch-scripts/watch_play_and_publish.sh).
  * Android is in closed testing, iOS is on TestFlight — testers get their
  * invitation by email and do not use this page.
  */
-const PLAY_URL: string | null = null;
+const PLAY_URL: string | null = 'https://play.google.com/store/apps/details?id=de.smittenbrot.app';
 const APP_STORE_URL: string | null = 'https://apps.apple.com/de/app/smittenbrot/id6793602303';
 
 /**
