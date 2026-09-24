@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 import { PickupLocation, formatPrice } from '@/lib/types';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickupFor, weekTypeForPickup, isProductAvailableOn, ProductDayAvailability } from '@/lib/pickup';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -15,8 +15,20 @@ export default function CartPage() {
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const router = useRouter();
-  const pickup = getNextPickup();
   const [images, setImages] = useState<Record<string, string>>({});
+  // Per-item range data + the current A/B week, to tell whether each item is in
+  // the range on the pickup date that the chosen location implies.
+  const [productDays, setProductDays] = useState<Record<string, ProductDayAvailability>>({});
+  const [currentWeek, setCurrentWeek] = useState<'A' | 'B'>('A');
+  // The pickup date follows the chosen location (owner, 24.09.2026): a
+  // Wednesday-only location picked on a Thursday means next Wednesday.
+  const selectedLocation = locations.find(l => l.id === state.pickupLocationId) ?? null;
+  const pickup = getNextPickupFor(selectedLocation);
+  const weekForPickup = weekTypeForPickup(currentWeek, pickup.date);
+  const unavailable = state.items.filter(i => {
+    const pd = productDays[i.productId];
+    return pd ? !isProductAvailableOn(pd, pickup, weekForPickup) : false;
+  }).map(i => i.productId);
   const itemIds = state.items.map(i => i.productId).join(',');
 
   useEffect(() => {
@@ -59,18 +71,26 @@ export default function CartPage() {
     const ids = state.items.map(i => i.productId);
     if (ids.length === 0) { setImages({}); return; }
     (async () => {
-      const { data } = await supabase.from('products').select('id, cover_image_url').in('id', ids);
+      const { data } = await supabase.from('products').select('id, cover_image_url, cycle, available_wed, available_sat').in('id', ids);
       if (data) {
         const map: Record<string, string> = {};
-        for (const p of data) if (p.cover_image_url) map[p.id] = p.cover_image_url as string;
+        const days: Record<string, ProductDayAvailability> = {};
+        for (const p of data) {
+          if (p.cover_image_url) map[p.id] = p.cover_image_url as string;
+          days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat };
+        }
         setImages(map);
+        setProductDays(days);
       }
+      const { data: wc } = await supabase.from('week_cycle').select('current_week').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (wc?.current_week === 'A' || wc?.current_week === 'B') setCurrentWeek(wc.current_week);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemIds]);
 
   const handleCheckout = () => {
     if (isGuest && (!guestName || !guestEmail)) return;
+    if (unavailable.length > 0) return;
     const params = new URLSearchParams();
     if (isGuest) {
       params.set('name', guestName);
@@ -138,6 +158,11 @@ export default function CartPage() {
                 </button>
               </div>
               <p className="text-sm text-smitten-secondary">{formatPrice(item.priceCents)}</p>
+              {unavailable.includes(item.productId) && (
+                <p className="mt-1 text-xs text-smitten-primary">
+                  Am {pickup.label} nicht im Sortiment. Bitte entfernen oder anderen Abholort wählen.
+                </p>
+              )}
               <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button
@@ -249,7 +274,7 @@ export default function CartPage() {
         </div>
         <button
           onClick={handleCheckout}
-          disabled={isGuest && (!guestName || !guestEmail)}
+          disabled={(isGuest && (!guestName || !guestEmail)) || unavailable.length > 0}
           className="mt-4 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
         >
           Zur Kasse

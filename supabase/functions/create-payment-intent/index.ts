@@ -92,6 +92,31 @@ serve(async (req: Request): Promise<Response> => {
     "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
   };
 
+  // ── 0a. Pickup weekday must be served by the location and every product (owner, 24.09.2026) ──
+  // Clients derive the date from the location (Wednesday-only AB90/Feichtstr. → next Wednesday);
+  // this rejects older app builds that still send the generic next pickup.
+  {
+    const dow = new Date(`${fulfillmentDate}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
+    const dayCol = dow === 6 ? "available_sat" : "available_wed";
+    const dayName = dow === 6 ? "Samstag" : "Mittwoch";
+    const lr = await fetch(
+      `${SUPABASE_URL}/rest/v1/pickup_locations?id=eq.${pickupLocationId}&select=name,available_wed,available_sat`,
+      { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
+    );
+    const locs = lr.ok ? (await lr.json()) as { name: string; available_wed: boolean; available_sat: boolean }[] : [];
+    if (locs[0] && !locs[0][dayCol]) {
+      return json({ error: `${locs[0].name} hat am ${dayName} keine Abholung. Bitte öffne den Warenkorb erneut – das Abholdatum wird dann angepasst.` }, 400);
+    }
+    const ids = items.map((i) => i.product_id).join(",");
+    const pr = await fetch(
+      `${SUPABASE_URL}/rest/v1/products?id=in.(${ids})&select=name,available_wed,available_sat`,
+      { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
+    );
+    const prods = pr.ok ? (await pr.json()) as { name: string; available_wed: boolean; available_sat: boolean }[] : [];
+    const off = prods.find((p) => !p[dayCol]);
+    if (off) return json({ error: `${off.name} gibt es am ${dayName} nicht.` }, 400);
+  }
+
   // ── 0. Active-closure check ──
   try {
     const cr = await fetch(`${SUPABASE_URL}/functions/v1/closure-handler/active`, {

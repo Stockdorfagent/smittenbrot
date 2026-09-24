@@ -63,6 +63,25 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // ── Pickup day must be one the location serves (owner, 24.09.2026) ──
+    // The clients derive the date from the location; this catches any client
+    // that still sends the generic next pickup for a Wednesday-only location.
+    const pickupDow = new Date(`${fulfillment_date}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
+    const dayCol = pickupDow === 6 ? 'available_sat' : 'available_wed';
+    const dayName = pickupDow === 6 ? 'Samstag' : 'Mittwoch';
+    if (pickup_location_id) {
+      const { data: loc } = await supabase
+        .from('pickup_locations')
+        .select('name, available_wed, available_sat')
+        .eq('id', pickup_location_id)
+        .maybeSingle();
+      if (loc && !loc[dayCol]) {
+        return NextResponse.json({
+          error: `${loc.name} hat am ${dayName} keine Abholung. Bitte lade den Warenkorb neu – das Abholdatum wird dann angepasst.`,
+        }, { status: 400 });
+      }
+    }
+
     const capacityErrors: string[] = [];
     const priceMap: Record<string, { price_cents: number; name: string }> = {};
     let subtotalCents = 0;
@@ -76,12 +95,15 @@ export async function POST(req: NextRequest) {
       // never trust a price sent by the client.
       const { data: product } = await supabase
         .from('products')
-        .select('id, name, capacity, price_cents')
+        .select('id, name, capacity, price_cents, available_wed, available_sat')
         .eq('id', item.product_id)
         .single();
 
       if (!product) {
         return NextResponse.json({ error: 'Ein Produkt ist nicht (mehr) verfügbar.' }, { status: 400 });
+      }
+      if (!product[dayCol]) {
+        return NextResponse.json({ error: `${product.name} gibt es am ${dayName} nicht.` }, { status: 400 });
       }
       priceMap[product.id] = { price_cents: product.price_cents, name: product.name };
       subtotalCents += product.price_cents * requested;

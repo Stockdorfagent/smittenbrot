@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickupFor, PickupDays } from '@/lib/pickup';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -146,6 +146,9 @@ function CheckoutForm() {
   // Pickup day/date is derived from the order cutoff (not chosen by the customer).
   // Computed on the client after mount to avoid an SSR/hydration timezone mismatch.
   const [pickupLine, setPickupLine] = useState('');
+  // The chosen location's weekdays decide the pickup date (owner, 24.09.2026).
+  const [pickupLoc, setPickupLoc] = useState<PickupDays | null>(null);
+  const pickupFor = () => getNextPickupFor(pickupLoc);
   const [pickupInstructions, setPickupInstructions] = useState('');
 
   // Discount state
@@ -171,20 +174,22 @@ function CheckoutForm() {
   }, []);
 
   useEffect(() => {
-    const p = getNextPickup();
+    const p = getNextPickupFor(pickupLoc);
     setPickupLine(`Abholung: ${p.label} · ${p.cutoffLabel}`);
-  }, []);
+  }, [pickupLoc]);
 
-  // Load the selected location's pickup instructions (shown on success).
+  // Load the selected location's weekdays (they decide the pickup date) and its
+  // pickup instructions (shown on success).
   useEffect(() => {
     if (!state.pickupLocationId) return;
     (async () => {
       const { data } = await supabase
         .from('pickup_locations')
-        .select('pickup_instructions')
+        .select('pickup_instructions, available_wed, available_sat')
         .eq('id', state.pickupLocationId)
         .single();
       if (data?.pickup_instructions) setPickupInstructions(data.pickup_instructions);
+      if (data) setPickupLoc({ available_wed: data.available_wed, available_sat: data.available_sat });
     })();
   }, [state.pickupLocationId]);
 
@@ -208,7 +213,7 @@ function CheckoutForm() {
             price_cents: item.priceCents,
             quantity: item.quantity,
           })),
-          fulfillment_date: getNextPickup().date,
+          fulfillment_date: pickupFor().date,
         }),
       });
 
@@ -258,7 +263,7 @@ function CheckoutForm() {
             quantity: item.quantity,
           })),
           pickup_location_id: state.pickupLocationId,
-          fulfillment_date: getNextPickup().date,
+          fulfillment_date: pickupFor().date,
           customer_email: session?.user?.email || email,
           customer_name: session?.user?.user_metadata?.full_name || name,
           customer_id: session?.user?.id || null,
@@ -285,7 +290,7 @@ function CheckoutForm() {
       items: state.items.map((i) => `${i.quantity}× ${i.name}`),
       locationId: state.pickupLocationId ?? '',
       dayName:
-        new Date(getNextPickup().date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch',
+        pickupFor().day === 'saturday' ? 'Samstag' : 'Mittwoch',
     });
     clearCart();
     setStep('success');

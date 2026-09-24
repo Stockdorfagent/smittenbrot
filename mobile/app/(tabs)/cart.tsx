@@ -8,7 +8,7 @@ import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickupFor, weekTypeForPickup, isProductAvailableOn, ProductDayAvailability } from '@/lib/pickup';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
 import type { PickupLocation } from '@/lib/types';
@@ -22,7 +22,31 @@ export default function CartScreen() {
   } = useCart();
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const pickup = getNextPickup();
+  // Range data per item + the current A/B week: is each item in the range on the
+  // pickup date the chosen location implies? (owner 24.09.: AB90/Feichtstr. on a
+  // Thursday = next Wednesday, which may be the other cycle week.)
+  const [productDays, setProductDays] = useState<Record<string, ProductDayAvailability>>({});
+  const [currentWeek, setCurrentWeek] = useState<'A' | 'B'>('A');
+  const selectedForDate = locations.find((l) => l.id === pickup_location_id) ?? null;
+  const pickup = getNextPickupFor(selectedForDate);
+  const weekForPickup = weekTypeForPickup(currentWeek, pickup.date);
+  const unavailable = items
+    .filter((i) => { const pd = productDays[i.product_id]; return pd ? !isProductAvailableOn(pd, pickup, weekForPickup) : false; })
+    .map((i) => i.product_id);
+
+  useEffect(() => {
+    const ids = items.map((i) => i.product_id);
+    if (ids.length === 0) { setProductDays({}); return; }
+    (async () => {
+      const { data } = await supabase.from('products').select('id, cycle, available_wed, available_sat').in('id', ids);
+      const days: Record<string, ProductDayAvailability> = {};
+      for (const p of data ?? []) days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat };
+      setProductDays(days);
+      const { data: wc } = await supabase.from('week_cycle').select('current_week').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (wc?.current_week === 'A' || wc?.current_week === 'B') setCurrentWeek(wc.current_week);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.map((i) => i.product_id).join(',')]);
 
   useEffect(() => {
     (async () => {
@@ -87,6 +111,9 @@ export default function CartScreen() {
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{item.product_name}</Text>
               <Text style={styles.itemPrice}>{fmt(item.unit_price_cents * item.quantity)}</Text>
+              {unavailable.includes(item.product_id) && (
+                <Text style={styles.itemUnavailable}>Am {pickup.label} nicht im Sortiment. Bitte entfernen oder anderen Abholort wählen.</Text>
+              )}
             </View>
             <View style={styles.itemActions}>
               <QuantitySelector
@@ -142,7 +169,7 @@ export default function CartScreen() {
           title="Zur Kasse"
           onPress={() => router.push('/checkout')}
           size="lg"
-          disabled={!pickup_location_id}
+          disabled={!pickup_location_id || unavailable.length > 0}
           style={styles.checkoutButton}
         />
       </View>
@@ -193,6 +220,7 @@ const styles = StyleSheet.create({
   itemInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
   itemName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text, flex: 1 },
   itemPrice: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '600' },
+  itemUnavailable: { marginTop: 4, fontSize: theme.fontSize.sm, color: theme.colors.primary },
   itemActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   removeText: { fontSize: theme.fontSize.sm, color: theme.colors.error },
   sectionTitle: {

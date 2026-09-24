@@ -36,14 +36,33 @@ export function localDateISO(d: Date): string {
  * in the future. Uses the device clock (no timezone conversion — see note above).
  */
 export function getNextPickup(now: Date = new Date()): NextPickup {
+  return getNextPickupFor(null, now);
+}
+
+/** The weekdays a pickup location serves (pickup_locations.available_wed/_sat). */
+export interface PickupDays {
+  available_wed: boolean;
+  available_sat: boolean;
+}
+
+/**
+ * Same rule for ONE location: the soonest pickup whose cutoff is still open AND
+ * which that location serves (owner 24.09.2026: AB90/Feichtstr. picked on a
+ * Thursday = order for next Wednesday, no error). `null` = default rule.
+ */
+export function getNextPickupFor(loc: PickupDays | null | undefined, now: Date = new Date()): NextPickup {
+  const wed = loc ? loc.available_wed : true;
+  const sat = loc ? loc.available_sat : true;
+  const allowWed = wed || (!wed && !sat);
+  const allowSat = sat || (!wed && !sat);
   const candidates: { day: PickupDay; date: Date }[] = [];
   for (let i = 0; i < 21; i++) {
     const d = new Date(now);
     d.setHours(0, 0, 0, 0);
     d.setDate(now.getDate() + i);
     const dow = d.getDay();
-    if (dow === 3) candidates.push({ day: 'wednesday', date: d });
-    if (dow === 6) candidates.push({ day: 'saturday', date: d });
+    if (dow === 3 && allowWed) candidates.push({ day: 'wednesday', date: d });
+    if (dow === 6 && allowSat) candidates.push({ day: 'saturday', date: d });
   }
 
   let chosen = candidates[0];
@@ -75,4 +94,37 @@ export function getNextPickup(now: Date = new Date()): NextPickup {
     : `Bestellschluss: ${WEEKDAYS[cutoffDate.getDay()]}, 22:00 Uhr`;
 
   return { day: chosen.day, date, label, cutoffLabel };
+}
+
+/**
+ * A/B week of a pickup date. The server toggles week_cycle.current_week every
+ * Thursday 22:00 (= Saturday cutoff), so Wed + Sat of a week share a cycle and
+ * a Wednesday ordered on Thu/Fri already belongs to the next one. Counts the
+ * toggles strictly after `now` and strictly before the pickup's cutoff.
+ */
+export function weekTypeForPickup(currentWeek: 'A' | 'B', pickupDateISO: string, now: Date = new Date()): 'A' | 'B' {
+  const [y, m, d] = pickupDateISO.split('-').map(Number);
+  const cutoff = new Date(y, m - 1, d - 2, 22, 0, 0, 0);
+  let flips = 0;
+  const t = new Date(now);
+  t.setHours(22, 0, 0, 0);
+  while (t.getDay() !== 4 || t <= now) { t.setDate(t.getDate() + 1); t.setHours(22, 0, 0, 0); }
+  while (t < cutoff) { flips++; t.setDate(t.getDate() + 7); }
+  return flips % 2 === 0 ? currentWeek : currentWeek === 'A' ? 'B' : 'A';
+}
+
+export interface ProductDayAvailability {
+  cycle: 'permanent' | 'week_a' | 'week_b' | 'hidden';
+  available_wed: boolean;
+  available_sat: boolean;
+}
+
+/** True when the product is in the range on that pickup day and in that week. */
+export function isProductAvailableOn(p: ProductDayAvailability, pickup: NextPickup, weekForPickup: 'A' | 'B'): boolean {
+  if (p.cycle === 'hidden') return false;
+  if (pickup.day === 'wednesday' && !p.available_wed) return false;
+  if (pickup.day === 'saturday' && !p.available_sat) return false;
+  if (p.cycle === 'week_a' && weekForPickup !== 'A') return false;
+  if (p.cycle === 'week_b' && weekForPickup !== 'B') return false;
+  return true;
 }

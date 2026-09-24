@@ -10,7 +10,7 @@ import { siteUrl } from '@/lib/site';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickupFor } from '@/lib/pickup';
 import { Button } from '@/components/Button';
 
 export default function CheckoutScreen() {
@@ -33,7 +33,14 @@ export default function CheckoutScreen() {
 
     setLoading(true);
     try {
-      const fulfillmentDate = getNextPickup().date;
+      // The location's weekdays decide the date (owner 24.09.2026): a
+      // Wednesday-only location ordered on Thu/Fri means next Wednesday.
+      const { data: loc } = await supabase
+        .from('pickup_locations')
+        .select('available_wed, available_sat')
+        .eq('id', pickup_location_id)
+        .maybeSingle();
+      const fulfillmentDate = getNextPickupFor(loc ?? null).date;
 
       // 1. Create the PaymentIntent + pending order server-side. The server
       //    recomputes the price from the DB and checks capacity — the client
