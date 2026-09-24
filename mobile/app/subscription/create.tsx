@@ -172,7 +172,7 @@ export default function SubscriptionCreateScreen() {
     if (subTotalCents > 25000) {
       Alert.alert(
         'Große Bestellung',
-        'Für Abos über 250 € pro Lieferung kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren die Details individuell.',
+        'Für Dauerbestellungen über 250 € pro Lieferung kontaktiere uns bitte vorab über das Kontaktformular – wir vereinbaren die Details individuell.',
       );
       return;
     }
@@ -257,7 +257,7 @@ export default function SubscriptionCreateScreen() {
         .single();
 
       if (subError || !sub) {
-        Alert.alert('Fehler', subError?.message ?? 'Abonnement konnte nicht erstellt werden');
+        Alert.alert('Fehler', subError?.message ?? 'Die Dauerbestellung konnte nicht eingerichtet werden');
         return;
       }
 
@@ -287,7 +287,7 @@ export default function SubscriptionCreateScreen() {
         /* ignore — the scheduled run will generate it */
       }
 
-      Alert.alert('Abonnement erstellt', 'Dein Abonnement ist aktiv. Deine erste Bestellung ist bereits vorgemerkt.', [
+      Alert.alert('Dauerbestellung eingerichtet', 'Deine Dauerbestellung ist aktiv. Deine erste Bestellung ist bereits vorgemerkt.', [
         {
           text: 'OK',
           onPress: () => {
@@ -313,7 +313,7 @@ export default function SubscriptionCreateScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
-          <Text style={styles.notLoggedIn}>Bitte melde dich an, um ein Abonnement zu erstellen.</Text>
+          <Text style={styles.notLoggedIn}>Bitte melde dich an, um eine Dauerbestellung einzurichten.</Text>
           <Button title="Anmelden" onPress={() => router.push('/login')} />
         </View>
       </SafeAreaView>
@@ -376,7 +376,7 @@ export default function SubscriptionCreateScreen() {
         {step === 'products' && (
           <View>
             <Text style={styles.stepTitle}>Produkte auswählen</Text>
-            <Text style={styles.stepHint}>Wähle die Produkte und Mengen für dein Abonnement.</Text>
+            <Text style={styles.stepHint}>Wähle die Produkte und Mengen für deine Dauerbestellung.</Text>
             {products.map((product) => (
               <View key={product.id} style={styles.productRow}>
                 <View style={styles.productInfo}>
@@ -441,15 +441,15 @@ export default function SubscriptionCreateScreen() {
               Wird bei jeder Lieferung berechnet. Enthält 7 % MwSt.
             </Text>
             <Text style={styles.reviewHint}>
-              Abgebucht wird von einer Karte, die du einmal hinterlegst. PayPal, Apple Pay und Google Pay erlauben
-              keine automatischen Abbuchungen, deshalb geht das Abo nur mit Karte.
+              Abgebucht wird von einer Karte, die du einmal hinterlegst. PayPal, Apple Pay und Google Pay können
+              dafür nicht verwendet werden.
             </Text>
             {/* § 305 Abs. 2 BGB: AGB-Hinweis am Vertragsschluss, tippbar. */}
             <Text style={styles.reviewHint}>
               Es gelten unsere{' '}
               <Text style={{ textDecorationLine: 'underline' }} onPress={() => Linking.openURL(siteUrl('/agb'))}>AGB</Text>.
             </Text>
-            <Button title="Abonnement erstellen" onPress={handleConfirm} loading={loading} size="lg" style={styles.nextButton} />
+            <Button title="Dauerbestellung einrichten" onPress={handleConfirm} loading={loading} size="lg" style={styles.nextButton} />
             <Button title="Zurück" onPress={() => goToStep('products')} variant="ghost" size="sm" style={styles.backButton} />
           </View>
         )}

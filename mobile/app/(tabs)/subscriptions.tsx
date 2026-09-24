@@ -47,23 +47,23 @@ async function edgeErrorMessage(error: unknown, fallback: string): Promise<strin
 const ABO_STEPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
   {
     icon: 'mail-outline',
-    text: 'Am Bestelltag bekommst du mittags eine Erinnerung per Push-Benachrichtigung oder E-Mail.',
+    text: 'Am Bestelltag bekommst du mittags eine Erinnerung als Push-Benachrichtigung oder per E-Mail.',
   },
   {
     icon: 'refresh-outline',
-    text: 'Wenn mit deiner Bestellung alles in Ordnung ist, musst du nichts tun. Die Bestellung wird automatisch um 20:00 Uhr aufgegeben und der Betrag abgebucht.',
+    text: 'Passt alles? Dann musst du nichts tun. Deine Bestellung wird um 20:00 Uhr automatisch aufgegeben und der Betrag abgebucht.',
   },
   {
     icon: 'create-outline',
-    text: 'Möchtest du Produkte ändern, die Menge anpassen oder das Abo pausieren? Das kannst du bis 20:00 Uhr ganz einfach hier in der App erledigen.',
+    text: 'Möchtest du Produkte oder Mengen ändern oder deine Dauerbestellung pausieren? Das kannst du bis 20:00 Uhr ganz einfach hier in der App erledigen.',
   },
   {
     icon: 'card-outline',
-    text: 'Beim Einrichten hinterlegst du einmal eine Karte; sie wird nur für die Abo-Bestellungen belastet. PayPal, Apple Pay und Google Pay erlauben keine automatischen Abbuchungen, deshalb geht das Abo nur mit Karte.',
+    text: 'Beim Einrichten hinterlegst du einmal eine Karte. Sie wird nur für automatisch aufgegebene Bestellungen belastet. PayPal, Apple Pay und Google Pay können dafür nicht verwendet werden.',
   },
   {
     icon: 'time-outline',
-    text: 'Nach 20:00 Uhr hast du noch bis 22:00 Uhr Zeit, die Bestellung zu stornieren. Danach ist eine Stornierung nicht mehr möglich und es wird für dich gebacken.',
+    text: 'Nach 20:00 Uhr kannst du die aufgegebene Bestellung noch bis 22:00 Uhr stornieren. Danach wird für dich gebacken und eine Stornierung ist nicht mehr möglich.',
   },
 ];
 
@@ -72,10 +72,10 @@ function AboExplainer() {
     <View style={styles.explainer}>
       <Text style={styles.explainerTitle}>Nie wieder Brot verpassen</Text>
       <Text style={styles.explainerIntro}>
-        Weniger To-do für dich, mehr Zeit für gutes Brot. Mit dem Brot-Abo musst du nie wieder daran denken, rechtzeitig zu bestellen!
+        Einmal einrichten, danach läuft deine Bestellung automatisch. Du bekommst rechtzeitig eine Erinnerung und kannst deine Dauerbestellung jede Woche noch ändern, pausieren oder einfach so lassen, wie sie ist.
       </Text>
       <View style={styles.explainerCard}>
-        <Text style={styles.explainerCardTitle}>So funktioniert dein Abo</Text>
+        <Text style={styles.explainerCardTitle}>So funktioniert deine Dauerbestellung</Text>
         {ABO_STEPS.map((step) => (
           <View key={step.icon} style={styles.explainerRow}>
             <Ionicons name={step.icon} size={20} color={theme.colors.primary} style={styles.explainerIcon} />
@@ -174,14 +174,14 @@ export default function SubscriptionsScreen() {
           'Fehler',
           await edgeErrorMessage(
             resumeErr,
-            'Die Karte wurde gespeichert, aber das Abo konnte nicht reaktiviert werden. Bitte versuche es gleich noch einmal.',
+            'Die Karte wurde gespeichert, aber die Dauerbestellung konnte nicht reaktiviert werden. Bitte versuche es gleich noch einmal.',
           ),
         );
         return;
       }
       Alert.alert(
         'Zahlungsmethode gespeichert',
-        'Dein Abo ist wieder aktiv. Die nächste Bestellung wird automatisch erstellt.',
+        'Deine Dauerbestellung ist wieder aktiv. Die nächste Bestellung wird automatisch erstellt.',
       );
       await fetchSubscriptions();
     } finally {
@@ -200,18 +200,18 @@ export default function SubscriptionsScreen() {
     const { error } = await supabase.functions.invoke('subscription-engine/resume', {
       body: { subscription_id: subId },
     });
-    if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Die Kündigung konnte nicht zurückgenommen werden.'));
+    if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Das konnte nicht zurückgenommen werden.'));
     else await fetchSubscriptions();
   };
 
   const handleCancel = (subId: string) => {
     Alert.alert(
-      'Abonnement kündigen',
-      'Möchtest du dein Abonnement wirklich kündigen? Du kannst dies bis 22:00 Uhr am Bestelltag rückgängig machen.',
+      'Dauerbestellung beenden',
+      'Möchtest du deine Dauerbestellung wirklich beenden? Bereits bezahlte Bestellungen bleiben bestehen. Du kannst dies bis 22:00 Uhr am Bestelltag rückgängig machen.',
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
-          text: 'Kündigen',
+          text: 'Beenden',
           style: 'destructive',
           onPress: async () => {
             const { error } = await supabase
@@ -230,7 +230,7 @@ export default function SubscriptionsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.title}>Abonnements</Text>
+          <Text style={styles.title}>Meine Dauerbestellungen</Text>
           <AboExplainer />
           <View style={styles.emptyContainerCompact}>
             <Text style={styles.emptyTitle}>Anmelden erforderlich</Text>
@@ -246,9 +246,9 @@ export default function SubscriptionsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Abonnements</Text>
+        <Text style={styles.title}>Meine Dauerbestellungen</Text>
         <Button
-          title="Neues Abo"
+          title="Neue Dauerbestellung"
           onPress={() => router.push('/subscription/create')}
           variant="accent"
           size="sm"
@@ -267,11 +267,11 @@ export default function SubscriptionsScreen() {
 
         {subscriptions.length === 0 ? (
           <>
-            <Text style={styles.emptyText}>Du hast noch kein Abo eingerichtet.</Text>
+            <Text style={styles.emptyText}>Du hast noch keine Dauerbestellung eingerichtet.</Text>
             <AboExplainer />
             <View style={styles.emptyContainerCompact}>
               <Button
-                title="Abo einrichten"
+                title="Dauerbestellung einrichten"
                 onPress={() => router.push('/subscription/create')}
                 variant="primary"
                 style={styles.emptyButton}
@@ -310,7 +310,7 @@ export default function SubscriptionsScreen() {
                         </Text>
                         <Ionicons name="calendar-outline" size={18} color={theme.colors.textLight} />
                       </TouchableOpacity>
-                      <Text style={styles.pauseHint}>Dein Abo wird an diesem Tag automatisch fortgesetzt.</Text>
+                      <Text style={styles.pauseHint}>Deine Dauerbestellung wird an diesem Tag automatisch fortgesetzt.</Text>
                       {showDatePicker && (
                         <DateTimePicker
                           value={pauseDate}
@@ -332,7 +332,7 @@ export default function SubscriptionsScreen() {
                     <>
                       <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
                       <Button title="Pausieren" onPress={() => setPausingId(sub.id)} variant="ghost" size="sm" />
-                      <Button title="Kündigen" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
+                      <Button title="Dauerbestellung beenden" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
                     </>
                   )}
                 </View>
@@ -349,7 +349,7 @@ export default function SubscriptionsScreen() {
                 <View style={styles.actionRow}>
                   <Text style={styles.statusHint}>
                     Die letzte Zahlung hat nicht funktioniert. Hinterlege eine Zahlungsmethode,
-                    dann läuft dein Abo weiter.
+                    dann läuft deine Dauerbestellung weiter.
                   </Text>
                   <Button
                     title="Zahlungsmethode aktualisieren"
@@ -359,7 +359,7 @@ export default function SubscriptionsScreen() {
                   />
                   <View style={styles.pausedActions}>
                     <Button title="Bearbeiten" onPress={() => router.push(`/subscription/edit?id=${sub.id}`)} variant="ghost" size="sm" />
-                    <Button title="Kündigen" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
+                    <Button title="Dauerbestellung beenden" onPress={() => handleCancel(sub.id)} variant="danger" size="sm" />
                   </View>
                 </View>
               )}
@@ -367,10 +367,10 @@ export default function SubscriptionsScreen() {
               {sub.status === 'cancellation_pending' && (
                 <View style={styles.actionRow}>
                   <Text style={styles.statusHint}>
-                    Deine Kündigung wird bearbeitet. Du kannst sie zurücknehmen, solange sie
+                    Deine Dauerbestellung wird beendet. Du kannst das zurücknehmen, solange es
                     noch nicht abgeschlossen ist.
                   </Text>
-                  <Button title="Kündigung zurücknehmen" onPress={() => handleUndoCancel(sub.id)} variant="ghost" size="sm" />
+                  <Button title="Dauerbestellung weiterführen" onPress={() => handleUndoCancel(sub.id)} variant="ghost" size="sm" />
                 </View>
               )}
             </View>

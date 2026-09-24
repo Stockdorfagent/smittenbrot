@@ -15,6 +15,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailModal } from '@/components/ProductDetailModal';
 import type { Product, Subscription, Order, WeekCycle } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
+import { groupProducts } from '@/lib/productGroups';
 
 /**
  * Which subscription states earn a notice row on the pickup card, most urgent
@@ -95,8 +96,8 @@ export default function HomeScreen() {
   const pickupCardTitle =
     openPickups.length > 1 ? 'Deine nächsten Abholungen'
     : openPickups.length === 1 ? 'Nächste Abholung'
-    : subNotices.length === 1 ? 'Dein Abonnement'
-    : 'Deine Abonnements';
+    : subNotices.length === 1 ? 'Deine Dauerbestellung'
+    : 'Deine Dauerbestellungen';
 
   const fetchData = useCallback(async () => {
     setPickedUp(await loadPickedUp());
@@ -326,7 +327,7 @@ export default function HomeScreen() {
                     </Text>
                     <Text style={styles.pickupWhat}>
                       {failed
-                        ? 'Zahlungsmethode aktualisieren, dann läuft dein Abo weiter'
+                        ? 'Zahlungsmethode aktualisieren, dann läuft deine Dauerbestellung weiter'
                         : sub.paused_until
                           ? `Läuft am ${new Date(sub.paused_until + 'T12:00:00').toLocaleDateString('de-DE')} weiter`
                           : 'Fortsetzen in den Abos'}
@@ -341,23 +342,31 @@ export default function HomeScreen() {
 
         <Text style={styles.sectionTitle}>Unser Sortiment</Text>
 
-        {products.map((product) => {
-          const qty = cartQuantity(product.id);
-          const isSoldOut = soldOut[product.id] === true;
-          return (
-            <View key={product.id} style={styles.productItem}>
-              <ProductCard
-                product={product}
-                available={!isSoldOut}
-                quantity={qty}
-                onPress={() => setDetailProduct(product)}
-                onIncrease={() => handleIncrease(product)}
-                onDecrease={() => handleDecrease(product)}
-                onAdd={() => handleIncrease(product)}
-              />
-            </View>
-          );
-        })}
+        {/* Sections Klassiker / Diese Woche / Extras — display grouping only, `products` is
+            already filtered for the pickup day and week; an empty section is not rendered.
+            Same as the website since 21.09.2026. Cards unchanged. */}
+        {groupProducts(products).map((section, idx) => (
+          <View key={section.group} style={idx > 0 ? styles.groupSpacer : undefined}>
+            <Text style={styles.groupTitle}>{section.label}</Text>
+            {section.products.map((product) => {
+              const qty = cartQuantity(product.id);
+              const isSoldOut = soldOut[product.id] === true;
+              return (
+                <View key={product.id} style={styles.productItem}>
+                  <ProductCard
+                    product={product}
+                    available={!isSoldOut}
+                    quantity={qty}
+                    onPress={() => setDetailProduct(product)}
+                    onIncrease={() => handleIncrease(product)}
+                    onDecrease={() => handleDecrease(product)}
+                    onAdd={() => handleIncrease(product)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ))}
       </ScrollView>
 
       {itemCount > 0 && (
@@ -444,6 +453,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   productItem: { marginBottom: theme.spacing.lg },
+  groupTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  groupSpacer: { marginTop: theme.spacing.sm },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
   addButton: { flex: 1 },
   cartBar: {

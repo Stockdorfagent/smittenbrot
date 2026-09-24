@@ -150,7 +150,7 @@ export default function OrderDetailScreen() {
     const dayName = new Date(order.fulfillment_date + 'T12:00:00').getDay() === 6 ? 'Samstag' : 'Mittwoch';
     Alert.alert(
       'Aus dieser Bestellung ein Abo machen?',
-      `${itemsText}\n\nAbholort: ${order.pickup_location?.name ?? '—'}\nAbholtag: jeden ${dayName}\n\nDiese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${dayName} und wird jeweils am Bestelltag abgebucht. Jederzeit pausierbar und kündbar.`,
+      `${itemsText}\n\nAbholort: ${order.pickup_location?.name ?? '—'}\nAbholtag: jeden ${dayName}\n\nDiese Bestellung bleibt wie sie ist — das Abo liefert ab dem nächsten ${dayName} und wird jeweils am Bestelltag abgebucht. Jederzeit änderbar oder pausierbar.`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         { text: 'Abo einrichten', onPress: () => doConvert() },

@@ -36,6 +36,8 @@ export interface PickupLocation {
 
 // --- Products ---
 export type ProductCycle = 'permanent' | 'week_a' | 'week_b' | 'hidden';
+/** Shop section (migration 031): display only, never decides availability. */
+export type ProductDisplayGroup = 'classic' | 'weekly' | 'special';
 export type ProductStatus = 'active' | 'hidden';
 
 export interface Product {
@@ -46,6 +48,7 @@ export interface Product {
   tax_rate: number;
   capacity: number;
   cycle: ProductCycle;
+  display_group?: ProductDisplayGroup;
   available_wed: boolean;
   available_sat: boolean;
   subscribable: boolean;
@@ -86,8 +89,8 @@ export type SubscriptionStatus =
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   active: 'Aktiv',
   paused: 'Pausiert',
-  cancellation_pending: 'Kündigung läuft',
-  cancelled: 'Gekündigt',
+  cancellation_pending: 'Wird beendet',
+  cancelled: 'Beendet',
   payment_failed: 'Zahlung fehlgeschlagen',
 };
 

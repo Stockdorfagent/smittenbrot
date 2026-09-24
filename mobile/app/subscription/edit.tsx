@@ -105,16 +105,16 @@ export default function SubscriptionEditScreen() {
     if (result?.applied_this_week) {
       message = 'Deine anstehende, noch nicht berechnete Bestellung wurde bereits angepasst.';
     } else if (result?.reason === 'no_items_this_week') {
-      message = 'Gespeichert. Diese Woche ist allerdings nichts aus deinem Abo dabei — es geht ab der nächsten Lieferung weiter.';
+      message = 'Gespeichert. Diese Woche ist allerdings nichts aus deiner Dauerbestellung dabei — es geht ab der nächsten Lieferung weiter.';
     } else if (result?.reason === 'paused') {
-      message = 'Gespeichert. Dein Abo ist pausiert — die Änderung gilt, sobald du es fortsetzt.';
+      message = 'Gespeichert. Deine Dauerbestellung ist pausiert — die Änderung gilt, sobald du sie fortsetzt.';
     } else if (result?.reason === 'payment_failed') {
-      message = 'Gespeichert. Die Änderung gilt, sobald dein Abo wieder aktiv ist.';
+      message = 'Gespeichert. Die Änderung gilt, sobald deine Dauerbestellung wieder aktiv ist.';
     } else {
       message = 'Die nächste Lieferung ist bereits fixiert – deine Änderung gilt ab der Lieferung danach.';
     }
 
-    Alert.alert('Abo aktualisiert', message, [{ text: 'OK', onPress: () => router.back() }]);
+    Alert.alert('Dauerbestellung aktualisiert', message, [{ text: 'OK', onPress: () => router.back() }]);
   };
 
   const total = Object.entries(quantities).reduce(
@@ -125,7 +125,7 @@ export default function SubscriptionEditScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Abo bearbeiten' }} />
+        <Stack.Screen options={{ title: 'Dauerbestellung bearbeiten' }} />
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.primary} />
         </View>
@@ -136,7 +136,7 @@ export default function SubscriptionEditScreen() {
   // No 'top' edge: the stack header already covers the status bar.
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Abo bearbeiten' }} />
+      <Stack.Screen options={{ title: 'Dauerbestellung bearbeiten' }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Produkte</Text>
         <Text style={styles.hint}>Ändere Mengen oder füge Produkte hinzu. Die Änderung gilt für jede Lieferung.</Text>

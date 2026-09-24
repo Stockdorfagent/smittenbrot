@@ -97,7 +97,7 @@ export default function RootLayout() {
             name="subscription/create"
             options={{
               headerShown: true,
-              headerTitle: 'Abonnement erstellen',
+              headerTitle: 'Dauerbestellung einrichten',
               headerStyle: { backgroundColor: theme.colors.background },
               headerTintColor: theme.colors.text,
               presentation: 'modal',
@@ -110,7 +110,7 @@ export default function RootLayout() {
             name="subscription/edit"
             options={{
               headerShown: true,
-              headerTitle: 'Abo bearbeiten',
+              headerTitle: 'Dauerbestellung bearbeiten',
               headerBackTitle: 'Zurück',
               headerStyle: { backgroundColor: theme.colors.background },
               headerTintColor: theme.colors.text,
