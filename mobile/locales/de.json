@@ -1,3 +1,5 @@
 {
-  "CFBundleDisplayName": "Smittenbrot"
+  "ios": {
+    "CFBundleDisplayName": "Smittenbrot"
+  }
 }
