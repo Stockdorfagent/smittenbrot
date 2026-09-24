@@ -30,7 +30,7 @@
       },
       "package": "de.smittenbrot.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 16
+      "versionCode": 17
     },
     "plugins": [
       "expo-router",
