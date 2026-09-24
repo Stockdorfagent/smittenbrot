@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items, customer_id, customer_email, customer_name, fulfillment_date, pickup_location_id, discount_code } = body;
+    const { items, customer_id, customer_email, customer_name, pickup_location_id, discount_code } = body;
+    let fulfillment_date: string = body.fulfillment_date;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
@@ -64,23 +65,34 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Pickup day must be one the location serves (owner, 24.09.2026) ──
-    // The clients derive the date from the location; this catches any client
-    // that still sends the generic next pickup for a Wednesday-only location.
-    const pickupDow = new Date(`${fulfillment_date}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
-    const dayCol = pickupDow === 6 ? 'available_sat' : 'available_wed';
-    const dayName = pickupDow === 6 ? 'Samstag' : 'Mittwoch';
+    // The current website derives the date from the location already. Older
+    // app builds still send the generic next pickup (e.g. Saturday for the
+    // Wednesday-only AB90); for them the date is moved to the next day that
+    // location serves — the owner wants such orders accepted, not refused.
+    // Moving forward only lengthens the cutoff, so the shifted date is open.
     if (pickup_location_id) {
       const { data: loc } = await supabase
         .from('pickup_locations')
         .select('name, available_wed, available_sat')
         .eq('id', pickup_location_id)
         .maybeSingle();
-      if (loc && !loc[dayCol]) {
-        return NextResponse.json({
-          error: `${loc.name} hat am ${dayName} keine Abholung. Bitte lade den Warenkorb neu – das Abholdatum wird dann angepasst.`,
-        }, { status: 400 });
+      if (loc && (loc.available_wed || loc.available_sat)) {
+        const d = new Date(`${fulfillment_date}T12:00:00Z`);
+        for (let i = 0; i < 8; i++) {
+          const dow = d.getUTCDay();
+          if ((dow === 3 && loc.available_wed) || (dow === 6 && loc.available_sat)) break;
+          d.setUTCDate(d.getUTCDate() + 1);
+        }
+        const shifted = d.toISOString().slice(0, 10);
+        if (shifted !== fulfillment_date) {
+          console.info(`[pickup-shift] ${loc.name}: ${fulfillment_date} → ${shifted}`);
+          fulfillment_date = shifted;
+        }
       }
     }
+    const pickupDow = new Date(`${fulfillment_date}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
+    const dayCol = pickupDow === 6 ? 'available_sat' : 'available_wed';
+    const dayName = pickupDow === 6 ? 'Samstag' : 'Mittwoch';
 
     const capacityErrors: string[] = [];
     const priceMap: Record<string, { price_cents: number; name: string }> = {};

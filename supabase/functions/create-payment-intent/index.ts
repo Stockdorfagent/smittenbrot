@@ -70,7 +70,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   const items = body.items as ItemInput[] | undefined;
-  const fulfillmentDate = body.fulfillment_date as string | undefined;
+  let fulfillmentDate = body.fulfillment_date as string | undefined;
   const pickupLocationId = body.pickup_location_id as string | undefined;
   const customerName =
     (body.customer_name as string) ??
@@ -96,17 +96,31 @@ serve(async (req: Request): Promise<Response> => {
   // Clients derive the date from the location (Wednesday-only AB90/Feichtstr. → next Wednesday);
   // this rejects older app builds that still send the generic next pickup.
   {
-    const dow = new Date(`${fulfillmentDate}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
-    const dayCol = dow === 6 ? "available_sat" : "available_wed";
-    const dayName = dow === 6 ? "Samstag" : "Mittwoch";
     const lr = await fetch(
       `${SUPABASE_URL}/rest/v1/pickup_locations?id=eq.${pickupLocationId}&select=name,available_wed,available_sat`,
       { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
     );
     const locs = lr.ok ? (await lr.json()) as { name: string; available_wed: boolean; available_sat: boolean }[] : [];
-    if (locs[0] && !locs[0][dayCol]) {
-      return json({ error: `${locs[0].name} hat am ${dayName} keine Abholung. Bitte öffne den Warenkorb erneut – das Abholdatum wird dann angepasst.` }, 400);
+    const loc = locs[0];
+    // Older app builds send the generic next pickup; move it to the next day this
+    // location serves (owner: accept such orders, do not refuse them). Moving
+    // forward only lengthens the cutoff, so the shifted date is still open.
+    if (loc && (loc.available_wed || loc.available_sat)) {
+      const d = new Date(`${fulfillmentDate}T12:00:00Z`);
+      for (let i = 0; i < 8; i++) {
+        const dow = d.getUTCDay();
+        if ((dow === 3 && loc.available_wed) || (dow === 6 && loc.available_sat)) break;
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+      const shifted = d.toISOString().slice(0, 10);
+      if (shifted !== fulfillmentDate) {
+        console.info(`[pickup-shift] ${loc.name}: ${fulfillmentDate} → ${shifted}`);
+        fulfillmentDate = shifted;
+      }
     }
+    const dow = new Date(`${fulfillmentDate}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
+    const dayCol = dow === 6 ? "available_sat" : "available_wed";
+    const dayName = dow === 6 ? "Samstag" : "Mittwoch";
     const ids = items.map((i) => i.product_id).join(",");
     const pr = await fetch(
       `${SUPABASE_URL}/rest/v1/products?id=in.(${ids})&select=name,available_wed,available_sat`,
