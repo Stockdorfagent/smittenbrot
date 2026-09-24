@@ -121,12 +121,13 @@ export function getNextPickupFor(loc: PickupDays | null | undefined, now: Date =
 }
 
 /**
- * Which A/B week a pickup date belongs to. The `week-cycle` cron toggles
- * week_cycle.current_week every Thursday at 22:00 Berlin — exactly at the
- * Saturday cutoff — so Wednesday and Saturday of one week share a cycle, and a
- * Wednesday pickup ordered on Thursday/Friday for a Wednesday-only location
- * already belongs to the NEXT cycle. Counts the toggles strictly after `now`
- * and strictly before the pickup's own cutoff (two days before, 22:00).
+ * Which A/B week a pickup date belongs to. Since 24.09.2026 (migration 032) the
+ * `week-cycle` cron toggles week_cycle.current_week every MONDAY at 22:00 Berlin
+ * — the Wednesday cutoff — so a cycle week is a Saturday plus the Wednesday
+ * after it. That is exactly the pair a Wednesday-only location produces
+ * ("next Wednesday" instead of Saturday), so the location shift never changes
+ * the cycle any more. Counts the toggles strictly after `now` and strictly
+ * before the pickup's own cutoff (two days before, 22:00).
  */
 export function weekTypeForPickup(currentWeek: 'A' | 'B', pickupDateISO: string, now: Date = new Date()): 'A' | 'B' {
   const b = berlinNow(now);
@@ -135,8 +136,8 @@ export function weekTypeForPickup(currentWeek: 'A' | 'B', pickupDateISO: string,
   let flips = 0;
   const t = new Date(b);
   t.setHours(22, 0, 0, 0);
-  // Move t to the next Thursday 22:00 strictly after now.
-  while (t.getDay() !== 4 || t <= b) t.setDate(t.getDate() + 1), t.setHours(22, 0, 0, 0);
+  // Move t to the next Monday 22:00 strictly after now.
+  while (t.getDay() !== 1 || t <= b) t.setDate(t.getDate() + 1), t.setHours(22, 0, 0, 0);
   while (t < cutoff) { flips++; t.setDate(t.getDate() + 7); }
   return flips % 2 === 0 ? currentWeek : currentWeek === 'A' ? 'B' : 'A';
 }

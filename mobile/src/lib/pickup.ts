@@ -97,10 +97,11 @@ export function getNextPickupFor(loc: PickupDays | null | undefined, now: Date =
 }
 
 /**
- * A/B week of a pickup date. The server toggles week_cycle.current_week every
- * Thursday 22:00 (= Saturday cutoff), so Wed + Sat of a week share a cycle and
- * a Wednesday ordered on Thu/Fri already belongs to the next one. Counts the
- * toggles strictly after `now` and strictly before the pickup's cutoff.
+ * A/B week of a pickup date. Since 24.09.2026 the server toggles
+ * week_cycle.current_week every MONDAY 22:00 (= Wednesday cutoff), so a cycle
+ * week is a Saturday + the Wednesday after it — the pair a Wednesday-only
+ * location produces. Counts the toggles strictly after `now` and strictly
+ * before the pickup's cutoff.
  */
 export function weekTypeForPickup(currentWeek: 'A' | 'B', pickupDateISO: string, now: Date = new Date()): 'A' | 'B' {
   const [y, m, d] = pickupDateISO.split('-').map(Number);
@@ -108,7 +109,7 @@ export function weekTypeForPickup(currentWeek: 'A' | 'B', pickupDateISO: string,
   let flips = 0;
   const t = new Date(now);
   t.setHours(22, 0, 0, 0);
-  while (t.getDay() !== 4 || t <= now) { t.setDate(t.getDate() + 1); t.setHours(22, 0, 0, 0); }
+  while (t.getDay() !== 1 || t <= now) { t.setDate(t.getDate() + 1); t.setHours(22, 0, 0, 0); }
   while (t < cutoff) { flips++; t.setDate(t.getDate() + 7); }
   return flips % 2 === 0 ? currentWeek : currentWeek === 'A' ? 'B' : 'A';
 }

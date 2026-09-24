@@ -7,7 +7,8 @@
 //   /          - Toggle the current week (A → B, B → A)
 //   /current   - Return the current week and switched_at
 //
-// Scheduled: Cron every Thursday at 22:01 Europe/Berlin.
+// Scheduled: pg_net cron 'week-cycle' every MONDAY at 22:00 Europe/Berlin (= the Wednesday cutoff; migration 032,
+// owner 24.09.2026 — was Thursday 22:00). Dual UTC hour 20/21; the Berlin-hour guard below drops the wrong firing.
 // The shop displays Week A products in A-weeks and Week B products
 // in B-weeks. Permanent products always show.
 // ============================================================
@@ -198,9 +199,22 @@ serve(async (req: Request) => {
   // admin's own JWT — deliberately not a service-key comparison, since the
   // runtime-injected key value differs from the one our servers hold).
   const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const byCron = CRON_SECRET.length > 0 && bearer === CRON_SECRET;
   const bySecret =
-    (CRON_SECRET.length > 0 && bearer === CRON_SECRET) ||
+    byCron ||
     (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY);
+  // DST guard for the cron: scheduled at 20 AND 21 UTC so that one firing is
+  // always 22:00 Berlin; the other one is a no-op. Manual toggles (admin JWT,
+  // service key) are not affected. `?force=1` lets the cron secret bypass it.
+  if (byCron && url.searchParams.get("force") !== "1") {
+    const berlinHour = parseInt(
+      new Intl.DateTimeFormat("en-GB", { timeZone: TIMEZONE, hour: "2-digit", hour12: false }).format(new Date()),
+      10,
+    );
+    if (berlinHour !== 22) {
+      return jsonResponse({ skipped: true, reason: `DST guard: Berlin hour ${berlinHour} != 22` });
+    }
+  }
   if (!bySecret) {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(bearer);
     if (authErr || !user) return jsonResponse({ error: "Unauthorized" }, 401);
