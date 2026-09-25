@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const [reminderWed, setReminderWed] = useState(false);
   const [reminderSat, setReminderSat] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalError, setPortalError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
 
@@ -167,6 +169,22 @@ export default function ProfilePage() {
       </div>
 
       <div className="mt-6 space-y-3">
+        {/* Stripe's hosted portal (edge fn customer-portal): add/remove cards, pick the default.
+            Nothing else is enabled in that portal configuration. */}
+        <button onClick={async () => {
+            setPortalBusy(true); setPortalError('');
+            const { data, error } = await supabase.functions.invoke('customer-portal', {
+              body: { return_url: `${window.location.origin}/profile` },
+            });
+            const url = (data as { url?: string } | null)?.url;
+            if (error || !url) { setPortalError('Das Zahlungsportal konnte nicht geöffnet werden. Bitte versuche es später erneut.'); setPortalBusy(false); return; }
+            window.location.href = url;
+          }} disabled={portalBusy}
+          className="w-full text-left bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors disabled:opacity-60">
+          <p className="font-medium text-smitten-text">Zahlungsmethoden verwalten</p>
+          <p className="text-sm text-smitten-text/60">{portalBusy ? 'Wird geöffnet…' : 'Karten hinzufügen, entfernen oder als Standard festlegen (sicher bei Stripe)'}</p>
+          {portalError && <p className="mt-1 text-xs text-smitten-primary">{portalError}</p>}
+        </button>
         <Link href="/subscriptions"
           className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Meine Abos</p>

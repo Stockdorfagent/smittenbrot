@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Linking } from 'react-native';
 import { SITE_LINKS, siteUrl } from '@/lib/site';
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -139,6 +141,38 @@ export default function ProfileScreen() {
               />
             </View>
           )}
+        </View>
+
+        {/* Stripe's hosted Customer Portal (edge fn customer-portal): add/remove
+            cards, choose the default. Opens in the browser; the portal returns to
+            smittenbrot.de/profile, from where the person just switches back. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Zahlung</Text>
+          <TouchableOpacity
+            style={styles.row}
+            disabled={portalBusy}
+            onPress={async () => {
+              setPortalBusy(true);
+              try {
+                const { data, error } = await supabase.functions.invoke('customer-portal', {
+                  body: { return_url: 'https://smittenbrot.de/profile' },
+                });
+                const url = (data as { url?: string } | null)?.url;
+                if (error || !url) throw new Error('no url');
+                await Linking.openURL(url);
+              } catch {
+                Alert.alert('Nicht möglich', 'Das Zahlungsportal konnte nicht geöffnet werden. Bitte versuche es später erneut.');
+              } finally {
+                setPortalBusy(false);
+              }
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Zahlungsmethoden verwalten</Text>
+              <Text style={styles.rowHint}>{portalBusy ? 'Wird geöffnet…' : 'Karten hinzufügen, entfernen oder als Standard festlegen (sicher bei Stripe)'}</Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color={theme.colors.textLight} />
+          </TouchableOpacity>
         </View>
 
         {/* Sits directly above the reminder settings: if notifications are off,
@@ -319,6 +353,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
+  rowHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: 2 },
   rowLabel: {
     fontSize: theme.fontSize.md,
     color: theme.colors.text,

@@ -306,7 +306,34 @@ export async function POST(req: NextRequest) {
     // NOTE: the order is intentionally NOT created here. The stripe-webhook
     // creates it from the metadata above once payment_intent.succeeded arrives.
 
+    // Saved cards for logged-in customers (owner, 25.09.2026): a Customer Session
+    // lets the PaymentElement list the customer's saved cards, offer "für später
+    // speichern" and remove cards. Guests get none of this (no customer).
+    let customerSessionClientSecret: string | null = null;
+    if (stripeCustomerId) {
+      try {
+        const cs = await getStripeClient().customerSessions.create({
+          customer: stripeCustomerId,
+          components: {
+            payment_element: {
+              enabled: true,
+              features: {
+                payment_method_redisplay: 'enabled',
+                payment_method_save: 'enabled',
+                payment_method_save_usage: 'off_session',
+                payment_method_remove: 'enabled',
+              },
+            },
+          },
+        });
+        customerSessionClientSecret = cs.client_secret;
+      } catch (e) {
+        console.warn('[create-payment-intent] customer session failed (continuing without saved cards):', e instanceof Error ? e.message : e);
+      }
+    }
+
     return NextResponse.json({
+      customerSessionClientSecret,
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       idempotencyKey,

@@ -143,6 +143,7 @@ function CheckoutForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState('');
+  const [customerSessionClientSecret, setCustomerSessionClientSecret] = useState<string | null>(null);
   // Pickup day/date is derived from the order cutoff (not chosen by the customer).
   // Computed on the client after mount to avoid an SSR/hydration timezone mismatch.
   const [pickupLine, setPickupLine] = useState('');
@@ -275,6 +276,7 @@ function CheckoutForm() {
       if (!response.ok) throw new Error(data.error || 'Payment failed');
 
       setClientSecret(data.clientSecret);
+      setCustomerSessionClientSecret(data.customerSessionClientSecret ?? null);
       setPaymentIntentId(data.paymentIntentId ?? '');
       setStep('payment');
     } catch (err: unknown) {
@@ -424,6 +426,8 @@ function CheckoutForm() {
   if (step === 'payment' && clientSecret) {
     const options: StripeElementsOptions = {
       clientSecret,
+      // Logged-in customers: saved cards + "für später speichern" (server-side Customer Session).
+      ...(customerSessionClientSecret ? { customerSessionClientSecret } : {}),
       appearance: {
         theme: 'stripe',
         variables: {
