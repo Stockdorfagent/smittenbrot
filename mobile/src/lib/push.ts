@@ -30,6 +30,8 @@ Notifications.setNotificationHandler({
  * Bump this whenever the sound changes, and add the retired id to LEGACY_CHANNELS.
  */
 export const KACHING_CHANNEL = 'orders-v2';
+/** Admin alerts that are NOT a sale (payment failed, account deleted): default tone. */
+export const ADMIN_CHANNEL = 'admin-v1';
 
 /** Old channel ids, deleted on sight so they stop cluttering Android settings. */
 const LEGACY_CHANNELS = ['orders'];
@@ -42,6 +44,11 @@ export async function ensureOrderChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'kaching.wav',
       vibrationPattern: [0, 250, 250, 250],
+    });
+    await Notifications.setNotificationChannelAsync(ADMIN_CHANNEL, {
+      name: 'Hinweise',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
     });
     // Without this the retired channel lingers in the system notification
     // settings as a second "Bestellungen" entry, which looks like a bug.

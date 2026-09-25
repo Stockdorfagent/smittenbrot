@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
@@ -19,6 +19,42 @@ export default function CheckoutScreen() {
   const { items, pickup_location_id, totalCents, clearCart } = useCart();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [loading, setLoading] = useState(false);
+  // Discount code (owner 25.09.2026: the app had no field, codes worked on the
+  // website only). Preview via the website's validate route (same rules the
+  // server applies); the payment function re-validates and sets the amount.
+  const [codeInput, setCodeInput] = useState('');
+  const [discount, setDiscount] = useState<{ code: string; cents: number } | null>(null);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
+  const applyCode = async () => {
+    const code = codeInput.trim();
+    if (!code || !user) return;
+    setCodeBusy(true); setCodeError('');
+    try {
+      const loc = pickup_location_id
+        ? (await supabase.from('pickup_locations').select('available_wed, available_sat').eq('id', pickup_location_id).maybeSingle()).data
+        : null;
+      const res = await fetch(siteUrl('/api/validate-discount'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          email: user.email,
+          items: items.map((i) => ({ price_cents: i.unit_price_cents, quantity: i.quantity })),
+          fulfillment_date: getNextPickupFor(loc ?? null).date,
+        }),
+      });
+      const d = await res.json();
+      if (d?.valid) { setDiscount({ code: d.discount.code, cents: d.discountCents }); setCodeInput(d.discount.code); }
+      else { setDiscount(null); setCodeError(d?.error ?? 'Code ungültig.'); }
+    } catch {
+      setCodeError('Prüfung nicht möglich. Bitte später erneut versuchen.');
+    } finally {
+      setCodeBusy(false);
+    }
+  };
+  const payCents = Math.max(0, totalCents - (discount?.cents ?? 0));
 
   const handlePlaceOrder = async () => {
     if (!pickup_location_id || items.length === 0) {
@@ -51,6 +87,7 @@ export default function CheckoutScreen() {
           fulfillment_date: fulfillmentDate,
           pickup_location_id,
           customer_name: user.name,
+          discount_code: discount?.code ?? null,
         },
       });
 
@@ -142,9 +179,10 @@ export default function CheckoutScreen() {
     }
   };
 
-  // All products are 7% VAT; prices are gross (brutto).
-  const netCents = Math.round(totalCents / 1.07);
-  const vatCents = totalCents - netCents;
+  // All products are 7% VAT; prices are gross (brutto). VAT is computed on
+  // the amount actually paid, the same way the website and the invoice do.
+  const netCents = Math.round(payCents / 1.07);
+  const vatCents = payCents - netCents;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -161,6 +199,12 @@ export default function CheckoutScreen() {
               </Text>
             </View>
           ))}
+          {discount && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryName}>Rabatt ({discount.code})</Text>
+              <Text style={styles.summaryPrice}>−{fmt(discount.cents)}</Text>
+            </View>
+          )}
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.summaryName}>Nettobetrag</Text>
@@ -173,8 +217,28 @@ export default function CheckoutScreen() {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Gesamt (brutto)</Text>
-            <Text style={styles.totalValue}>{fmt(totalCents)}</Text>
+            <Text style={styles.totalValue}>{fmt(payCents)}</Text>
           </View>
+        </View>
+
+        <View style={styles.codeCard}>
+          <Text style={styles.codeLabel}>Rabattcode</Text>
+          <View style={styles.codeRow}>
+            <TextInput
+              value={codeInput}
+              onChangeText={(t) => { setCodeInput(t); if (discount) setDiscount(null); setCodeError(''); }}
+              placeholder="Code eingeben"
+              placeholderTextColor={theme.colors.textLight}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={styles.codeInput}
+              editable={!codeBusy}
+            />
+            <TouchableOpacity style={[styles.codeButton, (!codeInput.trim() || codeBusy) && styles.codeButtonOff]} onPress={applyCode} disabled={!codeInput.trim() || codeBusy}>
+              <Text style={styles.codeButtonText}>{codeBusy ? '…' : discount ? 'Eingelöst' : 'Einlösen'}</Text>
+            </TouchableOpacity>
+          </View>
+          {codeError ? <Text style={styles.codeError}>{codeError}</Text> : null}
         </View>
 
         <View style={styles.infoCard}>
@@ -187,7 +251,7 @@ export default function CheckoutScreen() {
         </View>
 
         <Button
-          title={`${fmt(totalCents)} bezahlen`}
+          title={`${fmt(payCents)} bezahlen`}
           onPress={handlePlaceOrder}
           loading={loading}
           size="lg"
@@ -282,6 +346,18 @@ const styles = StyleSheet.create({
   payButton: {
     marginBottom: theme.spacing.md,
   },
+  codeCard: { marginBottom: theme.spacing.md },
+  codeLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.text, marginBottom: theme.spacing.xs },
+  codeRow: { flexDirection: 'row', gap: theme.spacing.sm },
+  codeInput: {
+    flex: 1, borderWidth: 1, borderColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md, paddingVertical: 10, backgroundColor: theme.colors.white,
+    color: theme.colors.text, fontSize: theme.fontSize.md,
+  },
+  codeButton: { backgroundColor: theme.colors.text, borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.lg, justifyContent: 'center' },
+  codeButtonOff: { opacity: 0.4 },
+  codeButtonText: { color: theme.colors.white, fontWeight: '600', fontSize: theme.fontSize.sm },
+  codeError: { marginTop: theme.spacing.xs, fontSize: theme.fontSize.xs, color: theme.colors.primary },
   hint: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textLight,

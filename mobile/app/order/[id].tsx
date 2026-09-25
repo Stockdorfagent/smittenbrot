@@ -37,6 +37,8 @@ interface OrderRow {
   pickup_ready_at: string | null;
   fulfillment_date: string;
   total_cents: number;
+  discount_cents?: number | null;
+  discount_code?: string | null;
   created_at: string;
   customer_name: string | null;
   items: OrderItem[];
@@ -62,7 +64,7 @@ export default function OrderDetailScreen() {
     if (id) setCollected((await loadPickedUp()).has(id));
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, invoice_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
+      .select('id, order_number, invoice_number, order_type, status, payment_status, customer_id, customer_email, pickup_ready_at, fulfillment_date, total_cents, discount_cents, discount_code, created_at, customer_name, items:order_items(quantity, unit_price_cents, product:products(name)), pickup_location:pickup_locations(name, address, pickup_instructions)')
       .eq('id', id)
       .single();
     setOrder((data as unknown as OrderRow) ?? null);
@@ -277,6 +279,12 @@ export default function OrderDetailScreen() {
               <Text style={styles.itemPrice}>{fmt(item.unit_price_cents * item.quantity)}</Text>
             </View>
           ))}
+          {(order.discount_cents ?? 0) > 0 && (
+            <View style={styles.itemRow}>
+              <Text style={styles.smallLabel}>Rabatt{order.discount_code ? ` (${order.discount_code})` : ''}</Text>
+              <Text style={styles.smallValue}>−{fmt(order.discount_cents ?? 0)}</Text>
+            </View>
+          )}
           <View style={styles.divider} />
           <View style={styles.itemRow}>
             <Text style={styles.smallLabel}>Nettobetrag</Text>

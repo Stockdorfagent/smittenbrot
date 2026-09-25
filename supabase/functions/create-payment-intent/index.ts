@@ -72,6 +72,7 @@ serve(async (req: Request): Promise<Response> => {
   const items = body.items as ItemInput[] | undefined;
   let fulfillmentDate = body.fulfillment_date as string | undefined;
   const pickupLocationId = body.pickup_location_id as string | undefined;
+  const discountCodeInput = typeof body.discount_code === "string" ? body.discount_code.trim() : "";
   const customerName =
     (body.customer_name as string) ??
     (user.user_metadata?.name as string) ??
@@ -256,6 +257,51 @@ serve(async (req: Request): Promise<Response> => {
       { apiVersion: STRIPE_API_VERSION },
     );
 
+    // ── 3b. Discount code (same rules as the website's create-payment-intent
+    //        route, 25.09.2026): active, not expired, global and per-customer
+    //        limits by e-mail; percentage or fixed; never below zero. The
+    //        webhook reads discount_* from the metadata and records the usage.
+    let finalAmount = subtotalCents;
+    let discountId: string | null = null;
+    let discountCents = 0;
+    let appliedCode: string | null = null;
+    if (discountCodeInput) {
+      const dr = await fetch(
+        `${SUPABASE_URL}/rest/v1/discounts?code=ilike.${encodeURIComponent(discountCodeInput)}&select=id,code,type,value,max_uses,max_uses_per_customer,expires_at,active&limit=1`,
+        { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
+      );
+      const drows = dr.ok ? (await dr.json()) as {
+        id: string; code: string; type: string; value: number; max_uses: number | null;
+        max_uses_per_customer: number | null; expires_at: string | null; active: boolean;
+      }[] : [];
+      const d = drows[0];
+      const count = async (extra: string) => {
+        const r = await fetch(
+          `${SUPABASE_URL}/rest/v1/discount_usage?discount_id=eq.${d.id}${extra}&select=id`,
+          { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY, Prefer: "count=exact" }, method: "HEAD" },
+        );
+        const cr = r.headers.get("content-range") ?? "";
+        return Number(cr.split("/")[1] ?? "0") || 0;
+      };
+      if (d && d.active && !(d.expires_at && new Date(d.expires_at) < new Date())) {
+        let canUse = true;
+        if (d.max_uses != null && (await count("")) >= d.max_uses) canUse = false;
+        if (canUse && d.max_uses_per_customer != null &&
+            (await count(`&email=eq.${encodeURIComponent(user.email)}`)) >= d.max_uses_per_customer) canUse = false;
+        if (canUse) {
+          discountId = d.id;
+          appliedCode = d.code;
+          discountCents = d.type === "percentage"
+            ? Math.round((subtotalCents * d.value) / 100)
+            : Math.min(d.value, subtotalCents);
+          finalAmount = Math.max(0, subtotalCents - discountCents);
+        }
+      }
+      if (!discountId) {
+        return json({ error: "Dieser Rabattcode ist nicht (mehr) gültig oder wurde bereits verwendet." }, 400);
+      }
+    }
+
     // ── 4. Encode the order payload compactly for PI metadata ──
     const itemsMeta = JSON.stringify(
       lineItems.map((li) => ({
@@ -290,10 +336,15 @@ serve(async (req: Request): Promise<Response> => {
     for (let i = 0; i * CHUNK < itemsMeta.length; i++) {
       metadata[i === 0 ? "items" : `items_${i}`] = itemsMeta.slice(i * CHUNK, (i + 1) * CHUNK);
     }
+    if (discountId) {
+      metadata.discount_id = discountId;
+      metadata.discount_cents = String(discountCents);
+      metadata.discount_code = appliedCode ?? "";
+    }
 
     const pi = await stripe.paymentIntents.create(
       {
-        amount: subtotalCents,
+        amount: finalAmount, // cents, already discounted
         currency: "eur",
         customer: stripeCustomerId,
         setup_future_usage: "off_session",
@@ -310,7 +361,9 @@ serve(async (req: Request): Promise<Response> => {
       paymentIntentId: pi.id,
       customerId: stripeCustomerId,
       ephemeralKey: ephemeralKey.secret,
-      amount: subtotalCents,
+      amount: finalAmount,
+      discountCents,
+      discountCode: appliedCode,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

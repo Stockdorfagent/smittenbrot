@@ -11,6 +11,7 @@ import { isReadyForPickup } from '@/lib/orderStatus';
 import { loadPickedUp } from '@/lib/pickedUp';
 import { Button } from '@/components/Button';
 import { ClosureBanner } from '@/components/ClosureBanner';
+import { PromoStrip } from '@/components/PromoStrip';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductDetailModal } from '@/components/ProductDetailModal';
 import type { Product, Subscription, Order, WeekCycle } from '@/lib/types';
@@ -239,6 +240,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ClosureBanner />
+      <PromoStrip />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

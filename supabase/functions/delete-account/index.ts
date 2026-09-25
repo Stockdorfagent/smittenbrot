@@ -109,7 +109,7 @@ async function sendAdminAlert(message: string): Promise<void> {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, category: "account_deleted" }),
       },
     );
   } catch {

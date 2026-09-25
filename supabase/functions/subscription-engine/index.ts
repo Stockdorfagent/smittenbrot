@@ -417,6 +417,7 @@ async function dispatchNotification(
         headers,
         body: JSON.stringify({
           message: (data?.message as string) ?? "Smittenbrot: Systemhinweis.",
+          category: (data?.category as string) ?? "other",
         }),
       });
     } else {
@@ -1419,6 +1420,7 @@ async function process10pmLock(): Promise<{
 
         // Send admin alert about payment failure
         await dispatchNotification(null, "admin_alert", "both", {
+          category: "payment_failed",
           message:
             `Zahlung fehlgeschlagen für Bestellung ${order.id}` +
             `${customer.name ? ` (${customer.name})` : ""}: ${msg}`,
