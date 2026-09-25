@@ -21,7 +21,7 @@
           "de"
         ]
       },
-      "buildNumber": "27"
+      "buildNumber": "28"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +30,7 @@
       },
       "package": "de.smittenbrot.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 18
+      "versionCode": 19
     },
     "plugins": [
       "expo-router",
