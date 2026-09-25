@@ -1,10 +1,10 @@
 import type { Product } from '@/lib/types';
-import { TRACE_NOTICE, hasProductInfo, splitDescription } from '@/lib/productInfo';
+import { TRACE_NOTICE, hasProductInfo } from '@/lib/productInfo';
 
 /**
  * Uniform "Produktinformationen" block under the description: grey, one size
- * smaller, clearly separated from the prose. Structured fields first; falls back
- * to the legacy lines inside the description for products not yet migrated.
+ * smaller, clearly separated from the prose. Structured fields only (the legacy
+ * lines inside the description were migrated + stripped on 25.09.2026).
  */
 export default function ProductInfo({ product }: { product: Product }) {
   const rows: { label: string; value: string }[] = [];
@@ -14,13 +14,6 @@ export default function ProductInfo({ product }: { product: Product }) {
     if (product.ingredients?.trim()) rows.push({ label: 'Zutaten', value: product.ingredients.trim() });
     if (product.allergens?.trim()) rows.push({ label: 'Allergene', value: product.allergens.trim() });
     trace = true;
-  } else {
-    const { legacyInfo } = splitDescription(product.description);
-    for (const line of legacyInfo.split('\n')) {
-      const m = line.match(/^(Gewicht|Zutaten|Allergene):\s*(.*)$/);
-      if (m) rows.push({ label: m[1], value: m[2] });
-      else if (line.startsWith('In der gleichen Backstube')) trace = true;
-    }
   }
   if (rows.length === 0 && !trace) return null;
   return (

@@ -202,7 +202,7 @@ export default function ProductDetailPage() {
           <hr className="my-8 border-smitten-cream" />
 
           {splitDescription(product.description).main && (
-            <p className="text-smitten-text leading-relaxed mb-4">{splitDescription(product.description).main}</p>
+            <p className="text-smitten-text leading-relaxed mb-4 whitespace-pre-line">{splitDescription(product.description).main}</p>
           )}
           <ProductInfo product={product} />
         </div>
