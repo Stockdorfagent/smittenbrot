@@ -17,6 +17,7 @@ export interface InvoiceOrder {
   id: string; order_number: string | null; invoice_number: string | null; customer_name: string | null;
   customer_email: string | null; created_at: string; fulfillment_date: string; total_cents: number;
   discount_cents?: number | null; discount_code?: string | null; payment_status: string;
+  payment_method_label?: string | null;
   pickup_location_name?: string | null;
   items: { product_name: string; quantity: number; unit_gross_cents: number }[];
 }
@@ -39,6 +40,8 @@ const de = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { day: '2-
 const clean = (s: string) => (s ?? '').replace(/[–—]/g, '-').replace(/[^\x20-\x7E\xA0-\xFF€]/g, '');
 
 interface Ctx { page: PDFPage; font: PDFFont; bold: PDFFont; y: number }
+/** Optional logo bytes (PNG) for the top-left corner; fetched by the caller (browser: /small-logo.png). */
+export type LogoPng = Uint8Array | ArrayBuffer | null | undefined;
 
 function text(ctx: Ctx, s: string, x: number, size = 10, opts: { bold?: boolean; color?: ReturnType<typeof rgb>; right?: number } = {}) {
   const f = opts.bold ? ctx.bold : ctx.font;
@@ -50,18 +53,34 @@ function text(ctx: Ctx, s: string, x: number, size = 10, opts: { bold?: boolean;
 function line(ctx: Ctx, y: number, color = LINE) {
   ctx.page.drawLine({ start: { x: M, y }, end: { x: A4.w - M, y }, thickness: 0.6, color });
 }
-function header(ctx: Ctx, title: string, number: string, seller: SellerInfo, customer: { name: string; email: string }) {
+async function header(
+  ctx: Ctx, title: string, number: string, seller: SellerInfo, customer: { name: string; email: string },
+  dateLines: string[], logo?: LogoPng,
+) {
   ctx.y = A4.h - M;
-  text(ctx, seller.name, M, 11, { bold: true });
+  // Logo top-left (falls back to the seller name when no image was supplied).
+  if (logo) {
+    try {
+      const img = await ctx.page.doc.embedPng(logo);
+      const h = 44; const w = (img.width / img.height) * h;
+      ctx.page.drawImage(img, { x: M - 4, y: ctx.y - h + 12, width: w, height: h });
+    } catch { text(ctx, seller.name, M, 11, { bold: true }); }
+  } else {
+    text(ctx, seller.name, M, 11, { bold: true });
+  }
   text(ctx, title, M, 20, { bold: true, right: A4.w - M });
   ctx.y -= 16;
   text(ctx, number, M, 11, { color: RED, bold: true, right: A4.w - M });
+  // Dates right under the number — where a reader looks for them.
+  for (const dl of dateLines) { ctx.y -= 13; text(ctx, dl, M, 8.5, { color: GREY, right: A4.w - M }); }
   ctx.y -= 26;
   const top = ctx.y;
   text(ctx, 'VERKÄUFER', M, 7.5, { color: GREY }); ctx.y -= 13;
-  for (const l of [seller.address_line1, seller.address_line2 ?? '', `${seller.postal_code} ${seller.city}`.trim(),
+  // Company · owner first, then the address (the name was only in the corner before).
+  const sellerLines = seller.name.includes(' · ') ? seller.name.split(' · ') : [seller.name];
+  for (const l of [...sellerLines, seller.address_line1, seller.address_line2 ?? '', `${seller.postal_code} ${seller.city}`.trim(),
                    seller.vat_id ? `USt-IdNr: ${seller.vat_id}` : '', seller.email].filter(Boolean)) {
-    text(ctx, l, M, 9.5); ctx.y -= 13;
+    text(ctx, l, M, 9.5, { bold: sellerLines.includes(l) }); ctx.y -= 13;
   }
   const bottomLeft = ctx.y;
   ctx.y = top;
@@ -77,13 +96,14 @@ function footer(ctx: Ctx, parts: string[]) {
   text(ctx, parts.join('   ·   '), M, 8, { color: GREY });
 }
 
-export async function buildInvoicePdf(order: InvoiceOrder, seller: SellerInfo): Promise<Uint8Array> {
+export async function buildInvoicePdf(order: InvoiceOrder, seller: SellerInfo, logo?: LogoPng): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Rechnung ${order.invoice_number ?? ''}`.trim());
   doc.setAuthor(seller.name);
   const page = doc.addPage([A4.w, A4.h]);
   const ctx: Ctx = { page, font: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold), y: 0 };
-  header(ctx, 'Rechnung', order.invoice_number ?? '', seller, { name: order.customer_name ?? '', email: order.customer_email ?? '' });
+  await header(ctx, 'Rechnung', order.invoice_number ?? '', seller, { name: order.customer_name ?? '', email: order.customer_email ?? '' },
+    [`Rechnungsdatum: ${de(order.created_at)}`, `Leistungsdatum: ${de(order.fulfillment_date)}`], logo);
 
   text(ctx, `Bestellung ${order.order_number ?? ''} · Bestellbestätigung, gilt zugleich als Rechnung`, M, 9, { color: GREY }); ctx.y -= 22;
   // table head
@@ -113,18 +133,19 @@ export async function buildInvoicePdf(order: InvoiceOrder, seller: SellerInfo): 
   text(ctx, 'Gesamtsumme', lx, 11, { bold: true }); text(ctx, eur(gross), lx, 11, { bold: true, right: A4.w - M });
   ctx.y -= 30;
   if (order.pickup_location_name) { text(ctx, `Abholung: ${order.pickup_location_name}, ${de(order.fulfillment_date)}`, M, 9, { color: GREY }); ctx.y -= 14; }
-  footer(ctx, [`Rechnungsdatum: ${de(order.created_at)}`, `Leistungsdatum: ${de(order.fulfillment_date)}`,
-               `Zahlungsstatus: ${order.payment_status === 'paid' ? 'Bezahlt' : order.payment_status}`]);
+  footer(ctx, [`Zahlungsstatus: ${order.payment_status === 'paid' ? 'Bezahlt' : order.payment_status}`,
+               ...(order.payment_method_label ? [`Zahlungsart: ${order.payment_method_label}`] : [])]);
   return doc.save();
 }
 
-export async function buildCreditNotePdf(cn: CreditNoteDoc, seller: SellerInfo): Promise<Uint8Array> {
+export async function buildCreditNotePdf(cn: CreditNoteDoc, seller: SellerInfo, logo?: LogoPng): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Storno-Rechnung ${cn.credit_note_number}`);
   doc.setAuthor(seller.name);
   const page = doc.addPage([A4.w, A4.h]);
   const ctx: Ctx = { page, font: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold), y: 0 };
-  header(ctx, 'Storno-Rechnung', cn.credit_note_number, seller, { name: cn.customer_name ?? '', email: cn.customer_email ?? '' });
+  await header(ctx, 'Storno-Rechnung', cn.credit_note_number, seller, { name: cn.customer_name ?? '', email: cn.customer_email ?? '' },
+    [`Datum: ${de(cn.created_at)}`], logo);
   text(ctx, `zu Original-Rechnung ${cn.original_invoice_number}${cn.order_number ? ` · Bestellung ${cn.order_number}` : ''}`, M, 9.5); ctx.y -= 30;
   const lx = A4.w - M - 200;
   text(ctx, 'Nettobetrag', lx, 9.5, { color: GREY }); text(ctx, `-${eur(cn.total_net_cents)}`, lx, 9.5, { right: A4.w - M }); ctx.y -= 15;
@@ -134,6 +155,6 @@ export async function buildCreditNotePdf(cn: CreditNoteDoc, seller: SellerInfo):
   ctx.y -= 36;
   text(ctx, `Grund: ${cn.reason}`, M, 9.5); ctx.y -= 16;
   text(ctx, `Stornorechnung gemäß §14 UStG. Diese Gutschrift hebt die ursprüngliche Rechnung ${cn.original_invoice_number} auf.`, M, 9, { color: GREY });
-  footer(ctx, [`Datum: ${de(cn.created_at)}`]);
+  footer(ctx, ['Stornorechnung gemäß §14 UStG']);
   return doc.save();
 }

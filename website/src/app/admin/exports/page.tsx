@@ -56,7 +56,7 @@ export default function AdminExportsPage() {
       const sellerInfo = (seller ?? { name: 'Smittenbrot', address_line1: '', postal_code: '', city: 'Stockdorf', email: 'info@smittenbrot.de' }) as SellerInfo;
       let oq = supabase
         .from('orders')
-        .select('id, order_number, invoice_number, customer_name, customer_email, created_at, fulfillment_date, total_cents, discount_cents, discount_code, payment_status, pickup_locations(name), order_items(quantity, unit_price_cents, unit_price_gross_cents, products(name))')
+        .select('id, order_number, invoice_number, customer_name, customer_email, created_at, fulfillment_date, total_cents, discount_cents, discount_code, payment_status, payment_method, pickup_locations(name), order_items(quantity, unit_price_cents, unit_price_gross_cents, products(name))')
         .not('invoice_number', 'is', null)
         .not('invoice_number', 'like', 'TEST-%')
         .order('created_at', { ascending: true })
@@ -75,6 +75,7 @@ export default function AdminExportsPage() {
       const { data: notes, error: ce } = await cq;
       if (ce) throw ce;
       if ((orders?.length ?? 0) + (notes?.length ?? 0) === 0) { setDocMsg('Keine Belege im Zeitraum.'); return; }
+      const logo = await fetch('/small-logo.png').then((r) => r.arrayBuffer()).catch(() => null);
       const zip = new JSZip();
       const inv = zip.folder('rechnungen')!; const sto = zip.folder('storno-rechnungen')!;
       let n = 0;
@@ -85,11 +86,12 @@ export default function AdminExportsPage() {
           customer_email: o.customer_email, created_at: o.created_at, fulfillment_date: o.fulfillment_date, total_cents: o.total_cents,
           discount_cents: (o as any).discount_cents, discount_code: (o as any).discount_code, payment_status: o.payment_status,
           pickup_location_name: loc?.name ?? null,
+          payment_method_label: (o as any).payment_method ? paymentMethodLabel((o as any).payment_method) : null,
           items: ((o as any).order_items ?? []).map((it: any) => ({
             product_name: it.products?.name ?? 'Produkt', quantity: it.quantity,
             unit_gross_cents: it.unit_price_gross_cents || it.unit_price_cents,
           })),
-        }, sellerInfo);
+        }, sellerInfo, logo);
         inv.file(`${o.invoice_number}.pdf`, pdf); n++;
         if (n % 25 === 0) setDocMsg(`Belege werden erstellt … ${n}`);
       }
@@ -100,7 +102,7 @@ export default function AdminExportsPage() {
           total_gross_cents: c.total_gross_cents, total_net_cents: c.total_net_cents, total_vat_cents: c.total_vat_cents,
           reason: c.reason, created_at: c.created_at, customer_name: ord?.customer_name ?? null,
           customer_email: ord?.customer_email ?? null, order_number: ord?.order_number ?? null,
-        }, sellerInfo);
+        }, sellerInfo, logo);
         sto.file(`${c.credit_note_number}.pdf`, pdf); n++;
       }
       const blob = await zip.generateAsync({ type: 'blob' });
