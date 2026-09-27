@@ -4,6 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
 import type { Product } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 const { width } = Dimensions.get('window');
 
@@ -12,6 +15,8 @@ const { width } = Dimensions.get('window');
  * Gewicht/Zutaten/Allergene labels bold, the "gleiche Backstube" disclaimer italic.
  */
 function InfoBlock({ infoSection }: { infoSection: string }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.infoBlock}>
       {infoSection.split('\n').map((line, i) => {
@@ -42,6 +47,8 @@ interface Props {
 }
 
 export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (!product) return null;
 
   const images = product.images && product.images.length > 0
@@ -57,7 +64,7 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-          <Ionicons name="close" size={26} color={theme.colors.text} />
+          <Ionicons name="close" size={26} color={colors.text} />
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -96,14 +103,14 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   closeBtn: {
     position: 'absolute',
     top: 44,
     right: 16,
     zIndex: 10,
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 999,
     width: 40,
     height: 40,
@@ -116,20 +123,20 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   scroll: { paddingBottom: 48 },
-  placeholder: { backgroundColor: theme.colors.cream, alignItems: 'center', justifyContent: 'center' },
-  placeholderText: { fontSize: 72, color: theme.colors.secondary },
+  placeholder: { backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
+  placeholderText: { fontSize: 72, color: colors.secondary },
   body: { padding: theme.spacing.lg },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: theme.spacing.md },
-  name: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: theme.colors.text, flex: 1, marginRight: theme.spacing.md },
-  price: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text },
-  description: { fontSize: theme.fontSize.md, color: theme.colors.text, lineHeight: 24 },
+  name: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: colors.text, flex: 1, marginRight: theme.spacing.md },
+  price: { fontSize: theme.fontSize.xl, fontWeight: '700', color: colors.text },
+  description: { fontSize: theme.fontSize.md, color: colors.text, lineHeight: 24 },
   addButton: { width: '100%', marginTop: theme.spacing.lg, marginBottom: theme.spacing.lg },
   infoBlock: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
     paddingTop: theme.spacing.lg,
   },
-  infoLine: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, lineHeight: 21 },
-  infoLabel: { fontWeight: '700', color: theme.colors.textLight },
+  infoLine: { fontSize: theme.fontSize.sm, color: colors.textLight, lineHeight: 21 },
+  infoLabel: { fontWeight: '700', color: colors.textLight },
   infoItalic: { fontStyle: 'italic', marginTop: theme.spacing.xs },
 });

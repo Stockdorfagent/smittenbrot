@@ -3,6 +3,9 @@ import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
 import type { Product } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 interface ProductCardProps {
   product: Product;
@@ -23,6 +26,8 @@ export function ProductCard({
   onDecrease,
   onAdd,
 }: ProductCardProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const soldOut = !available;
   const showControls = !soldOut && !!onIncrease;
 
@@ -80,36 +85,36 @@ export function ProductCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
   },
   image: { width: '100%', height: 180, resizeMode: 'cover' },
   imagePlaceholder: {
     width: '100%',
     height: 180,
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: { fontSize: 48, color: theme.colors.secondary },
+  placeholderText: { fontSize: 48, color: colors.secondary },
   content: { padding: theme.spacing.md },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text, flex: 1, marginRight: theme.spacing.sm },
-  price: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '600' },
+  name: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text, flex: 1, marginRight: theme.spacing.sm },
+  price: { fontSize: theme.fontSize.md, color: colors.text, fontWeight: '600' },
   controls: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.md },
   addButton: { flex: 1 },
   soldOutBadge: {
-    backgroundColor: theme.colors.soldOut,
+    backgroundColor: colors.soldOut,
     borderRadius: theme.borderRadius.sm,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
     alignSelf: 'flex-start',
     marginTop: theme.spacing.sm,
   },
-  soldOutText: { fontSize: theme.fontSize.xs, color: theme.colors.white, fontWeight: '600' },
+  soldOutText: { fontSize: theme.fontSize.xs, color: colors.white, fontWeight: '600' },
 });

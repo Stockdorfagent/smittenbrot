@@ -17,6 +17,8 @@ import { ProductDetailModal } from '@/components/ProductDetailModal';
 import type { Product, Subscription, Order, WeekCycle } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
 import { groupProducts } from '@/lib/productGroups';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 /**
  * Which subscription states earn a notice row on the pickup card, most urgent
@@ -32,6 +34,8 @@ function pickupLabel(order: { fulfillment_date: string }): string {
 }
 
 export default function HomeScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const { items: cartItems, addItem, updateQuantity, itemCount, totalCents } = useCart();
@@ -246,7 +250,7 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.brandHeader}>
-          <Image source={require('../../assets/logo-mark.png')} style={styles.logo} />
+          <Image source={isDark ? require('../../assets/logo-mark-dark.png') : require('../../assets/logo-mark.png')} style={styles.logo} />
           <Text style={styles.brand}>Smittenbrot</Text>
           <Text style={styles.tagline}>Sauerteig aus Stockdorf</Text>
         </View>
@@ -268,7 +272,7 @@ export default function HomeScreen() {
                   style={styles.pickupRow}
                   onPress={() => router.push(`/order/${order.id}`)}
                 >
-                  <View style={[styles.pickupDot, ready && { backgroundColor: theme.colors.primary }]} />
+                  <View style={[styles.pickupDot, ready && { backgroundColor: colors.primary }]} />
                   <View style={styles.pickupRowText}>
                     <Text style={styles.pickupWhen}>{pickupLabel(order)}</Text>
                     {/* The order number for a one-off, so it can be told apart
@@ -320,7 +324,7 @@ export default function HomeScreen() {
                   <View
                     style={[
                       styles.pickupDot,
-                      { backgroundColor: failed ? theme.colors.error : theme.colors.textLight },
+                      { backgroundColor: failed ? colors.error : colors.textLight },
                     ]}
                   />
                   <View style={styles.pickupRowText}>
@@ -390,29 +394,29 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: theme.spacing.lg, paddingBottom: 96 },
   brandHeader: { alignItems: 'center', marginBottom: theme.spacing.lg },
   logo: { width: 72, height: 72, resizeMode: 'contain' },
-  brand: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: theme.colors.text, marginTop: theme.spacing.xs },
-  tagline: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  brand: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: colors.text, marginTop: theme.spacing.xs },
+  tagline: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
   pickupInfo: {
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.lg,
   },
-  pickupInfoText: { fontSize: theme.fontSize.sm, color: theme.colors.text, fontWeight: '600' },
-  pickupInfoDate: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  pickupInfoText: { fontSize: theme.fontSize.sm, color: colors.text, fontWeight: '600' },
+  pickupInfoDate: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
   // One card for every upcoming pickup. Sized to take no more room than the two
   // cards it replaced, so the product list keeps its place on the screen.
   pickupCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     marginBottom: theme.spacing.md,
@@ -420,45 +424,45 @@ const styles = StyleSheet.create({
   pickupCardTitle: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: theme.spacing.xs,
     marginBottom: theme.spacing.xs,
   },
   pickupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.sm },
-  pickupRowDivided: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+  pickupRowDivided: { borderTopWidth: 1, borderTopColor: colors.border },
   pickupDot: {
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: theme.colors.success, marginRight: theme.spacing.md,
+    backgroundColor: colors.success, marginRight: theme.spacing.md,
   },
   pickupRowText: { flex: 1 },
-  pickupWhen: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  pickupWhat: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 1 },
+  pickupWhen: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  pickupWhat: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 1 },
   // Same error red as the dot, so brand red keeps meaning "good news, come and
   // collect" and this red means "something needs your attention".
-  pickupWhenAlert: { color: theme.colors.error },
+  pickupWhenAlert: { color: colors.error },
   // Brand red, no tinted fill (see the palette rule).
   pickupReady: {
     fontSize: theme.fontSize.sm, fontWeight: '700',
-    color: theme.colors.primary, marginRight: theme.spacing.sm,
+    color: colors.primary, marginRight: theme.spacing.sm,
   },
-  pickupChevron: { fontSize: theme.fontSize.lg, color: theme.colors.textLight },
+  pickupChevron: { fontSize: theme.fontSize.lg, color: colors.textLight },
   pickupMore: {
-    fontSize: theme.fontSize.sm, color: theme.colors.textLight,
+    fontSize: theme.fontSize.sm, color: colors.textLight,
     paddingVertical: theme.spacing.sm,
   },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.md,
   },
   productItem: { marginBottom: theme.spacing.lg },
   groupTitle: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.sm,
   },
   groupSpacer: { marginTop: theme.spacing.sm },
@@ -470,12 +474,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
   },
-  cartBarText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.text },
+  cartBarText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.text },
 });

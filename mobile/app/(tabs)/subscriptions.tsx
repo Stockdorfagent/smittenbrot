@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Platform, type ViewStyle } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
 import { localDateISO } from '@/lib/pickup';
 import { collectPaymentMethod } from '@/lib/stripeSetup';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 const DAY_LABELS: Record<string, string> = {
   wednesday: 'Mittwochs',
@@ -68,6 +70,8 @@ const ABO_STEPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
 ];
 
 function AboExplainer() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.explainer}>
       <Text style={styles.explainerTitle}>Nie wieder Brot verpassen</Text>
@@ -78,7 +82,7 @@ function AboExplainer() {
         <Text style={styles.explainerCardTitle}>So funktioniert deine Dauerbestellung</Text>
         {ABO_STEPS.map((step) => (
           <View key={step.icon} style={styles.explainerRow}>
-            <Ionicons name={step.icon} size={20} color={theme.colors.primary} style={styles.explainerIcon} />
+            <Ionicons name={step.icon} size={20} color={colors.primary} style={styles.explainerIcon} />
             <Text style={styles.explainerText}>{step.text}</Text>
           </View>
         ))}
@@ -88,6 +92,8 @@ function AboExplainer() {
 }
 
 export default function SubscriptionsScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const [subscriptions, setSubscriptions] = useState<(Subscription & { items: (SubscriptionItem & { product: Product })[]; pickup_location: PickupLocation })[]>([]);
@@ -155,7 +161,7 @@ export default function SubscriptionsScreen() {
   const handleUpdatePayment = async (subId: string) => {
     setBusyId(subId);
     try {
-      const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet });
+      const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet }, isDark);
       if (!card.ok) {
         if (!card.cancelled) Alert.alert('Fehler', card.error ?? 'Zahlungsmethode konnte nicht gespeichert werden.');
         return;
@@ -308,7 +314,7 @@ export default function SubscriptionsScreen() {
                         <Text style={styles.dateButtonText}>
                           {pauseDate.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </Text>
-                        <Ionicons name="calendar-outline" size={18} color={theme.colors.textLight} />
+                        <Ionicons name="calendar-outline" size={18} color={colors.textLight} />
                       </TouchableOpacity>
                       <Text style={styles.pauseHint}>Deine Dauerbestellung wird an diesem Tag automatisch fortgesetzt.</Text>
                       {showDatePicker && (
@@ -381,10 +387,10 @@ export default function SubscriptionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     padding: theme.spacing.lg,
@@ -396,7 +402,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     fontFamily: theme.fontFamily.display,
   },
   scroll: {
@@ -406,12 +412,12 @@ const styles = StyleSheet.create({
   },
   helpText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginBottom: theme.spacing.md,
     lineHeight: 20,
   },
   subCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -432,15 +438,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: theme.spacing.sm,
   },
-  statusDot_active: { backgroundColor: theme.colors.success },
-  statusDot_paused: { backgroundColor: theme.colors.accent },
+  statusDot_active: { backgroundColor: colors.success },
+  statusDot_paused: { backgroundColor: colors.accent },
   statusDot_cancellation_pending: { backgroundColor: '#F59E0B' },
-  statusDot_cancelled: { backgroundColor: theme.colors.textLight },
-  statusDot_payment_failed: { backgroundColor: theme.colors.error },
+  statusDot_cancelled: { backgroundColor: colors.textLight },
+  statusDot_payment_failed: { backgroundColor: colors.error },
   subStatus: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   itemRow: {
     flexDirection: 'row',
@@ -450,16 +456,16 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
   },
   itemQty: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.secondary,
+    color: colors.secondary,
   },
   subLocation: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.sm,
   },
   actionRow: {
@@ -473,23 +479,23 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.sm,
   },
-  pauseLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.text },
+  pauseLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.text },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
   },
-  dateButtonText: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '500' },
-  pauseHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
+  dateButtonText: { fontSize: theme.fontSize.md, color: colors.text, fontWeight: '500' },
+  pauseHint: { fontSize: theme.fontSize.xs, color: colors.textLight },
   pauseActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
   pausedActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   statusHint: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.sm,
     lineHeight: 20,
   },
@@ -507,24 +513,24 @@ const styles = StyleSheet.create({
   explainerTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
   },
   explainerIntro: {
     marginTop: theme.spacing.sm,
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
     lineHeight: 22,
   },
   explainerCard: {
     marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
   },
   explainerCardTitle: {
     fontSize: theme.fontSize.md,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.sm,
   },
   explainerRow: {
@@ -539,17 +545,17 @@ const styles = StyleSheet.create({
   explainerText: {
     flex: 1,
     fontSize: theme.fontSize.sm,
-    color: theme.colors.text,
+    color: colors.text,
     lineHeight: 20,
   },
   emptyTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   emptyText: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginBottom: theme.spacing.lg,
   },
   emptyButton: {
@@ -559,11 +565,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: theme.borderRadius.md,
   },
   loginText: {
-    color: theme.colors.white,
+    color: colors.white,
     fontWeight: '600',
   },
 });

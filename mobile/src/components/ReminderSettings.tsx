@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Modal, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 import {
   ReminderPrefs,
   ReminderSlot,
@@ -24,6 +26,8 @@ function dateFromHM(hour: number, minute: number): Date {
 }
 
 export function ReminderSettings() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [prefs, setPrefs] = useState<ReminderPrefs>(DEFAULT_REMINDER);
   const [ready, setReady] = useState(false);
   // Which slot a picker is currently editing (null = closed).
@@ -107,8 +111,8 @@ export function ReminderSettings() {
               slots: v && prefs.slots.length === 0 ? [makeSlot(DEFAULT_SLOT)] : prefs.slots,
             })
           }
-          trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
-          thumbColor={theme.colors.white}
+          trackColor={{ true: colors.primary, false: colors.border }}
+          thumbColor={colors.white}
         />
       </View>
 
@@ -131,7 +135,7 @@ export function ReminderSettings() {
                 <Text style={styles.rowLabel}>Tag</Text>
                 <View style={styles.pickValue}>
                   <Text style={styles.pickValueText}>{weekdayLabel(slot.weekday)}</Text>
-                  <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
+                  <Ionicons name="chevron-down" size={18} color={colors.textLight} />
                 </View>
               </TouchableOpacity>
 
@@ -139,7 +143,7 @@ export function ReminderSettings() {
                 <Text style={styles.rowLabel}>Uhrzeit</Text>
                 <View style={styles.pickValue}>
                   <Text style={styles.pickValueText}>{formatTime(slot.hour, slot.minute)} Uhr</Text>
-                  <Ionicons name="chevron-down" size={18} color={theme.colors.textLight} />
+                  <Ionicons name="chevron-down" size={18} color={colors.textLight} />
                 </View>
               </TouchableOpacity>
 
@@ -171,7 +175,7 @@ export function ReminderSettings() {
           {/* Someone who orders single loaves may want reminding before BOTH
               cutoffs — Monday for Wednesday, Thursday for Saturday. */}
           <TouchableOpacity style={styles.addRow} onPress={addSlot}>
-            <Ionicons name="add-circle-outline" size={18} color={theme.colors.primary} />
+            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
             <Text style={styles.addText}>Weitere Erinnerung hinzufügen</Text>
           </TouchableOpacity>
         </>
@@ -193,7 +197,7 @@ export function ReminderSettings() {
               >
                 <Text style={styles.optionText}>{opt.label}</Text>
                 {opt.value === prefs.slots.find((sl) => sl.id === dayFor)?.weekday && (
-                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -204,9 +208,9 @@ export function ReminderSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   section: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -219,14 +223,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: theme.spacing.md,
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center' },
-  rowLabel: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  hint: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  rowLabel: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  hint: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
   pickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -234,27 +238,27 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     marginTop: theme.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
   },
   pickValue: { flexDirection: 'row', alignItems: 'center' },
   slotHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: theme.spacing.md,
   },
-  slotTitle: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight },
-  remove: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
+  slotTitle: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight },
+  remove: { fontSize: theme.fontSize.sm, color: colors.textLight },
   addRow: {
     flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs,
     paddingTop: theme.spacing.md, marginTop: theme.spacing.md,
-    borderTopWidth: 1, borderTopColor: theme.colors.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
-  addText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.primary },
-  pickValueText: { fontSize: theme.fontSize.md, color: theme.colors.text, marginRight: theme.spacing.xs },
+  addText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.primary },
+  pickValueText: { fontSize: theme.fontSize.md, color: colors.text, marginRight: theme.spacing.xs },
   done: { alignSelf: 'flex-end', paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md },
-  doneText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.primary },
+  doneText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.primary },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: theme.borderRadius.xl,
     borderTopRightRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
@@ -263,7 +267,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.md,
   },
   option: {
@@ -272,7 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: colors.border,
   },
-  optionText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
+  optionText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
 });

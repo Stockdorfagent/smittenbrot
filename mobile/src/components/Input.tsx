@@ -1,5 +1,8 @@
 import { TextInput, Text, View, StyleSheet, type TextInputProps } from 'react-native';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -7,6 +10,8 @@ interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, style, ...props }: InputProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
@@ -16,7 +21,7 @@ export function Input({ label, error, style, ...props }: InputProps) {
           error && styles.inputError,
           style,
         ]}
-        placeholderTextColor={theme.colors.textLight}
+        placeholderTextColor={colors.textLight}
         {...props}
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -24,32 +29,32 @@ export function Input({ label, error, style, ...props }: InputProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     marginBottom: theme.spacing.md,
   },
   label: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.xs,
   },
   input: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     borderRadius: theme.borderRadius.md,
     paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
   },
   inputError: {
-    borderColor: theme.colors.error,
+    borderColor: colors.error,
   },
   error: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.error,
+    color: colors.error,
     marginTop: theme.spacing.xs,
   },
 });

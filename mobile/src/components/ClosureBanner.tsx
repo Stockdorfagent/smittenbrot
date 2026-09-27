@@ -1,11 +1,15 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '@/lib/theme';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { localDateISO } from '@/lib/pickup';
 import type { Closure } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 export function ClosureBanner() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [closure, setClosure] = useState<Closure | null>(null);
 
   useEffect(() => {
@@ -31,15 +35,15 @@ export function ClosureBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   banner: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: colors.strip,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
   },
   text: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.white,
+    color: colors.onStrip,
     textAlign: 'center',
     fontWeight: '500',
   },

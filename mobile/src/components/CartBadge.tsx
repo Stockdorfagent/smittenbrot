@@ -1,11 +1,16 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 interface CartBadgeProps {
   count: number;
 }
 
 export function CartBadge({ count }: CartBadgeProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (count <= 0) return null;
   return (
     <View style={styles.badge}>
@@ -14,9 +19,9 @@ export function CartBadge({ count }: CartBadgeProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   badge: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: theme.borderRadius.full,
     minWidth: 18,
     height: 18,
@@ -30,6 +35,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 10,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: colors.onAccent,
   },
 });

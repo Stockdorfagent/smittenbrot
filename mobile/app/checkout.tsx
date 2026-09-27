@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, Linking, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,8 +12,13 @@ import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { getNextPickupFor } from '@/lib/pickup';
 import { Button } from '@/components/Button';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { paymentSheetAppearance } from '@/lib/stripeAppearance';
 
 export default function CheckoutScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const { items, pickup_location_id, totalCents, clearCart } = useCart();
@@ -114,6 +119,7 @@ export default function CheckoutScreen() {
       // 2. Initialise the Stripe payment sheet.
       const initResult = await initPaymentSheet({
         merchantDisplayName: 'Smittenbrot',
+        appearance: paymentSheetAppearance(isDark),
         paymentIntentClientSecret: clientSecret,
         customerId,
         customerEphemeralKeySecret: ephemeralKey,
@@ -228,7 +234,7 @@ export default function CheckoutScreen() {
               value={codeInput}
               onChangeText={(t) => { setCodeInput(t); if (discount) setDiscount(null); setCodeError(''); }}
               placeholder="Code eingeben"
-              placeholderTextColor={theme.colors.textLight}
+              placeholderTextColor={colors.textLight}
               autoCapitalize="characters"
               autoCorrect={false}
               style={styles.codeInput}
@@ -271,17 +277,17 @@ export default function CheckoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   scroll: {
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xxl,
   },
   summaryCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -294,7 +300,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.md,
   },
   summaryRow: {
@@ -304,16 +310,16 @@ const styles = StyleSheet.create({
   },
   summaryName: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
   },
   summaryPrice: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
     fontWeight: '500',
   },
   divider: {
     height: 1,
-    backgroundColor: theme.colors.border,
+    backgroundColor: colors.border,
     marginVertical: theme.spacing.sm,
   },
   totalRow: {
@@ -325,42 +331,42 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   totalValue: {
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   infoCard: {
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.lg,
   },
   infoText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginBottom: theme.spacing.xs,
   },
   payButton: {
     marginBottom: theme.spacing.md,
   },
   codeCard: { marginBottom: theme.spacing.md },
-  codeLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.text, marginBottom: theme.spacing.xs },
+  codeLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.text, marginBottom: theme.spacing.xs },
   codeRow: { flexDirection: 'row', gap: theme.spacing.sm },
   codeInput: {
-    flex: 1, borderWidth: 1, borderColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md, paddingVertical: 10, backgroundColor: theme.colors.white,
-    color: theme.colors.text, fontSize: theme.fontSize.md,
+    flex: 1, borderWidth: 1, borderColor: colors.cream, borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md, paddingVertical: 10, backgroundColor: colors.surface,
+    color: colors.text, fontSize: theme.fontSize.md,
   },
-  codeButton: { backgroundColor: theme.colors.text, borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.lg, justifyContent: 'center' },
+  codeButton: { backgroundColor: colors.accent, borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.lg, justifyContent: 'center' },
   codeButtonOff: { opacity: 0.4 },
-  codeButtonText: { color: theme.colors.white, fontWeight: '600', fontSize: theme.fontSize.sm },
-  codeError: { marginTop: theme.spacing.xs, fontSize: theme.fontSize.xs, color: theme.colors.primary },
+  codeButtonText: { color: colors.onAccent, fontWeight: '600', fontSize: theme.fontSize.sm },
+  codeError: { marginTop: theme.spacing.xs, fontSize: theme.fontSize.xs, color: colors.primary },
   hint: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textAlign: 'center',
     fontStyle: 'italic',
   },

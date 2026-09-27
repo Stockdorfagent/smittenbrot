@@ -3,10 +3,10 @@ import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
-import { theme } from '@/lib/theme';
 import { useNotificationRouting } from '@/lib/notificationRouting';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Component, type ReactNode } from 'react';
+import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -58,6 +58,18 @@ function NotificationRouter() {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
+      <ThemeProvider>
+        <RootNavigator />
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
+}
+
+/** Everything below the theme provider, so headers and the status bar follow the palette. */
+function RootNavigator() {
+  const { colors, isDark } = useTheme();
+  return (
+    <>
       <StripeProvider
         publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
         urlScheme="smittenbrot"
@@ -67,7 +79,7 @@ export default function RootLayout() {
       >
         <AuthProvider>
           <CartProvider>
-            <StatusBar style="dark" />
+            <StatusBar style={isDark ? "light" : "dark"} />
             <NotificationRouter />
           <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -77,8 +89,8 @@ export default function RootLayout() {
             options={{
               headerShown: true,
               headerTitle: 'Kasse',
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.text,
               presentation: 'modal',
             }}
           />
@@ -89,8 +101,8 @@ export default function RootLayout() {
               headerTitle: '',
               headerBackTitle: 'Zurück',
               headerShadowVisible: false,
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.text,
             }}
           />
           <Stack.Screen
@@ -98,8 +110,8 @@ export default function RootLayout() {
             options={{
               headerShown: true,
               headerTitle: 'Dauerbestellung einrichten',
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.text,
               presentation: 'modal',
             }}
           />
@@ -112,8 +124,8 @@ export default function RootLayout() {
               headerShown: true,
               headerTitle: 'Dauerbestellung bearbeiten',
               headerBackTitle: 'Zurück',
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.text,
             }}
           />
           <Stack.Screen
@@ -122,14 +134,14 @@ export default function RootLayout() {
               headerShown: true,
               headerTitle: 'Backtag-Übersicht',
               headerBackTitle: 'Zurück',
-              headerStyle: { backgroundColor: theme.colors.background },
-              headerTintColor: theme.colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.text,
             }}
           />
             </Stack>
           </CartProvider>
         </AuthProvider>
       </StripeProvider>
-    </ErrorBoundary>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,8 +6,12 @@ import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user, signIn, signUp, resetPassword } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
@@ -135,10 +139,10 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   flex: { flex: 1 },
   scroll: {
@@ -158,12 +162,12 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: theme.colors.primary,
+    color: colors.primary,
     marginTop: theme.spacing.sm,
   },
   lead: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.md,
     lineHeight: 20,
   },
@@ -174,15 +178,15 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.secondary,
+    color: colors.secondary,
   },
   subtitle: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.xs,
   },
   form: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
     shadowColor: '#000',
@@ -194,25 +198,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.lg,
     textAlign: 'center',
   },
   error: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.error,
+    color: colors.error,
     textAlign: 'center',
     marginBottom: theme.spacing.md,
   },
   success: {
-    color: theme.colors.success,
+    color: colors.success,
   },
   submitButton: {
     marginTop: theme.spacing.sm,
   },
   switchText: {
     textAlign: 'center',
-    color: theme.colors.secondary,
+    color: colors.secondary,
     marginTop: theme.spacing.md,
     fontSize: theme.fontSize.sm,
   },
@@ -224,11 +228,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: theme.colors.border,
+    backgroundColor: colors.border,
   },
   dividerText: {
     marginHorizontal: theme.spacing.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     fontSize: theme.fontSize.xs,
   },
   socialButton: {
@@ -239,7 +243,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
   },
   backText: {
-    color: theme.colors.textLight,
+    color: colors.textLight,
     fontSize: theme.fontSize.sm,
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,8 +8,12 @@ import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
 import { LocationDropdown } from '@/components/LocationDropdown';
 import type { Product, PickupLocation, WeekCycle, PickupDay } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 export default function SubscriptionEditScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [products, setProducts] = useState<Product[]>([]);
@@ -127,7 +131,7 @@ export default function SubscriptionEditScreen() {
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ title: 'Dauerbestellung bearbeiten' }} />
         <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.primary} />
+          <ActivityIndicator color={colors.primary} />
         </View>
       </SafeAreaView>
     );
@@ -174,21 +178,21 @@ export default function SubscriptionEditScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
-  h1: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.xs },
-  hint: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: theme.spacing.md },
+  h1: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.xs },
+  hint: { fontSize: theme.fontSize.sm, color: colors.textLight, marginBottom: theme.spacing.md },
   productRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md,
-    borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: colors.surface, borderRadius: theme.borderRadius.md,
+    borderWidth: 1, borderColor: colors.border,
     padding: theme.spacing.md, marginBottom: theme.spacing.sm,
   },
-  productName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  productPrice: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  productName: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  productPrice: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: theme.spacing.lg },
-  totalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
-  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
+  totalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
+  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text },
 });

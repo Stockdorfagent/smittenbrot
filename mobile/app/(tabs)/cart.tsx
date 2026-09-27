@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,8 +12,12 @@ import { getNextPickupFor, weekTypeForPickup, isProductAvailableOn, ProductDayAv
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
 import type { PickupLocation } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 export default function CartScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const {
@@ -138,7 +142,7 @@ export default function CartScreen() {
               <Text style={styles.dropdownHint}>{selected.pickup_instructions}</Text>
             ) : null}
           </View>
-          <Ionicons name="chevron-down" size={20} color={theme.colors.textLight} />
+          <Ionicons name="chevron-down" size={20} color={colors.textLight} />
         </TouchableOpacity>
 
         <View style={styles.pickupDayCard}>
@@ -190,7 +194,7 @@ export default function CartScreen() {
                   <Text style={styles.modalOptionAddress}>{loc.address}</Text>
                 </View>
                 {loc.id === pickup_location_id && (
-                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -201,77 +205,77 @@ export default function CartScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: theme.spacing.lg, paddingBottom: 100 },
-  heading: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: theme.colors.text, marginBottom: theme.spacing.lg },
+  heading: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: colors.text, marginBottom: theme.spacing.lg },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyTitle: { fontSize: theme.fontSize.xl, fontWeight: '600', color: theme.colors.text, marginBottom: theme.spacing.sm },
-  emptyText: { fontSize: theme.fontSize.md, color: theme.colors.textLight, marginBottom: theme.spacing.lg },
+  emptyTitle: { fontSize: theme.fontSize.xl, fontWeight: '600', color: colors.text, marginBottom: theme.spacing.sm },
+  emptyText: { fontSize: theme.fontSize.md, color: colors.textLight, marginBottom: theme.spacing.lg },
   shopButton: { minWidth: 160 },
   itemCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
   itemInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
-  itemName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text, flex: 1 },
-  itemPrice: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '600' },
-  itemUnavailable: { marginTop: 4, fontSize: theme.fontSize.sm, color: theme.colors.primary },
+  itemName: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text, flex: 1 },
+  itemPrice: { fontSize: theme.fontSize.md, color: colors.text, fontWeight: '600' },
+  itemUnavailable: { marginTop: 4, fontSize: theme.fontSize.sm, color: colors.primary },
   itemActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  removeText: { fontSize: theme.fontSize.sm, color: theme.colors.error },
+  removeText: { fontSize: theme.fontSize.sm, color: colors.error },
   sectionTitle: {
-    fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight,
+    fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.sm, marginTop: theme.spacing.sm,
   },
   dropdown: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.md,
-    borderWidth: 1, borderColor: theme.colors.border,
+    borderWidth: 1, borderColor: colors.border,
     padding: theme.spacing.md, marginBottom: theme.spacing.md,
   },
-  dropdownName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  dropdownAddress: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
-  dropdownHint: { fontSize: theme.fontSize.sm, color: theme.colors.text, marginTop: theme.spacing.xs, lineHeight: 18 },
+  dropdownName: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  dropdownAddress: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
+  dropdownHint: { fontSize: theme.fontSize.sm, color: colors.text, marginTop: theme.spacing.xs, lineHeight: 18 },
   pickupDayCard: {
-    backgroundColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
+    backgroundColor: colors.cream, borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md, marginBottom: theme.spacing.md,
   },
-  pickupDayTitle: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, textTransform: 'uppercase' },
-  pickupDayValue: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text, marginTop: 2 },
+  pickupDayTitle: { fontSize: theme.fontSize.xs, color: colors.textLight, textTransform: 'uppercase' },
+  pickupDayValue: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text, marginTop: 2 },
   totalCard: {
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg,
-    borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: colors.surface, borderRadius: theme.borderRadius.lg,
+    borderWidth: 1, borderColor: colors.border,
     padding: theme.spacing.lg, marginTop: theme.spacing.sm,
   },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
-  totalLabelSmall: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
-  totalValueSmall: { fontSize: theme.fontSize.sm, color: theme.colors.text },
-  totalDivider: { height: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
-  totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
-  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
+  totalLabelSmall: { fontSize: theme.fontSize.sm, color: colors.textLight },
+  totalValueSmall: { fontSize: theme.fontSize.sm, color: colors.text },
+  totalDivider: { height: 1, backgroundColor: colors.border, marginVertical: theme.spacing.sm },
+  totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text },
+  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text },
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: theme.spacing.md, paddingBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border,
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
   },
   checkoutButton: { width: '100%' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: theme.borderRadius.xl, borderTopRightRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl,
   },
-  modalTitle: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text, marginBottom: theme.spacing.md },
+  modalTitle: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text, marginBottom: theme.spacing.md },
   modalOption: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  modalOptionName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  modalOptionAddress: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 2 },
+  modalOptionName: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  modalOptionAddress: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: 2 },
 });

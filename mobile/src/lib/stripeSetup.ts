@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { useStripe } from '@stripe/stripe-react-native';
+import { paymentSheetAppearance } from '@/lib/stripeAppearance';
 
 /** The two PaymentSheet functions, exactly as useStripe() returns them. */
 type PaymentSheetFns = Pick<ReturnType<typeof useStripe>, 'initPaymentSheet' | 'presentPaymentSheet'>;
@@ -18,6 +19,7 @@ type PaymentSheetFns = Pick<ReturnType<typeof useStripe>, 'initPaymentSheet' | '
  */
 export async function collectPaymentMethod(
   sheet: PaymentSheetFns,
+  isDark = false,
 ): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
   const { data, error } = await supabase.functions.invoke('create-setup-intent', { body: {} });
   if (error || !data?.setupIntentClientSecret) {
@@ -25,6 +27,7 @@ export async function collectPaymentMethod(
   }
   const init = await sheet.initPaymentSheet({
     merchantDisplayName: 'Smittenbrot',
+    appearance: paymentSheetAppearance(isDark),
     setupIntentClientSecret: data.setupIntentClientSecret,
     customerId: data.customerId,
     customerEphemeralKeySecret: data.ephemeralKey,

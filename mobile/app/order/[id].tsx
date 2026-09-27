@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import { useAuth } from '@/context/AuthContext';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 import { loadPickedUp, markPickedUp, unmarkPickedUp } from '@/lib/pickedUp';
 import { collectPaymentMethod } from '@/lib/stripeSetup';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending: 'Ausstehend',
@@ -47,6 +49,8 @@ interface OrderRow {
 
 
 export default function OrderDetailScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
@@ -133,7 +137,7 @@ export default function OrderDetailScreen() {
         } catch { /* keep default */ }
       }
       if (needsCard && retryAfterCard) {
-        const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet });
+        const card = await collectPaymentMethod({ initPaymentSheet, presentPaymentSheet }, isDark);
         if (card.ok) return await doConvert(false);
         if (!card.cancelled) Alert.alert('Fehler', card.error ?? message);
         return;
@@ -345,67 +349,67 @@ export default function OrderDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  muted: { fontSize: theme.fontSize.md, color: theme.colors.textLight },
+  muted: { fontSize: theme.fontSize.md, color: colors.textLight },
   scroll: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
   header: { marginBottom: theme.spacing.lg },
-  title: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: theme.colors.text },
-  orderNumber: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: theme.spacing.xs },
+  title: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: colors.text },
+  orderNumber: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: theme.spacing.xs },
   section: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight,
+    fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.sm,
   },
   detailRow: {
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   lastRow: { borderBottomWidth: 0 },
   hintRow: {
-    backgroundColor: theme.colors.cream, borderRadius: theme.borderRadius.md,
+    backgroundColor: colors.cream, borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md, marginTop: theme.spacing.sm,
   },
-  hintText: { fontSize: theme.fontSize.sm, color: theme.colors.text, lineHeight: 19 },
-  detailLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
-  detailValue: { fontSize: theme.fontSize.sm, color: theme.colors.text, fontWeight: '500' },
-  detailValueReady: { color: theme.colors.primary, fontWeight: '700' },
+  hintText: { fontSize: theme.fontSize.sm, color: colors.text, lineHeight: 19 },
+  detailLabel: { fontSize: theme.fontSize.sm, color: colors.textLight },
+  detailValue: { fontSize: theme.fontSize.sm, color: colors.text, fontWeight: '500' },
+  detailValueReady: { color: colors.primary, fontWeight: '700' },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  itemName: { fontSize: theme.fontSize.md, color: theme.colors.text, flex: 1, marginRight: theme.spacing.sm },
-  itemPrice: { fontSize: theme.fontSize.md, color: theme.colors.text, fontWeight: '500' },
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
-  smallLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
-  smallValue: { fontSize: theme.fontSize.sm, color: theme.colors.text },
-  totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
-  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text },
-  note: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, textAlign: 'center', marginTop: theme.spacing.sm, marginBottom: theme.spacing.lg, lineHeight: 20 },
-  sellerNote: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, textAlign: 'center', marginBottom: theme.spacing.lg, lineHeight: 18 },
+  itemName: { fontSize: theme.fontSize.md, color: colors.text, flex: 1, marginRight: theme.spacing.sm },
+  itemPrice: { fontSize: theme.fontSize.md, color: colors.text, fontWeight: '500' },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: theme.spacing.sm },
+  smallLabel: { fontSize: theme.fontSize.sm, color: colors.textLight },
+  smallValue: { fontSize: theme.fontSize.sm, color: colors.text },
+  totalLabel: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text },
+  totalValue: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text },
+  note: { fontSize: theme.fontSize.sm, color: colors.textLight, textAlign: 'center', marginTop: theme.spacing.sm, marginBottom: theme.spacing.lg, lineHeight: 20 },
+  sellerNote: { fontSize: theme.fontSize.xs, color: colors.textLight, textAlign: 'center', marginBottom: theme.spacing.lg, lineHeight: 18 },
   convertButton: {
-    backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md,
+    backgroundColor: colors.primary, borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md, alignItems: 'center', marginBottom: theme.spacing.sm,
   },
-  convertButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.white },
+  convertButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.white },
   cancelButton: {
-    borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.borderRadius.md,
+    borderWidth: 1, borderColor: colors.primary, borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md, alignItems: 'center',
   },
-  cancelButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.primary },
+  cancelButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.primary },
   collectedButton: {
     marginTop: theme.spacing.md,
-    borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.borderRadius.md,
+    borderWidth: 1, borderColor: colors.border, borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md, alignItems: 'center',
   },
-  collectedButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
+  collectedButtonText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
   collectedUndo: {
     marginTop: theme.spacing.sm, textAlign: 'center',
-    fontSize: theme.fontSize.sm, color: theme.colors.textLight, textDecorationLine: 'underline',
+    fontSize: theme.fontSize.sm, color: colors.textLight, textDecorationLine: 'underline',
   },
 });

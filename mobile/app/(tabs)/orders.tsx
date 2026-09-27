@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,9 +9,13 @@ import { useAuth } from '@/context/AuthContext';
 import type { Order, OrderWithItems, PickupLocation } from '@/lib/types';
 import { isReadyForPickup, orderStatusLabel } from '@/lib/orderStatus';
 import { loadPickedUp } from '@/lib/pickedUp';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 
 export default function OrdersScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
@@ -108,10 +112,10 @@ export default function OrdersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     padding: theme.spacing.lg,
@@ -120,7 +124,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     fontFamily: theme.fontFamily.display,
   },
   filterRow: {
@@ -131,19 +135,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 8,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     marginRight: theme.spacing.sm,
   },
   filterChipActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   filterText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     fontWeight: '500',
   },
   filterTextActive: {
-    color: theme.colors.white,
+    color: colors.white,
   },
   scroll: {
     padding: theme.spacing.lg,
@@ -151,7 +155,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xxl,
   },
   orderCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -170,7 +174,7 @@ const styles = StyleSheet.create({
   orderDate: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   statusBadge: {
     borderRadius: theme.borderRadius.sm,
@@ -178,7 +182,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   // Solid brand red — the only badge meant to be noticed across the list.
-  status_ready: { backgroundColor: theme.colors.primary },
+  status_ready: { backgroundColor: colors.primary },
   status_scheduled: { backgroundColor: '#E5E7EB' },
   status_processing: { backgroundColor: '#DBEAFE' },
   status_grace_period_open: { backgroundColor: '#FEF3C7' },
@@ -186,25 +190,26 @@ const styles = StyleSheet.create({
   status_fulfilled: { backgroundColor: '#D1FAE5' },
   status_refunded: { backgroundColor: '#FCE7F3' },
   status_cancelled: { backgroundColor: '#FEE2E2' },
-  statusTextReady: { color: theme.colors.white },
+  statusTextReady: { color: colors.white },
   statusText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
-    color: theme.colors.text,
+    // The pastel pills stay light in dark mode, so their text stays dark.
+    color: '#1A1A1A',
   },
   orderLocation: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   orderTotal: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
-    color: theme.colors.primary,
+    color: colors.primary,
     marginTop: theme.spacing.xs,
   },
   orderItems: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.sm,
   },
   emptyContainer: {
@@ -216,21 +221,21 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   emptyText: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   loginLink: {
     marginTop: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: theme.borderRadius.md,
   },
   loginText: {
-    color: theme.colors.white,
+    color: colors.white,
     fontWeight: '600',
   },
 });

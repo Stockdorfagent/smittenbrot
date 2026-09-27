@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
@@ -15,8 +15,12 @@ import { LocationDropdown } from '@/components/LocationDropdown';
 import { ReminderSettings } from '@/components/ReminderSettings';
 import { NotificationStatusCard } from '@/components/NotificationStatusCard';
 import type { PickupLocation } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 export default function ProfileScreen() {
+  const { colors, preference, setPreference } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user, signOut, refreshUser } = useAuth();
   const [deleting, setDeleting] = useState(false);
@@ -124,7 +128,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Konto</Text>
           <ProfileRow label="E-Mail" value={user.email} />
           {loading ? (
-            <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.md }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: theme.spacing.md }} />
           ) : (
             <View style={{ marginTop: theme.spacing.md }}>
               <Input label="Vor- und Nachname" value={name} onChangeText={setName} placeholder="z. B. Brotney Spears" />
@@ -171,7 +175,7 @@ export default function ProfileScreen() {
               <Text style={styles.rowLabel}>Zahlungsmethoden verwalten</Text>
               <Text style={styles.rowHint}>{portalBusy ? 'Wird geöffnet…' : 'Karten hinzufügen, entfernen oder als Standard festlegen (sicher bei Stripe)'}</Text>
             </View>
-            <Ionicons name="open-outline" size={18} color={theme.colors.textLight} />
+            <Ionicons name="open-outline" size={18} color={colors.textLight} />
           </TouchableOpacity>
         </View>
 
@@ -193,6 +197,21 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Einstellungen</Text>
+          {/* Dark mode: follows the phone by default; can be pinned here (device-only setting). */}
+          <View style={styles.rowStatic}>
+            <Text style={styles.rowLabel}>Darstellung</Text>
+            <View style={styles.segment}>
+              {([['system', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']] as const).map(([key, label]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.segmentItem, preference === key && styles.segmentItemActive]}
+                  onPress={() => setPreference(key)}
+                >
+                  <Text style={[styles.segmentText, preference === key && styles.segmentTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/(tabs)/orders')}>
             <Text style={styles.rowLabel}>Bestellhistorie</Text>
             <Text style={styles.rowArrow}>→</Text>
@@ -268,6 +287,8 @@ function appVersionLabel(): string {
 }
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -276,10 +297,10 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
@@ -299,7 +320,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: theme.spacing.md,
@@ -307,21 +328,21 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 28,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: colors.white,
   },
   name: {
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     fontFamily: theme.fontFamily.display,
   },
   email: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.xs,
   },
   section: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -334,7 +355,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: theme.spacing.md,
@@ -342,7 +363,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.xs,
   },
   row: {
@@ -351,30 +372,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: colors.border,
   },
-  rowHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: 2 },
+  rowStatic: { paddingVertical: theme.spacing.sm },
+  segment: { flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  segmentItem: { paddingVertical: 6, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.full, borderWidth: 1, borderColor: colors.border },
+  segmentItemActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  segmentText: { fontSize: theme.fontSize.sm, color: colors.text },
+  segmentTextActive: { color: colors.onAccent, fontWeight: '600' },
+  rowHint: { fontSize: theme.fontSize.xs, color: colors.textLight, marginTop: 2 },
   rowLabel: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.text,
+    color: colors.text,
   },
   rowValue: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   rowArrow: {
     fontSize: theme.fontSize.lg,
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   notLoggedInTitle: {
     fontSize: theme.fontSize.xl,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     marginBottom: theme.spacing.sm,
   },
   notLoggedInText: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textAlign: 'center',
     marginBottom: theme.spacing.lg,
   },
@@ -384,7 +411,7 @@ const styles = StyleSheet.create({
   version: {
     textAlign: 'center',
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
@@ -395,7 +422,7 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.error,
+    color: colors.error,
     textDecorationLine: 'underline',
   },
 });

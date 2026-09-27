@@ -1,15 +1,16 @@
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '@/lib/theme';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { AdminOrderAlerts } from '@/components/AdminOrderAlerts';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function TabLayout() {
   const { itemCount } = useCart();
   const { user, loading } = useAuth();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   // The app requires an account — send unauthenticated users to login.
   if (loading) return null;
@@ -33,16 +34,16 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.colors.white,
-          borderTopColor: theme.colors.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           // Respect the phone's bottom inset (gesture bar / home indicator)
           // so the tab bar is never hidden behind the system navigation.
           height: 56 + insets.bottom,
           paddingBottom: insets.bottom + 6,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textLight,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textLight,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       }}
     >

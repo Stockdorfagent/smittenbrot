@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, AppState, Linking, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
 import { hasNotificationPermission } from '@/lib/push';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 /**
  * Tells the customer, in the one place they would look, that this phone is not
@@ -27,6 +29,8 @@ import { hasNotificationPermission } from '@/lib/push';
  * stopped and assume something was broken.
  */
 export function NotificationStatusCard() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [granted, setGranted] = useState<boolean | null>(null);
 
   const check = useCallback(() => {
@@ -66,7 +70,7 @@ export function NotificationStatusCard() {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Ionicons name="notifications-off-outline" size={18} color={theme.colors.primary} />
+        <Ionicons name="notifications-off-outline" size={18} color={colors.primary} />
         <Text style={styles.title}>Mitteilungen sind ausgeschaltet</Text>
       </View>
       <Text style={styles.body}>
@@ -81,23 +85,23 @@ export function NotificationStatusCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   fine: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     lineHeight: 17,
     marginBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.xs,
   },
   card: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     // A left rule in brand red instead of a tinted fill — the palette allows
     // red, white, black and greys, and no red washes.
     borderLeftWidth: 3,
-    borderLeftColor: theme.colors.primary,
+    borderLeftColor: colors.primary,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -105,17 +109,17 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
-  title: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
+  title: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
   body: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     lineHeight: 20,
     marginTop: theme.spacing.xs,
   },
   action: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.primary,
+    color: colors.primary,
     marginTop: theme.spacing.md,
   },
 });

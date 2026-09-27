@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,8 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 /**
  * Passwordless sign-in with a 6-digit email code — the primary way into the
@@ -22,6 +24,8 @@ import { useAuth } from '@/context/AuthContext';
  * the auth gate then asks for the name once via /profile-setup.
  */
 export default function CodeLoginScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -150,20 +154,20 @@ export default function CodeLoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: theme.spacing.lg },
   header: { alignItems: 'center', marginBottom: theme.spacing.xl },
   logoImg: { width: 64, height: 64, resizeMode: 'contain', marginBottom: theme.spacing.sm },
-  brand: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text, fontFamily: theme.fontFamily.display },
-  subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: theme.spacing.xs },
-  form: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.lg },
-  title: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.text, marginBottom: theme.spacing.sm },
-  lead: { fontSize: theme.fontSize.sm, color: theme.colors.text, marginBottom: theme.spacing.md, lineHeight: 20 },
-  error: { color: theme.colors.error, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
-  info: { color: theme.colors.success, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
-  sentTo: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: theme.spacing.sm },
+  brand: { fontSize: theme.fontSize.xl, fontWeight: '700', color: colors.text, fontFamily: theme.fontFamily.display },
+  subtitle: { fontSize: theme.fontSize.sm, color: colors.textLight, marginTop: theme.spacing.xs },
+  form: { backgroundColor: colors.surface, borderRadius: theme.borderRadius.lg, padding: theme.spacing.lg },
+  title: { fontSize: theme.fontSize.lg, fontWeight: '700', color: colors.text, marginBottom: theme.spacing.sm },
+  lead: { fontSize: theme.fontSize.sm, color: colors.text, marginBottom: theme.spacing.md, lineHeight: 20 },
+  error: { color: colors.error, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
+  info: { color: colors.success, fontSize: theme.fontSize.sm, marginBottom: theme.spacing.sm },
+  sentTo: { fontSize: theme.fontSize.sm, color: colors.textLight, marginBottom: theme.spacing.sm },
   link: { alignItems: 'center', marginTop: theme.spacing.md },
-  linkText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
+  linkText: { color: colors.textLight, fontSize: theme.fontSize.sm },
 });

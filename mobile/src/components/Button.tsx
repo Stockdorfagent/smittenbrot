@@ -1,5 +1,8 @@
 import { TouchableOpacity, Text, StyleSheet, type ViewStyle, type TextStyle, ActivityIndicator } from 'react-native';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 interface ButtonProps {
   title: string;
@@ -22,6 +25,8 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <TouchableOpacity
       style={[
@@ -36,7 +41,7 @@ export function Button({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' ? theme.colors.primary : theme.colors.white} />
+        <ActivityIndicator color={variant === 'ghost' ? colors.primary : colors.white} />
       ) : (
         <Text style={[styles.text, styles[`text_${variant}`], styles[`textSize_${size}`], textStyle]}>
           {title}
@@ -46,7 +51,7 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   base: {
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
@@ -54,21 +59,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   primary: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   secondary: {
-    backgroundColor: theme.colors.secondary,
+    backgroundColor: colors.secondary,
   },
   accent: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: colors.accent,
   },
   ghost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: theme.colors.primary,
+    borderColor: colors.primary,
   },
   danger: {
-    backgroundColor: theme.colors.error,
+    backgroundColor: colors.error,
   },
   size_sm: {
     paddingVertical: 8,
@@ -88,11 +93,11 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: '600',
   },
-  text_primary: { color: theme.colors.white },
-  text_secondary: { color: theme.colors.white },
-  text_accent: { color: theme.colors.white },
-  text_ghost: { color: theme.colors.primary },
-  text_danger: { color: theme.colors.white },
+  text_primary: { color: colors.white },
+  text_secondary: { color: colors.white },
+  text_accent: { color: colors.onAccent },
+  text_ghost: { color: colors.primary },
+  text_danger: { color: colors.white },
   textSize_sm: { fontSize: theme.fontSize.sm },
   textSize_md: { fontSize: theme.fontSize.md },
   textSize_lg: { fontSize: theme.fontSize.lg },

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,8 @@ import { theme } from '@/lib/theme';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getNextPickup } from '@/lib/pickup';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 interface OrderRow {
   id: string;
@@ -27,6 +29,8 @@ const ACTIVE = ['scheduled', 'processing', 'grace_period_open', 'locked_for_prod
 const isTestOrder = (o: OrderRow) => (o.order_number ?? '').startsWith('TEST-');
 
 export default function AdminBakeday() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const pickup = getNextPickup();
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -92,7 +96,7 @@ export default function AdminBakeday() {
         <Text style={styles.date}>{pickup.label}</Text>
 
         {loading ? (
-          <ActivityIndicator color={theme.colors.primary} style={{ marginTop: theme.spacing.xl }} />
+          <ActivityIndicator color={colors.primary} style={{ marginTop: theme.spacing.xl }} />
         ) : realOrders.length === 0 ? (
           <>
             <Text style={[styles.muted, { marginTop: theme.spacing.lg }]}>
@@ -153,34 +157,34 @@ export default function AdminBakeday() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg },
   scroll: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
-  h1: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5 },
-  date: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text, marginTop: 2 },
-  muted: { fontSize: theme.fontSize.md, color: theme.colors.textLight },
-  testNote: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: theme.spacing.sm },
+  h1: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5 },
+  date: { fontSize: theme.fontSize.xl, fontWeight: '700', color: colors.text, marginTop: 2 },
+  muted: { fontSize: theme.fontSize.md, color: colors.textLight },
+  testNote: { fontSize: theme.fontSize.xs, color: colors.textLight, marginTop: theme.spacing.sm },
   card: {
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg,
+    backgroundColor: colors.surface, borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg, marginTop: theme.spacing.lg,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-  cardTitle: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.md },
+  cardTitle: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.md },
   bakeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: theme.spacing.sm },
-  bakeName: { fontSize: theme.fontSize.md, color: theme.colors.text },
-  bakeQty: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
-  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
-  bakeTotalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
-  section: { fontSize: theme.fontSize.sm, fontWeight: '600', color: theme.colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: theme.spacing.xl, marginBottom: theme.spacing.sm },
+  bakeName: { fontSize: theme.fontSize.md, color: colors.text },
+  bakeQty: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: theme.spacing.sm },
+  bakeTotalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
+  section: { fontSize: theme.fontSize.sm, fontWeight: '600', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: theme.spacing.xl, marginBottom: theme.spacing.sm },
   orderCard: {
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md,
+    backgroundColor: colors.surface, borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md, marginBottom: theme.spacing.sm,
-    borderWidth: 1, borderColor: theme.colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   orderHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xs },
-  orderName: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.text },
-  orderLoc: { fontSize: theme.fontSize.sm, color: theme.colors.textLight },
-  orderItem: { fontSize: theme.fontSize.sm, color: theme.colors.text, marginTop: 2 },
-  pending: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: theme.spacing.xs, fontStyle: 'italic' },
+  orderName: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.text },
+  orderLoc: { fontSize: theme.fontSize.sm, color: colors.textLight },
+  orderItem: { fontSize: theme.fontSize.sm, color: colors.text, marginTop: 2 },
+  pending: { fontSize: theme.fontSize.xs, color: colors.textLight, marginTop: theme.spacing.xs, fontStyle: 'italic' },
 });

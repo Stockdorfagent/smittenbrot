@@ -14,6 +14,9 @@ import { QuantitySelector } from '@/components/QuantitySelector';
 import { LocationDropdown } from '@/components/LocationDropdown';
 import type { Product, PickupLocation, WeekCycle } from '@/lib/types';
 import type { PickupDay } from '@/lib/types';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { paymentSheetAppearance } from '@/lib/stripeAppearance';
 
 type Step = 'location' | 'pickup_day' | 'products' | 'review';
 
@@ -33,6 +36,8 @@ const DAY_LABELS: Record<PickupDay, string> = {
 };
 
 export default function SubscriptionCreateScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -202,6 +207,7 @@ export default function SubscriptionCreateScreen() {
       if (si && !si.hasPaymentMethod) {
         const init = await initPaymentSheet({
           merchantDisplayName: 'Smittenbrot',
+          appearance: paymentSheetAppearance(isDark),
           setupIntentClientSecret: si.setupIntentClientSecret,
           customerId: si.customerId,
           customerEphemeralKeySecret: si.ephemeralKey,
@@ -458,10 +464,10 @@ export default function SubscriptionCreateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
@@ -471,7 +477,7 @@ const styles = StyleSheet.create({
   },
   notLoggedIn: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textAlign: 'center',
     marginBottom: theme.spacing.lg,
   },
@@ -489,20 +495,20 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: theme.colors.border,
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   progressDotActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   progressDotCompleted: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: colors.accent,
   },
   progressNum: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: colors.onAccent,
   },
   scroll: {
     padding: theme.spacing.lg,
@@ -511,38 +517,38 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: colors.text,
     fontFamily: theme.fontFamily.display,
     marginBottom: theme.spacing.sm,
   },
   stepHint: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginBottom: theme.spacing.lg,
   },
   dayOption: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     borderWidth: 2,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
   },
   dayOptionActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.cream,
+    borderColor: colors.primary,
+    backgroundColor: colors.cream,
   },
   dayOptionText: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     textAlign: 'center',
   },
   dayOptionTextActive: {
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   productRow: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.sm,
@@ -556,47 +562,47 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   productPrice: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.secondary,
+    color: colors.secondary,
     marginTop: theme.spacing.xs,
   },
   locationOption: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
   },
   locationOptionActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.cream,
+    borderColor: colors.primary,
+    backgroundColor: colors.cream,
   },
   locationName: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   locationNameActive: {
-    color: theme.colors.primary,
+    color: colors.primary,
   },
   locationAddress: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: theme.spacing.xs,
   },
   reviewCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.sm,
   },
   reviewLabel: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: theme.spacing.xs,
@@ -604,7 +610,7 @@ const styles = StyleSheet.create({
   reviewValue: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
   },
   reviewProductRow: {
     flexDirection: 'row',
@@ -613,12 +619,12 @@ const styles = StyleSheet.create({
   },
   reviewProductName: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.text,
+    color: colors.text,
   },
   reviewProductPrice: {
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
-    color: theme.colors.secondary,
+    color: colors.secondary,
   },
   reviewTotalRow: {
     flexDirection: 'row',
@@ -627,11 +633,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
   },
-  reviewTotalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
-  reviewTotalValue: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.text },
-  reviewHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginBottom: theme.spacing.sm, marginTop: theme.spacing.xs },
+  reviewTotalLabel: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
+  reviewTotalValue: { fontSize: theme.fontSize.md, fontWeight: '700', color: colors.text },
+  reviewHint: { fontSize: theme.fontSize.xs, color: colors.textLight, marginBottom: theme.spacing.sm, marginTop: theme.spacing.xs },
   nextButton: {
     marginTop: theme.spacing.lg,
   },
@@ -640,12 +646,12 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.textLight,
+    color: colors.textLight,
     marginTop: 4,
     textAlign: 'center',
   },
   progressLabelActive: {
-    color: theme.colors.text,
+    color: colors.text,
     fontWeight: '600',
   },
 });

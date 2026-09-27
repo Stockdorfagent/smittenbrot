@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
 
 /**
  * Thin black strip announcing the welcome code — the app twin of the website's
@@ -17,6 +19,8 @@ const PROMO: { text: string; code: string } | null = {
 };
 
 export function PromoStrip() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const [show, setShow] = useState(false);
 
@@ -41,8 +45,8 @@ export function PromoStrip() {
   );
 }
 
-const styles = StyleSheet.create({
-  strip: { backgroundColor: theme.colors.text, paddingVertical: 8, paddingHorizontal: theme.spacing.md },
-  text: { color: theme.colors.white, fontSize: theme.fontSize.xs, textAlign: 'center' },
-  code: { color: theme.colors.primary, fontWeight: '700', letterSpacing: 0.5 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  strip: { backgroundColor: colors.strip, paddingVertical: 8, paddingHorizontal: theme.spacing.md },
+  text: { color: colors.onStrip, fontSize: theme.fontSize.xs, textAlign: 'center' },
+  code: { color: colors.primary, fontWeight: '700', letterSpacing: 0.5 },
 });

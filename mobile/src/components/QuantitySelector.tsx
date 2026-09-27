@@ -1,5 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { theme } from '@/lib/theme';
+import { useTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/lib/theme';
+import { useMemo } from 'react';
 
 interface QuantitySelectorProps {
   quantity: number;
@@ -16,6 +19,8 @@ export function QuantitySelector({
   min = 0,
   max = 99,
 }: QuantitySelectorProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -37,11 +42,11 @@ export function QuantitySelector({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.cream,
+    backgroundColor: colors.cream,
     borderRadius: theme.borderRadius.sm,
     overflow: 'hidden',
   },
@@ -50,25 +55,25 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   buttonDisabled: {
-    backgroundColor: theme.colors.border,
+    backgroundColor: colors.border,
   },
   buttonText: {
     fontSize: 18,
-    color: theme.colors.white,
+    color: colors.white,
     fontWeight: '600',
   },
   buttonTextDisabled: {
-    color: theme.colors.textLight,
+    color: colors.textLight,
   },
   quantity: {
     minWidth: 36,
     textAlign: 'center',
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: colors.text,
     paddingHorizontal: theme.spacing.sm,
   },
 });
