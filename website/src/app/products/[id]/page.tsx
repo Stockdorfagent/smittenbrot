@@ -193,7 +193,7 @@ export default function ProductDetailPage() {
             <button
               onClick={handleAddToCart}
               disabled={adding}
-              className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+              className="mt-6 w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
             >
               {adding ? 'Wird hinzugefügt...' : 'In den Warenkorb'}
             </button>

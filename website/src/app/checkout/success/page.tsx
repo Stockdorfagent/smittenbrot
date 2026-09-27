@@ -71,7 +71,7 @@ function SuccessInner() {
           Die Zahlung wurde abgebrochen oder abgelehnt. Es wurde nichts abgebucht und keine Bestellung angelegt.
           Dein Warenkorb ist noch da.
         </p>
-        <Link href="/checkout" className="mt-8 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
+        <Link href="/checkout" className="mt-8 inline-block bg-smitten-accent text-smitten-on-accent px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
           Zurück zur Kasse
         </Link>
       </div>

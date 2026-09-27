@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { formatPrice } from '@/lib/types';
 import { paymentMethodLabel, orderStatusAdminLabels } from '@/lib/adminLabels';
+import JSZip from 'jszip';
+import { buildInvoicePdf, buildCreditNotePdf, type SellerInfo } from '@/lib/documentsPdf';
 
 /**
  * All bookkeeping exports in one place — they lived on the Einstellungen
@@ -40,6 +42,80 @@ export default function AdminExportsPage() {
     payouts_cents: number;
   } | null>(null);
   const [stripeFeeError, setStripeFeeError] = useState('');
+
+  // Belege (PDF): Rechnungen + Storno-Rechnungen as one ZIP (owner, 27.09.2026)
+  const [docFrom, setDocFrom] = useState('');
+  const [docTo, setDocTo] = useState('');
+  const [docMsg, setDocMsg] = useState('');
+  const [docBusy, setDocBusy] = useState(false);
+
+  async function exportDocumentsZip() {
+    setDocBusy(true); setDocMsg('Belege werden erstellt …');
+    try {
+      const { data: seller } = await supabase.from('seller_info').select('*').limit(1).single();
+      const sellerInfo = (seller ?? { name: 'Smittenbrot', address_line1: '', postal_code: '', city: 'Stockdorf', email: 'info@smittenbrot.de' }) as SellerInfo;
+      let oq = supabase
+        .from('orders')
+        .select('id, order_number, invoice_number, customer_name, customer_email, created_at, fulfillment_date, total_cents, discount_cents, discount_code, payment_status, pickup_locations(name), order_items(quantity, unit_price_cents, unit_price_gross_cents, products(name))')
+        .not('invoice_number', 'is', null)
+        .not('invoice_number', 'like', 'TEST-%')
+        .order('created_at', { ascending: true })
+        .limit(5000);
+      if (docFrom) oq = oq.gte('created_at', `${docFrom}T00:00:00`);
+      if (docTo) oq = oq.lte('created_at', `${docTo}T23:59:59`);
+      const { data: orders, error: oe } = await oq;
+      if (oe) throw oe;
+      let cq = supabase
+        .from('credit_notes')
+        .select('credit_note_number, original_invoice_number, total_gross_cents, total_net_cents, total_vat_cents, reason, created_at, orders(order_number, customer_name, customer_email)')
+        .order('created_at', { ascending: true })
+        .limit(5000);
+      if (docFrom) cq = cq.gte('created_at', `${docFrom}T00:00:00`);
+      if (docTo) cq = cq.lte('created_at', `${docTo}T23:59:59`);
+      const { data: notes, error: ce } = await cq;
+      if (ce) throw ce;
+      if ((orders?.length ?? 0) + (notes?.length ?? 0) === 0) { setDocMsg('Keine Belege im Zeitraum.'); return; }
+      const zip = new JSZip();
+      const inv = zip.folder('rechnungen')!; const sto = zip.folder('storno-rechnungen')!;
+      let n = 0;
+      for (const o of orders ?? []) {
+        const loc = (o as any).pickup_locations as { name: string } | null;
+        const pdf = await buildInvoicePdf({
+          id: o.id, order_number: o.order_number, invoice_number: o.invoice_number, customer_name: o.customer_name,
+          customer_email: o.customer_email, created_at: o.created_at, fulfillment_date: o.fulfillment_date, total_cents: o.total_cents,
+          discount_cents: (o as any).discount_cents, discount_code: (o as any).discount_code, payment_status: o.payment_status,
+          pickup_location_name: loc?.name ?? null,
+          items: ((o as any).order_items ?? []).map((it: any) => ({
+            product_name: it.products?.name ?? 'Produkt', quantity: it.quantity,
+            unit_gross_cents: it.unit_price_gross_cents || it.unit_price_cents,
+          })),
+        }, sellerInfo);
+        inv.file(`${o.invoice_number}.pdf`, pdf); n++;
+        if (n % 25 === 0) setDocMsg(`Belege werden erstellt … ${n}`);
+      }
+      for (const c of notes ?? []) {
+        const ord = (c as any).orders as { order_number: string | null; customer_name: string | null; customer_email: string | null } | null;
+        const pdf = await buildCreditNotePdf({
+          credit_note_number: c.credit_note_number, original_invoice_number: c.original_invoice_number,
+          total_gross_cents: c.total_gross_cents, total_net_cents: c.total_net_cents, total_vat_cents: c.total_vat_cents,
+          reason: c.reason, created_at: c.created_at, customer_name: ord?.customer_name ?? null,
+          customer_email: ord?.customer_email ?? null, order_number: ord?.order_number ?? null,
+        }, sellerInfo);
+        sto.file(`${c.credit_note_number}.pdf`, pdf); n++;
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `belege-${docFrom || 'alle'}-${docTo || 'heute'}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      setDocMsg(`${orders?.length ?? 0} Rechnungen und ${notes?.length ?? 0} Storno-Rechnungen als ZIP heruntergeladen.`);
+    } catch (e) {
+      setDocMsg(`Export fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDocBusy(false);
+    }
+  }
 
   // Credit notes state
   const [creditNotes, setCreditNotes] = useState<any[]>([]);
@@ -341,7 +417,7 @@ export default function AdminExportsPage() {
       <h1 className="text-2xl font-display font-bold text-smitten-text">Exporte</h1>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Datenexport
           </h2>
@@ -353,12 +429,12 @@ export default function AdminExportsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
               <input type="date" value={orderFrom} onChange={e => setOrderFrom(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
               <input type="date" value={orderTo} onChange={e => setOrderTo(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -370,7 +446,7 @@ export default function AdminExportsPage() {
             </button>
             <button
               onClick={exportInvoiceCsv}
-              className="px-4 py-2 bg-smitten-accent text-white text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors"
+              className="px-4 py-2 bg-smitten-accent text-smitten-on-accent text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors"
             >
               Rechnungsdaten exportieren (CSV)
             </button>
@@ -380,7 +456,7 @@ export default function AdminExportsPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Produktionsexport
           </h2>
@@ -394,26 +470,26 @@ export default function AdminExportsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Abholtag</label>
               <input type="date" value={prodFrom} onChange={e => setProdFrom(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">bis (optional, für mehrere Tage)</label>
               <input type="date" value={prodTo} onChange={e => setProdTo(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <button onClick={exportProductionPlanXlsx}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
               Produktionsplan (Excel)
             </button>
             <button onClick={exportProductionCsv}
-              className="px-4 py-2 bg-smitten-accent text-white text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors">
+              className="px-4 py-2 bg-smitten-accent text-smitten-on-accent text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors">
               Nur die Liste (CSV)
             </button>
           </div>
           {prodMsg && <p className="mt-3 text-sm text-smitten-text/60">{prodMsg}</p>}
         </div>
 
-        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Rechnungen für DATEV
           </h2>
@@ -424,12 +500,12 @@ export default function AdminExportsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
               <input type="date" value={receiptDateFrom} onChange={e => setReceiptDateFrom(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
               <input type="date" value={receiptDateTo} onChange={e => setReceiptDateTo(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <button onClick={exportDatevCsv}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
@@ -441,7 +517,33 @@ export default function AdminExportsPage() {
           </p>
         </div>
 
-        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
+          <h2 className="font-display font-bold text-smitten-text text-lg">Belege als PDF (Rechnungen + Storno-Rechnungen)</h2>
+          <p className="text-sm text-smitten-text/60 mt-2">
+            Eine PDF pro Bestellbestätigung (= Rechnung, wie sie der Kunde per E-Mail und unter „Meine Bestellungen“
+            sieht) und eine pro Storno-Rechnung, gebündelt als ZIP mit den Ordnern „rechnungen“ und „storno-rechnungen“.
+            Zeitraum nach Rechnungsdatum bzw. Storno-Datum; leer = alle. Testbelege (TEST-…) sind ausgenommen.
+          </p>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
+              <input type="date" value={docFrom} onChange={e => setDocFrom(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
+            </div>
+            <div>
+              <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
+              <input type="date" value={docTo} onChange={e => setDocTo(e.target.value)}
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
+            </div>
+            <button onClick={exportDocumentsZip} disabled={docBusy}
+              className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+              {docBusy ? 'Erstelle …' : 'Belege exportieren (ZIP mit PDFs)'}
+            </button>
+          </div>
+          {docMsg && <p className="mt-3 text-sm text-smitten-text/70">{docMsg}</p>}
+        </div>
+
+        <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Zahlungsgebühren (Stripe + PayPal)
           </h2>
@@ -458,12 +560,12 @@ export default function AdminExportsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Von</label>
               <input type="date" value={feeDateFrom} onChange={e => setFeeDateFrom(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Bis (optional)</label>
               <input type="date" value={feeDateTo} onChange={e => setFeeDateTo(e.target.value)}
-                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <button onClick={exportStripeFees} disabled={stripeFeeLoading}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
@@ -493,7 +595,7 @@ export default function AdminExportsPage() {
       </div>
 
       {/* CREDIT NOTES / STORNO-RECHNUNGEN */}
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Storno-Rechnungen (Gutschriften)

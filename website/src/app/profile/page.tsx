@@ -94,7 +94,7 @@ export default function ProfilePage() {
     <div className="max-w-xl mx-auto px-4 py-10">
       <h1 className="text-2xl font-display font-bold text-smitten-text">Mein Konto</h1>
 
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">E-Mail</label>
           <p className="mt-1 text-smitten-text">{email}</p>
@@ -102,19 +102,19 @@ export default function ProfilePage() {
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Vor- und Nachname</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             placeholder="z. B. Brot Pitt" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Telefon (optional)</label>
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             placeholder="Für Rückfragen zur Abholung" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Bevorzugter Abholort</label>
           <select value={preferredLocation} onChange={e => setPreferredLocation(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface">
             <option value="">– Bitte wählen –</option>
             {locations.map(loc => (
               <option key={loc.id} value={loc.id}>{loc.name} – {loc.address}</option>
@@ -163,7 +163,7 @@ export default function ProfilePage() {
         </div>
 
         <button onClick={handleSave} disabled={saving}
-          className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+          className="w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
           {saving ? 'Wird gespeichert...' : saved ? '✓ Gespeichert' : 'Speichern'}
         </button>
       </div>
@@ -180,30 +180,30 @@ export default function ProfilePage() {
             if (error || !url) { setPortalError('Das Zahlungsportal konnte nicht geöffnet werden. Bitte versuche es später erneut.'); setPortalBusy(false); return; }
             window.location.href = url;
           }} disabled={portalBusy}
-          className="w-full text-left bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors disabled:opacity-60">
+          className="w-full text-left bg-smitten-surface rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors disabled:opacity-60">
           <p className="font-medium text-smitten-text">Zahlungsmethoden verwalten</p>
           <p className="text-sm text-smitten-text/60">{portalBusy ? 'Wird geöffnet…' : 'Karten hinzufügen, entfernen oder als Standard festlegen (sicher bei Stripe)'}</p>
           {portalError && <p className="mt-1 text-xs text-smitten-primary">{portalError}</p>}
         </button>
         <Link href="/subscriptions"
-          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          className="block bg-smitten-surface rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Meine Abos</p>
           <p className="text-sm text-smitten-text/60">Übersicht und Verwaltung</p>
         </Link>
         <Link href="/orders"
-          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          className="block bg-smitten-surface rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Meine Bestellungen</p>
           <p className="text-sm text-smitten-text/60">Bestellverlauf und Rechnungen</p>
         </Link>
         {user?.email === 'sophia@smittenbrot.de' && (<>
         <Link href="/admin"
-          className="block bg-white rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
+          className="block bg-smitten-surface rounded-xl border border-smitten-cream p-4 hover:border-smitten-primary/30 transition-colors">
           <p className="font-medium text-smitten-text">Admin Bereich</p>
           <p className="text-sm text-smitten-text/60">Dashboard und Einstellungen</p>
         </Link>
         </>)}
         <button onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
-          className="w-full text-left bg-white rounded-xl border border-red-100 p-4 hover:border-red-200 transition-colors">
+          className="w-full text-left bg-smitten-surface rounded-xl border border-red-100 p-4 hover:border-red-200 transition-colors">
           <p className="font-medium text-red-600">Abmelden</p>
           <p className="text-sm text-red-400">Von deinem Konto abmelden</p>
         </button>
@@ -217,7 +217,7 @@ export default function ProfilePage() {
             Konto löschen
           </button>
         ) : (
-          <div className="rounded-xl border border-red-200 bg-white p-5">
+          <div className="rounded-xl border border-red-200 bg-smitten-surface p-5">
             <p className="font-medium text-smitten-text">Konto endgültig löschen?</p>
             <p className="mt-2 text-sm text-smitten-text/70">
               Dein Konto und deine persönlichen Daten (Profil, gespeicherte Zahlungsmethode, Abos)

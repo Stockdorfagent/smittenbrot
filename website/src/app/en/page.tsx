@@ -94,7 +94,7 @@ export default function EnglishPage() {
       <h2 className="mt-10 text-xl font-display font-bold">Questions</h2>
       <div className="mt-4 space-y-4">
         {faqs.map((faq, i) => (
-          <details key={i} className="bg-white rounded-xl border border-smitten-cream group">
+          <details key={i} className="bg-smitten-surface rounded-xl border border-smitten-cream group">
             <summary className="px-5 py-4 cursor-pointer font-medium hover:text-smitten-secondary transition-colors list-none flex items-center justify-between">
               {faq.q}
               <span className="text-smitten-accent group-open:rotate-180 transition-transform">▼</span>

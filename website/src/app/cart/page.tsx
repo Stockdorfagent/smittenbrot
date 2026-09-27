@@ -132,7 +132,7 @@ export default function CartPage() {
         {state.items.map(item => (
           <div
             key={item.productId}
-            className="flex gap-3 bg-white rounded-xl p-4 border border-smitten-cream"
+            className="flex gap-3 bg-smitten-surface rounded-xl p-4 border border-smitten-cream"
           >
             <div className="w-16 h-16 bg-smitten-cream rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
               {images[item.productId] ? (
@@ -200,7 +200,7 @@ export default function CartPage() {
         <select
           value={state.pickupLocationId || ''}
           onChange={e => setPickupLocation(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+          className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
         >
           {locations.map(loc => (
             <option key={loc.id} value={loc.id}>{loc.name}</option>
@@ -222,7 +222,7 @@ export default function CartPage() {
           </button>
           <button
             onClick={() => setIsGuest(true)}
-            className={`px-4 py-1.5 rounded-full text-sm ${isGuest ? 'bg-smitten-primary text-white' : 'bg-white text-smitten-text border border-smitten-primary'}`}
+            className={`px-4 py-1.5 rounded-full text-sm ${isGuest ? 'bg-smitten-primary text-white' : 'bg-smitten-surface text-smitten-text border border-smitten-primary'}`}
           >
             Als Gast bestellen
           </button>
@@ -237,14 +237,14 @@ export default function CartPage() {
             placeholder="Name"
             value={guestName}
             onChange={e => setGuestName(e.target.value)}
-            className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
           />
           <input
             type="email"
             placeholder="E-Mail"
             value={guestEmail}
             onChange={e => setGuestEmail(e.target.value)}
-            className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+            className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
           />
         </div>
       )}
@@ -275,7 +275,7 @@ export default function CartPage() {
         <button
           onClick={handleCheckout}
           disabled={(isGuest && (!guestName || !guestEmail)) || unavailable.length > 0}
-          className="mt-4 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+          className="mt-4 w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
         >
           Zur Kasse
         </button>

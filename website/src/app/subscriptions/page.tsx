@@ -326,7 +326,7 @@ export default function SubscriptionsPage() {
         <>
           <AboExplainer />
           <button onClick={() => router.push('/login?redirect=/subscriptions')}
-            className="mt-8 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
+            className="mt-8 w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Dauerbestellung einrichten
           </button>
           <ReminderHint />
@@ -337,7 +337,7 @@ export default function SubscriptionsPage() {
           <p className="mt-6 text-smitten-text">Du hast noch keine Dauerbestellung eingerichtet.</p>
           <AboExplainer />
           <Link href="/subscriptions/create"
-            className="mt-8 inline-block bg-smitten-accent text-white px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
+            className="mt-8 inline-block bg-smitten-accent text-smitten-on-accent px-8 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Dauerbestellung einrichten
           </Link>
           <ReminderHint />
@@ -346,7 +346,7 @@ export default function SubscriptionsPage() {
         /* List subscriptions */
         <div className="mt-6 space-y-4">
           {banner && (
-            <p className="p-3 bg-white border border-smitten-cream rounded-xl text-sm text-smitten-text">
+            <p className="p-3 bg-smitten-surface border border-smitten-cream rounded-xl text-sm text-smitten-text">
               {banner}
             </p>
           )}
@@ -358,7 +358,7 @@ export default function SubscriptionsPage() {
             const isPauseExpired = pauseEnds && pauseEnds < new Date();
 
             return (
-              <div key={sub.id} className="bg-white rounded-xl border border-smitten-cream p-5">
+              <div key={sub.id} className="bg-smitten-surface rounded-xl border border-smitten-cream p-5">
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div>
@@ -482,7 +482,7 @@ export default function SubscriptionsPage() {
                       <label className="block text-xs text-smitten-text mb-1">Pausieren bis</label>
                       <input type="date" value={pauseUntil} onChange={e => setPauseUntil(e.target.value)}
                         min={berlinDatePlusDays(1)}
-                        className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white" />
+                        className="w-full rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-smitten-surface" />
                     </div>
                     {pauseError && <p className="text-xs text-red-500">{pauseError}</p>}
                     <div className="flex gap-2">
@@ -502,7 +502,7 @@ export default function SubscriptionsPage() {
           })}
 
           <Link href="/subscriptions/create"
-            className="block text-center mt-4 bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
+            className="block text-center mt-4 bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors">
             Weitere Dauerbestellung einrichten
           </Link>
         </div>

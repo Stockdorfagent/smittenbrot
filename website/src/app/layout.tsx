@@ -69,7 +69,7 @@ export default function RootLayout({
           <NavBar />
           <ClosureBanner />
           <main>{children}</main>
-          <footer className="border-t border-smitten-cream bg-white mt-20">
+          <footer className="border-t border-smitten-cream bg-smitten-surface mt-20">
             <div className="max-w-5xl mx-auto px-4 py-10">
               <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:items-center">
                 {/* Left: tagline + copyright */}
@@ -79,7 +79,7 @@ export default function RootLayout({
                 </div>
                 {/* Center: logo */}
                 <div className="order-1 md:order-2 flex justify-center">
-                  <img src="/logo.svg" alt="Smittenbrot" className="h-40 md:h-48 w-auto" />
+                  <img src="/logo.svg" alt="Smittenbrot" className="h-40 md:h-48 w-auto dark:invert" />
                 </div>
                 {/* Right: legal links */}
                 <nav className="order-3 flex flex-wrap justify-center md:justify-end gap-x-5 gap-y-2 text-sm text-smitten-secondary">

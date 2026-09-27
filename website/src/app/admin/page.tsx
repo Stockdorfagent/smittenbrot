@@ -146,19 +146,19 @@ export default function AdminDashboard() {
       <h1 className="text-2xl font-display font-bold text-smitten-text">Dashboard</h1>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+        <div className="bg-smitten-surface rounded-xl p-5 border border-smitten-cream">
           <p className="text-sm text-smitten-text/60">Aktive Abos</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{activeSubs}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+        <div className="bg-smitten-surface rounded-xl p-5 border border-smitten-cream">
           <p className="text-sm text-smitten-text/60">Umsatz {productionDay || 'aktuell'}</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(revenueDay)}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+        <div className="bg-smitten-surface rounded-xl p-5 border border-smitten-cream">
           <p className="text-sm text-smitten-text/60">Umsatz diesen Monat</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(revenueMonth)}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 border border-smitten-cream">
+        <div className="bg-smitten-surface rounded-xl p-5 border border-smitten-cream">
           <p className="text-sm text-smitten-text/60">Gesamtumsatz</p>
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(totalRevenue)}</p>
         </div>
@@ -169,11 +169,11 @@ export default function AdminDashboard() {
           Produktionsliste — {productionDay || 'Keine aktuelle Produktion'}
         </h2>
         {productionRows.length === 0 ? (
-          <div className="mt-4 bg-white rounded-xl p-6 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+          <div className="mt-4 bg-smitten-surface rounded-xl p-6 border border-smitten-cream text-center text-smitten-text/60 text-sm">
             Keine Bestellungen für diesen Abholtag.
           </div>
         ) : (
-          <div className="mt-4 bg-white rounded-xl border border-smitten-cream overflow-hidden">
+          <div className="mt-4 bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-smitten-cream bg-smitten-cream/50">

@@ -292,7 +292,7 @@ export default function OrderDetailPage() {
       </div>
 
       {isReadyForPickup(order) && (
-        <div className="no-print mb-6 rounded-xl border-l-4 border-smitten-primary bg-white p-5 border border-smitten-cream">
+        <div className="no-print mb-6 rounded-xl border-l-4 border-smitten-primary bg-smitten-surface p-5 border border-smitten-cream">
           <p className="font-semibold text-smitten-primary">Jetzt abholbereit</p>
           <p className="mt-1 text-sm text-smitten-text/70">
             Deine Bestellung liegt für dich bereit.
@@ -301,7 +301,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* Receipt / Rechnung */}
-      <div className="bg-white rounded-xl border border-smitten-cream p-8 md:p-10 print:border-0 print:shadow-none print:p-0">
+      <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-8 md:p-10 print:border-0 print:shadow-none print:p-0">
         {/* HEADER: Rechnung */}
         <div className="text-center border-b border-gray-200 pb-6 mb-6 print:pb-4 print:mb-4">
           <h1 className="text-3xl font-display font-bold text-smitten-text">
@@ -488,7 +488,7 @@ export default function OrderDetailPage() {
 
         {/* Storno-Rechnung (Gutschrift) — shown when order is cancelled with a credit note */}
         {creditNote && (
-          <div className="mt-8 bg-white rounded-xl border-2 border-red-200 p-8 md:p-10 print:border-0 print:shadow-none print:p-0">
+          <div className="mt-8 bg-smitten-surface rounded-xl border-2 border-red-200 p-8 md:p-10 print:border-0 print:shadow-none print:p-0">
             <div className="text-center border-b border-gray-200 pb-6 mb-6 print:pb-4 print:mb-4">
               <h2 className="text-3xl font-display font-bold text-red-600">
                 Storno-Rechnung

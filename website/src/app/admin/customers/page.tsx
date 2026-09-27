@@ -141,12 +141,12 @@ export default function AdminCustomersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Nach Name oder E-Mail suchen..."
-          className="w-full max-w-md px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+          className="w-full max-w-md px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 bg-white rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+        <div className="mt-4 bg-smitten-surface rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
           {rows.length === 0
             ? 'Keine Kunden vorhanden.'
             : 'Keine Kunden gefunden.'}
@@ -156,7 +156,7 @@ export default function AdminCustomersPage() {
           {filtered.map((c) => (
             <div
               key={c.id}
-              className="bg-white rounded-xl border border-smitten-cream overflow-hidden"
+              className="bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden"
             >
               <div
                 className="p-4 cursor-pointer hover:bg-smitten-cream/30 transition-colors"

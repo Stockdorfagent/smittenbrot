@@ -287,7 +287,7 @@ export default function AdminProductsPage() {
       </button>
 
       {creating && (
-        <div className="mt-4 bg-white rounded-xl border border-smitten-cream p-5 space-y-4">
+        <div className="mt-4 bg-smitten-surface rounded-xl border border-smitten-cream p-5 space-y-4">
           <h2 className="font-display font-bold text-smitten-text">Neues Produkt</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -308,7 +308,7 @@ export default function AdminProductsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Zyklus</label>
               <select value={newForm.cycle} onChange={e => setNewForm({...newForm, cycle: e.target.value})}
-                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white">
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface">
                 <option value="permanent">Immer</option>
                 <option value="week_a">Woche A</option>
                 <option value="week_b">Woche B</option>
@@ -317,7 +317,7 @@ export default function AdminProductsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Bereich im Shop</label>
               <select value={newForm.display_group} onChange={e => setNewForm({...newForm, display_group: e.target.value as Product['display_group']})}
-                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white">
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface">
                 {(['classic', 'weekly', 'special'] as const).map(g => <option key={g} value={g}>{displayGroupLabels[g]}</option>)}
               </select>
             </div>
@@ -393,7 +393,7 @@ export default function AdminProductsPage() {
                   setWarning(null);
                   setWarningAction(null);
                 }}
-                className="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 text-xs rounded-lg hover:bg-amber-50 transition-colors"
+                className="px-3 py-1.5 bg-smitten-surface border border-amber-300 text-amber-700 text-xs rounded-lg hover:bg-amber-50 transition-colors"
               >
                 Nur für zukünftige Bestellungen deaktivieren
               </button>
@@ -403,7 +403,7 @@ export default function AdminProductsPage() {
                 setWarning(null);
                 setWarningAction(null);
               }}
-              className="px-3 py-1.5 bg-white border border-smitten-cream text-smitten-text/60 text-xs rounded-lg hover:bg-smitten-bg transition-colors"
+              className="px-3 py-1.5 bg-smitten-surface border border-smitten-cream text-smitten-text/60 text-xs rounded-lg hover:bg-smitten-bg transition-colors"
             >
               Abbrechen
             </button>
@@ -415,7 +415,7 @@ export default function AdminProductsPage() {
         {products.map((product) => (
           <div
             key={product.id}
-            className="bg-white rounded-xl border border-smitten-cream overflow-hidden"
+            className="bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden"
           >
             {editingId === product.id ? (
               <div className="p-4 space-y-4">
@@ -470,7 +470,7 @@ export default function AdminProductsPage() {
                     <select
                       value={editForm.cycle || 'permanent'}
                       onChange={(e) => setEditForm({ ...editForm, cycle: e.target.value as Product['cycle'] })}
-                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                     >
                       <option value="permanent">Immer</option>
                       <option value="week_a">Woche A</option>
@@ -483,7 +483,7 @@ export default function AdminProductsPage() {
                     <select
                       value={editForm.display_group ?? 'classic'}
                       onChange={(e) => setEditForm({ ...editForm, display_group: e.target.value as Product['display_group'] })}
-                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                     >
                       {(['classic', 'weekly', 'special'] as const).map(g => <option key={g} value={g}>{displayGroupLabels[g]}</option>)}
                     </select>

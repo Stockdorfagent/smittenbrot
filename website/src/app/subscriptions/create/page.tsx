@@ -255,7 +255,7 @@ function SubscriptionCreateForm() {
         <p className="mt-2 text-smitten-text">
           Dein Abo ist aktiv. Du bekommst vor jedem Bestelltag eine Erinnerung.
         </p>
-        <Link href="/subscriptions" className="mt-6 inline-block bg-smitten-accent text-white px-6 py-2 rounded-full text-sm">
+        <Link href="/subscriptions" className="mt-6 inline-block bg-smitten-accent text-smitten-on-accent px-6 py-2 rounded-full text-sm">
           Zu meinen Abos
         </Link>
       </div>
@@ -301,7 +301,7 @@ function SubscriptionCreateForm() {
             {products.map(product => {
               const selected = items.find(i => i.productId === product.id);
               return (
-                <div key={product.id} className={`bg-white rounded-xl p-4 border-2 cursor-pointer transition-all ${
+                <div key={product.id} className={`bg-smitten-surface rounded-xl p-4 border-2 cursor-pointer transition-all ${
                   selected ? 'border-smitten-primary' : 'border-smitten-cream hover:border-smitten-text/30'
                 }`}
                 onClick={() => toggleItem(product)}>
@@ -341,7 +341,7 @@ function SubscriptionCreateForm() {
       {/* Step 2: Overview */}
       {step === 'overview' && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-xl border border-smitten-cream p-6">
+          <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-6">
             <h2 className="font-display font-bold text-smitten-text mb-4">Deine Abo-Produkte</h2>
             <div className="space-y-3">
               {items.map(item => (
@@ -386,7 +386,7 @@ function SubscriptionCreateForm() {
             <div>
               <label className="block text-sm font-medium text-smitten-text mb-2">Abholort</label>
               <select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
-                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
+                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface">
                 {locations.map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name} – {loc.address}</option>
                 ))}
@@ -431,21 +431,21 @@ function SubscriptionCreateForm() {
           <p className="text-center text-smitten-text mb-6">
             Für ein Abo benötigst du ein Konto. So kannst du jederzeit Pausen einlegen, Produkte ändern oder die Dauerbestellung beenden.
           </p>
-          <div className="bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
+          <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-smitten-text">Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-smitten-text">E-Mail</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-smitten-text">Passwort</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" required />
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" required />
             </div>
             {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
             <button onClick={handleCreateAccount} disabled={loading}
@@ -459,17 +459,17 @@ function SubscriptionCreateForm() {
               Hier anmelden
             </button>
           </p>
-          <div id="login-form" className="mt-6 bg-white rounded-xl border border-smitten-cream p-6 space-y-4">
+          <div id="login-form" className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-6 space-y-4">
             <h3 className="font-medium text-smitten-text">Anmelden</h3>
             <div>
               <label className="block text-sm font-medium text-smitten-text">E-Mail</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <div>
               <label className="block text-sm font-medium text-smitten-text">Passwort</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
             </div>
             <button onClick={handleLogin} disabled={loading}
               className="w-full border border-smitten-primary text-smitten-primary py-3 rounded-full font-medium hover:bg-smitten-cream disabled:opacity-50">
@@ -486,7 +486,7 @@ function SubscriptionCreateForm() {
           <p className="mt-4 text-smitten-text mb-6">
             Du bist angemeldet. Dein Abo wird eingerichtet, sobald du ein Zahlungsmittel hinterlegt hast.
           </p>
-          <div className="bg-white rounded-xl border border-smitten-cream p-6">
+          <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-6">
             <p className="text-sm text-smitten-text mb-2">
               Für dein Abo hinterlegst du einmal eine Karte. Sie wird nur für die Abo-Bestellungen belastet, jeweils zum Bestellschluss.
             </p>
@@ -494,7 +494,7 @@ function SubscriptionCreateForm() {
               PayPal, Apple Pay und Google Pay lassen keine automatischen wöchentlichen Abbuchungen zu. Deshalb geht das Abo nur mit Karte, auch wenn du deine Bestellungen sonst anders bezahlst.
             </p>
             <button onClick={handleSetupPayment} disabled={stripeLoading}
-              className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+              className="w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
               {stripeLoading ? 'Einen Moment …' : 'Karte hinterlegen'}
             </button>
             {stripeError && (
@@ -514,7 +514,7 @@ function SubscriptionCreateForm() {
           checkout). Rendering it under a secret-less Elements throws. */}
       {step === 'account' && user && showStripe && clientSecret && (
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-xl border border-smitten-cream p-6">
+          <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-6">
             <h3 className="font-display font-bold text-smitten-text mb-4">Zahlungsmethode</h3>
             <Elements stripe={stripePromise} options={{ clientSecret, locale: 'de' }}>
               <SetupForm
@@ -568,7 +568,7 @@ function SetupForm({ onSaved }: { onSaved: () => Promise<void> }) {
         Es gelten unsere <Link href="/agb" target="_blank" className="underline hover:text-smitten-text">AGB</Link>.
       </p>
       <button type="submit" disabled={!stripe || busy}
-        className="mt-6 w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+        className="mt-6 w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
         {busy ? 'Wird verarbeitet...' : 'Zahlungsmethode speichern & Abo starten'}
       </button>
     </form>

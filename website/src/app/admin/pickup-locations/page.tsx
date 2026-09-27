@@ -118,7 +118,7 @@ export default function AdminPickupLocationsPage() {
       </div>
 
       {showAdd && (
-        <div className="mt-6 bg-white rounded-xl p-5 border border-smitten-cream space-y-4">
+        <div className="mt-6 bg-smitten-surface rounded-xl p-5 border border-smitten-cream space-y-4">
           <h2 className="font-display font-bold text-smitten-text">Neuen Abholort anlegen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -237,7 +237,7 @@ export default function AdminPickupLocationsPage() {
 
       <div className="mt-6 space-y-3">
         {locations.map((loc) => (
-          <div key={loc.id} className="bg-white rounded-xl border border-smitten-cream overflow-hidden">
+          <div key={loc.id} className="bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden">
             {editingId === loc.id ? (
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

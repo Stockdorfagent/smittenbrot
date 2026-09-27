@@ -90,19 +90,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <AdminToasts />
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          className="fixed inset-0 bg-smitten-strip/30 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-full w-64 bg-white border-r border-smitten-cream flex flex-col transform transition-transform lg:transform-none ${
+        className={`fixed lg:sticky top-0 left-0 z-50 h-full w-64 bg-smitten-surface border-r border-smitten-cream flex flex-col transform transition-transform lg:transform-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="p-6 border-b border-smitten-cream">
           <Link href="/admin" className="font-display text-xl font-bold text-smitten-text flex items-center gap-2">
-            <img src="/small-logo.png" alt="Smittenbrot" className="h-6 w-auto" />
+            <img src="/small-logo.png" alt="Smittenbrot" className="h-6 w-auto dark:hidden" /><img src="/small-logo-dark.png" alt="" aria-hidden="true" className="h-6 w-auto hidden dark:block" />
             Smittenbrot
           </Link>
           <p className="text-xs text-smitten-text/40 mt-0.5">Admin Bereich</p>
@@ -148,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <div className="flex-1 flex flex-col min-h-screen">
-        <header className="bg-white border-b border-smitten-cream px-6 h-16 flex items-center justify-between sticky top-0 z-30">
+        <header className="bg-smitten-surface border-b border-smitten-cream px-6 h-16 flex items-center justify-between sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden text-smitten-primary p-2 -ml-2"

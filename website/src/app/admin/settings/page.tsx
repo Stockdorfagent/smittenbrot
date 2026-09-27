@@ -185,7 +185,7 @@ export default function AdminSettingsPage() {
       <h1 className="text-2xl font-display font-bold text-smitten-text">Einstellungen</h1>
 
       {/* SELLER INFO */}
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Verkäuferinformationen
@@ -211,7 +211,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.name}
               onChange={(e) => setSellerForm({ ...sellerForm, name: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -220,7 +220,7 @@ export default function AdminSettingsPage() {
               type="email"
               value={sellerForm.email}
               onChange={(e) => setSellerForm({ ...sellerForm, email: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -229,7 +229,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.address_line1}
               onChange={(e) => setSellerForm({ ...sellerForm, address_line1: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -238,7 +238,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.address_line2}
               onChange={(e) => setSellerForm({ ...sellerForm, address_line2: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -247,7 +247,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.postal_code}
               onChange={(e) => setSellerForm({ ...sellerForm, postal_code: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -256,7 +256,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.city}
               onChange={(e) => setSellerForm({ ...sellerForm, city: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -265,7 +265,7 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.tax_id}
               onChange={(e) => setSellerForm({ ...sellerForm, tax_id: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
           <div>
@@ -274,14 +274,14 @@ export default function AdminSettingsPage() {
               type="text"
               value={sellerForm.vat_id}
               onChange={(e) => setSellerForm({ ...sellerForm, vat_id: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
             />
           </div>
         </div>
       </div>
 
       {/* INVOICE MODE TOGGLE */}
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-bold text-smitten-text text-lg">
             Rechnungsmodus
@@ -328,7 +328,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* EMAIL TEST */}
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
         <h2 className="font-display font-bold text-smitten-text text-lg">E-Mail-Test</h2>
         <p className="mt-2 text-sm text-smitten-text/60">
           Sende eine Test-E-Mail über Brevo, um den E-Mail-Versand zu prüfen — ohne eine echte Bestellung auszulösen. Ohne Empfänger wird an die Admin-Adresse gesendet.
@@ -341,7 +341,7 @@ export default function AdminSettingsPage() {
               value={testEmailTo}
               onChange={(e) => setTestEmailTo(e.target.value)}
               placeholder="name@beispiel.de"
-              className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white w-64 max-w-full"
+              className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface w-64 max-w-full"
             />
           </div>
           <button
@@ -360,7 +360,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="mt-6 max-w-2xl">
-        <div className="bg-white rounded-xl border border-smitten-cream p-5">
+        <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-5">
           <h2 className="font-display font-bold text-smitten-text text-lg">Wochenzyklus</h2>
           <div className="mt-4 flex items-center justify-between">
             <div>
@@ -386,7 +386,7 @@ export default function AdminSettingsPage() {
 
       </div>
 
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-5">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
         <h2 className="font-display font-bold text-smitten-text text-lg">Zeitzone</h2>
         <p className="text-sm text-smitten-text/60 mt-2">
           Alle betrieblichen Zeitpläne verwenden die folgende Zeitzone:

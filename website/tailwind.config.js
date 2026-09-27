@@ -7,13 +7,19 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // Colours are CSS variables (RGB triplets in globals.css) so the dark
+      // palette can swap them under prefers-color-scheme without touching
+      // the components; `/60`-style opacity modifiers keep working.
       colors: {
-        'smitten-primary': '#f8120e',
-        'smitten-secondary': '#6B7280',
-        'smitten-accent': '#1A1A1A',
-        'smitten-bg': '#FFFFFF',
-        'smitten-cream': '#F3F4F6',
-        'smitten-text': '#1A1A1A',
+        'smitten-primary': 'rgb(var(--smitten-primary) / <alpha-value>)',
+        'smitten-secondary': 'rgb(var(--smitten-secondary) / <alpha-value>)',
+        'smitten-accent': 'rgb(var(--smitten-accent) / <alpha-value>)',
+        'smitten-bg': 'rgb(var(--smitten-bg) / <alpha-value>)',
+        'smitten-surface': 'rgb(var(--smitten-surface) / <alpha-value>)',
+        'smitten-cream': 'rgb(var(--smitten-cream) / <alpha-value>)',
+        'smitten-text': 'rgb(var(--smitten-text) / <alpha-value>)',
+        'smitten-strip': 'rgb(var(--smitten-strip) / <alpha-value>)',
+        'smitten-on-accent': 'rgb(var(--smitten-on-accent) / <alpha-value>)',
       },
       fontFamily: {
         // "Donau" (the logo font) is not shipped as a webfont; it rendered

@@ -43,7 +43,7 @@ export function AdminToasts() {
           className={`rounded-lg px-4 py-3 text-sm shadow-lg border ${
             t.kind === 'error'
               ? 'bg-red-50 border-red-200 text-red-700'
-              : 'bg-white border-smitten-cream text-smitten-text'
+              : 'bg-smitten-surface border-smitten-cream text-smitten-text'
           }`}
         >
           {t.text}

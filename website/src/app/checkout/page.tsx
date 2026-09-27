@@ -73,7 +73,7 @@ function PaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-      <div className="bg-white rounded-xl border border-smitten-cream p-4">
+      <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-4">
         <h3 className="text-sm font-medium text-smitten-text mb-3">Zahlungsdaten</h3>
         <PaymentElement
           options={{
@@ -118,7 +118,7 @@ function PaymentForm({
         <button
           type="submit"
           disabled={!stripe || processing}
-          className="flex-1 bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+          className="flex-1 bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
         >
           {processing ? 'Wird verarbeitet...' : 'Bezahlen'}
         </button>
@@ -387,7 +387,7 @@ function CheckoutForm() {
           )}
         </div>
         {isLoggedIn && recap && !converted && (
-          <div className="mt-6 p-4 bg-white border border-smitten-cream rounded-xl text-left">
+          <div className="mt-6 p-4 bg-smitten-surface border border-smitten-cream rounded-xl text-left">
             <p className="text-sm font-medium text-smitten-text">Gefällt dir? Mach ein Abo draus.</p>
             <p className="mt-1 text-xs text-smitten-text/60">
               Gleiche Produkte, gleicher Abholort, jeden {recap.dayName} — ab der nächsten Lieferung,
@@ -405,7 +405,7 @@ function CheckoutForm() {
           </div>
         )}
         {converted && (
-          <div className="mt-6 p-4 bg-white border border-smitten-cream rounded-xl text-left">
+          <div className="mt-6 p-4 bg-smitten-surface border border-smitten-cream rounded-xl text-left">
             <p className="text-sm font-medium text-smitten-text">Dein Abo ist eingerichtet.</p>
             <p className="mt-1 text-xs text-smitten-text/60">
               Es liefert ab dem nächsten {recap?.dayName ?? 'Abholtag'}.{' '}
@@ -424,16 +424,17 @@ function CheckoutForm() {
   }
 
   if (step === 'payment' && clientSecret) {
+    const dark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
     const options: StripeElementsOptions = {
       clientSecret,
       // Logged-in customers: saved cards + "für später speichern" (server-side Customer Session).
       ...(customerSessionClientSecret ? { customerSessionClientSecret } : {}),
       appearance: {
-        theme: 'stripe',
+        theme: dark ? 'night' : 'stripe',
         variables: {
           colorPrimary: '#f8120e',
-          colorBackground: '#ffffff',
-          colorText: '#1A1A1A',
+          colorBackground: dark ? '#1C1C1E' : '#ffffff',
+          colorText: dark ? '#F5F5F5' : '#1A1A1A',
           fontFamily: 'Inter, system-ui, sans-serif',
           borderRadius: '8px',
         },
@@ -444,7 +445,7 @@ function CheckoutForm() {
       <div className="max-w-xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-display font-bold text-smitten-text">Kasse</h1>
 
-        <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-4">
+        <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-4">
           <h2 className="font-medium text-smitten-text">Bestellübersicht</h2>
           <div className="mt-3 space-y-2">
             {state.items.map(item => (
@@ -480,7 +481,7 @@ function CheckoutForm() {
     <div className="max-w-xl mx-auto px-4 py-10">
       <h1 className="text-2xl font-display font-bold text-smitten-text">Kasse</h1>
 
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream p-4">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-4">
         <h2 className="font-medium text-smitten-text">Bestellübersicht</h2>
         <div className="mt-3 space-y-2">
           {state.items.map(item => (
@@ -559,7 +560,7 @@ function CheckoutForm() {
       </div>
 
       {/* Discount code input */}
-      <div className="mt-4 bg-white rounded-xl border border-smitten-cream p-4">
+      <div className="mt-4 bg-smitten-surface rounded-xl border border-smitten-cream p-4">
         <h3 className="text-sm font-medium text-smitten-text">Rabattcode</h3>
         {discountInfo ? (
           <div className="mt-2 flex items-center justify-between">
@@ -587,14 +588,14 @@ function CheckoutForm() {
               value={discountCode}
               onChange={e => setDiscountCode(e.target.value.toUpperCase())}
               placeholder="Code eingeben"
-              className="flex-1 rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+              className="flex-1 rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleApplyDiscount(); } }}
             />
             <button
               type="button"
               onClick={handleApplyDiscount}
               disabled={discountValidating || !discountCode.trim()}
-              className="px-4 py-2 bg-smitten-accent text-white text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-smitten-accent text-smitten-on-accent text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
             >
               {discountValidating ? '...' : 'Anwenden'}
             </button>
@@ -615,7 +616,7 @@ function CheckoutForm() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
               />
             </div>
             <div>
@@ -625,7 +626,7 @@ function CheckoutForm() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white"
+                className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface"
               />
             </div>
           </>
@@ -640,7 +641,7 @@ function CheckoutForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
+          className="w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors disabled:opacity-50"
         >
           {loading ? 'Wird verarbeitet...' : `${formatPrice(totalAfterDiscount)} bezahlen`}
         </button>

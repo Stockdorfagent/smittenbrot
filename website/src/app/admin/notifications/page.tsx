@@ -47,11 +47,11 @@ export default function AdminNotificationsPage() {
       <h1 className="text-2xl font-display font-bold text-smitten-text">Benachrichtigungen</h1>
 
       {notifications.length === 0 ? (
-        <div className="mt-6 bg-white rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+        <div className="mt-6 bg-smitten-surface rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
           Keine Benachrichtigungen vorhanden.
         </div>
       ) : (
-        <div className="mt-6 bg-white rounded-xl border border-smitten-cream overflow-hidden">
+        <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-smitten-cream bg-smitten-cream/50">

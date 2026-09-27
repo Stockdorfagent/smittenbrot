@@ -33,13 +33,9 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-white">
+      <section className="relative overflow-hidden bg-smitten-surface">
         <div className="max-w-4xl mx-auto px-4 pt-20 pb-16 md:pt-28 md:pb-24 text-center">
-          <img
-            src="/small-logo.png"
-            alt="Smittenbrot"
-            className="mx-auto h-28 md:h-36 w-auto"
-          />
+          <img src="/small-logo.png" alt="Smittenbrot" className="mx-auto h-28 md:h-36 w-auto dark:hidden" /><img src="/small-logo-dark.png" alt="" aria-hidden="true" className="mx-auto h-28 md:h-36 w-auto hidden dark:block" />
           <h1 className="mt-5 text-4xl md:text-5xl font-bold text-smitten-text">
             Smittenbrot
           </h1>
@@ -96,7 +92,7 @@ export default function HomePage() {
             <Link
               key={product.id}
               href={`/products/${product.slug ?? product.id}`}
-              className="group block bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
+              className="group block bg-smitten-surface rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
             >
               <div className="aspect-[4/3] bg-smitten-cream overflow-hidden">
                 {product.cover_image_url ? (
@@ -146,7 +142,7 @@ export default function HomePage() {
               { step: '2', title: 'Vorbestellen', desc: 'Ich backe nach dem „No Waste"-Prinzip: bestelle vorab online. Bestellschluss ist Montag- bzw. Donnerstagabend um 22:00. Bezahle bequem per Karte, Apple Pay oder Google Pay.' },
               { step: '3', title: 'Abholen', desc: 'Du bekommst eine E-Mail, sobald dein Brot bereitliegt – spätestens um 14:00 Uhr. Abholung an der Waldstraße 1 in Stockdorf, 5 Min. vom S-Bahnhof.' },
             ].map(item => (
-              <div key={item.step} className="bg-white rounded-2xl p-7 border border-smitten-cream text-center">
+              <div key={item.step} className="bg-smitten-surface rounded-2xl p-7 border border-smitten-cream text-center">
                 <div className="w-11 h-11 rounded-full bg-smitten-primary text-white flex items-center justify-center text-lg font-bold mx-auto">
                   {item.step}
                 </div>

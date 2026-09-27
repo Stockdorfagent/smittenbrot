@@ -236,7 +236,7 @@ export default function LoginPage() {
           <div>
             <label className="block text-sm font-medium text-smitten-text/70">Neues Passwort</label>
             <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent" />
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent" />
           </div>
           {error && (
             <div className={`p-3 rounded-lg text-sm ${error.includes('erfolgreich') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
@@ -275,7 +275,7 @@ export default function LoginPage() {
               onChange={e => setName(e.target.value)}
               required
               placeholder="z. B. Brot Pitt"
-              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+              className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
             />
           </div>
         )}
@@ -286,7 +286,7 @@ export default function LoginPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
           />
         </div>
         <div>
@@ -296,7 +296,7 @@ export default function LoginPage() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
           />
         </div>
 
@@ -335,7 +335,7 @@ export default function LoginPage() {
                 value={code}
                 onChange={e => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                 placeholder="123456"
-                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-center text-lg tracking-widest bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-center text-lg tracking-widest bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
               />
               <button
                 type="button"
@@ -370,13 +370,13 @@ export default function LoginPage() {
       <div className="mt-6 space-y-3">
         <button
           onClick={() => handleOAuth('google')}
-          className="w-full border border-smitten-cream bg-white py-2.5 rounded-full text-sm font-medium hover:bg-smitten-cream transition-colors"
+          className="w-full border border-smitten-cream bg-smitten-surface py-2.5 rounded-full text-sm font-medium hover:bg-smitten-cream transition-colors"
         >
           Mit Google anmelden
         </button>
         <button
           onClick={() => handleOAuth('apple')}
-          className="w-full border border-smitten-cream bg-white py-2.5 rounded-full text-sm font-medium hover:bg-smitten-cream transition-colors"
+          className="w-full border border-smitten-cream bg-smitten-surface py-2.5 rounded-full text-sm font-medium hover:bg-smitten-cream transition-colors"
         >
           Mit Apple anmelden
         </button>

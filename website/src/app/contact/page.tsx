@@ -68,28 +68,28 @@ export default function ContactPage() {
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Name *</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} required
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">E-Mail *</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Betreff (optional)</label>
           <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-primary/30" />
         </div>
         <div>
           <label className="block text-sm font-medium text-smitten-text/70">Nachricht *</label>
           <textarea value={message} onChange={e => setMessage(e.target.value)} required rows={6}
-            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-primary/30 resize-y" />
+            className="mt-1 w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-primary/30 resize-y" />
         </div>
 
         {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
         <button type="submit" disabled={sending}
-          className="w-full bg-smitten-accent text-white py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
+          className="w-full bg-smitten-accent text-smitten-on-accent py-3 rounded-full font-medium hover:bg-smitten-accent/90 disabled:opacity-50 transition-colors">
           {sending ? 'Wird gesendet...' : 'Nachricht senden'}
         </button>
       </form>

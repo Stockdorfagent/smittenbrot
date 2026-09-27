@@ -62,7 +62,7 @@ export default function OrdersPage() {
             <Link
               key={order.id}
               href={`/orders/${order.id}`}
-              className="block bg-white rounded-xl p-4 border border-smitten-cream hover:shadow-sm transition-shadow"
+              className="block bg-smitten-surface rounded-xl p-4 border border-smitten-cream hover:shadow-sm transition-shadow"
             >
               <div className="flex items-center justify-between">
                 <div>

@@ -118,7 +118,7 @@ export default function SubscriptionEditPage() {
 
       <div className="mt-6 space-y-2">
         {products.map((p) => (
-          <div key={p.id} className="flex items-center justify-between rounded-lg border border-smitten-cream bg-white px-4 py-3">
+          <div key={p.id} className="flex items-center justify-between rounded-lg border border-smitten-cream bg-smitten-surface px-4 py-3">
             <div>
               <p className="font-medium text-smitten-text">{p.name}</p>
               <p className="text-sm text-smitten-text/60">{formatPrice(p.price_cents)}</p>
@@ -137,7 +137,7 @@ export default function SubscriptionEditPage() {
       <div className="mt-6">
         <label className="block text-sm font-medium text-smitten-text/70 mb-1">Abholort</label>
         <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}
-          className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white">
+          className="w-full rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface">
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name} – {l.address}</option>)}
         </select>
       </div>

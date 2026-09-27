@@ -113,12 +113,12 @@ export default function AdminSubscriptionsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Nach Name oder E-Mail suchen..."
-          className="w-full max-w-md px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+          className="w-full max-w-md px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 bg-white rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+        <div className="mt-4 bg-smitten-surface rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
           {subs.length === 0 ? 'Keine Abos vorhanden.' : 'Keine Abos gefunden.'}
         </div>
       ) : (
@@ -130,7 +130,7 @@ export default function AdminSubscriptionsPage() {
               0,
             );
             return (
-              <div key={sub.id} className="bg-white rounded-xl border border-smitten-cream p-4">
+              <div key={sub.id} className="bg-smitten-surface rounded-xl border border-smitten-cream p-4">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -183,7 +183,7 @@ export default function AdminSubscriptionsPage() {
                         value={pauseUntil}
                         onChange={(e) => setPauseUntil(e.target.value)}
                         min={berlinDatePlusDays(1)}
-                        className="rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-white"
+                        className="rounded-lg border border-smitten-cream px-3 py-1.5 text-sm bg-smitten-surface"
                       />
                     </div>
                     <button

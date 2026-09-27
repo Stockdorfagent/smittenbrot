@@ -73,7 +73,7 @@ export default function FAQPage() {
         {faqs.map((faq, i) => (
           <details
             key={i}
-            className="bg-white rounded-xl border border-smitten-cream group"
+            className="bg-smitten-surface rounded-xl border border-smitten-cream group"
           >
             <summary className="px-5 py-4 cursor-pointer font-medium text-smitten-text hover:text-smitten-secondary transition-colors list-none flex items-center justify-between">
               {faq.q}

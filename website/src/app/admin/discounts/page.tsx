@@ -204,8 +204,8 @@ export default function AdminDiscountsPage() {
 
       {/* Create form modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-20">
-          <div className="bg-white rounded-xl border border-smitten-cream w-full max-w-lg p-6 mx-4 shadow-lg">
+        <div className="fixed inset-0 bg-smitten-strip/30 z-50 flex items-start justify-center pt-20">
+          <div className="bg-smitten-surface rounded-xl border border-smitten-cream w-full max-w-lg p-6 mx-4 shadow-lg">
             <h2 className="text-lg font-display font-bold text-smitten-text">
               {editingId ? 'Rabattcode bearbeiten' : 'Neuen Rabattcode erstellen'}
             </h2>
@@ -228,7 +228,7 @@ export default function AdminDiscountsPage() {
                   <select
                     value={form.type}
                     onChange={e => setForm({ ...form, type: e.target.value as 'percentage' | 'fixed' })}
-                    className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                   >
                     <option value="percentage">Prozent (%)</option>
                     <option value="fixed">Fixbetrag (€)</option>
@@ -336,7 +336,7 @@ export default function AdminDiscountsPage() {
       )}
 
       {/* Discounts table */}
-      <div className="mt-6 bg-white rounded-xl border border-smitten-cream overflow-hidden">
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden">
         {discounts.length === 0 ? (
           <div className="p-8 text-center text-smitten-text/60 text-sm">
             Keine Rabattcodes vorhanden. Erstelle den ersten!

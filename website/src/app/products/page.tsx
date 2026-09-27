@@ -93,7 +93,7 @@ export default function ProductsPage() {
         {section.products.map(product => (
           <div
             key={product.id}
-            className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
+            className="group flex flex-col bg-smitten-surface rounded-2xl overflow-hidden border border-smitten-cream hover:border-smitten-text/15 hover:shadow-md transition-all"
           >
             <Link href={`/products/${product.slug ?? product.id}`}>
               <div className="aspect-[4/3] bg-smitten-cream overflow-hidden">
@@ -137,7 +137,7 @@ export default function ProductsPage() {
                   className={`mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
                     addingId === product.id
                       ? 'bg-smitten-text text-white scale-[0.98]'
-                      : 'bg-smitten-accent text-white hover:bg-smitten-accent/90'
+                      : 'bg-smitten-accent text-smitten-on-accent hover:bg-smitten-accent/90'
                   }`}
                 >
                   {addingId === product.id ? '✓ Hinzugefügt' : 'In den Warenkorb'}

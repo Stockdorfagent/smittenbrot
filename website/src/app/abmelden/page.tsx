@@ -50,7 +50,7 @@ export default async function AbmeldenPage({
             </p>
             <Link
               href="/profile"
-              className="inline-block bg-smitten-accent text-white px-6 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors"
+              className="inline-block bg-smitten-accent text-smitten-on-accent px-6 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors"
             >
               Zum Profil
             </Link>
@@ -64,7 +64,7 @@ export default async function AbmeldenPage({
             </p>
             <Link
               href="/profile"
-              className="inline-block bg-smitten-accent text-white px-6 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors"
+              className="inline-block bg-smitten-accent text-smitten-on-accent px-6 py-3 rounded-full font-medium hover:bg-smitten-accent/90 transition-colors"
             >
               Zum Profil
             </Link>

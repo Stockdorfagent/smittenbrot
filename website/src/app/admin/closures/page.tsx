@@ -103,7 +103,7 @@ export default function AdminClosuresPage() {
       </div>
 
       {showAdd && (
-        <div className="mt-6 bg-white rounded-xl p-5 border border-smitten-cream space-y-4">
+        <div className="mt-6 bg-smitten-surface rounded-xl p-5 border border-smitten-cream space-y-4">
           <h2 className="font-display font-bold text-smitten-text">Schließzeit anlegen</h2>
           <p className="text-sm text-smitten-text/60">
             {subCount} aktive Abonnements sind betroffen und werden automatisch pausiert.
@@ -167,7 +167,7 @@ export default function AdminClosuresPage() {
 
       <div className="mt-6 space-y-3">
         {closures.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+          <div className="bg-smitten-surface rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
             Keine Schließzeiten vorhanden.
           </div>
         ) : (
@@ -177,7 +177,7 @@ export default function AdminClosuresPage() {
             return (
               <div
                 key={closure.id}
-                className={`bg-white rounded-xl border overflow-hidden ${
+                className={`bg-smitten-surface rounded-xl border overflow-hidden ${
                   active
                     ? 'border-red-300 ring-1 ring-red-200'
                     : past

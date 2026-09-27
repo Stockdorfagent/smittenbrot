@@ -2,9 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand palette as RGB triplets (Tailwind reads them via tailwind.config.js).
+   Rule: bright red is the only accent; otherwise white, black and greys. */
 :root {
-  --background: #FFFFFF;
-  --foreground: #1A1A1A;
+  --smitten-primary: 248 18 14;
+  --smitten-secondary: 107 114 128;
+  --smitten-accent: 26 26 26;
+  --smitten-on-accent: 255 255 255;
+  --smitten-bg: 255 255 255;
+  --smitten-surface: 255 255 255;
+  --smitten-cream: 243 244 246;
+  --smitten-text: 26 26 26;
+  --smitten-strip: 0 0 0;
+  --background: rgb(var(--smitten-bg));
+  --foreground: rgb(var(--smitten-text));
+  color-scheme: light;
+}
+
+/* Dark mode (27.09.2026): follows the browser/OS setting. Near-black page,
+   dark-grey cards, white text, the same red. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --smitten-secondary: 161 161 170;
+    --smitten-accent: 243 244 246;
+    --smitten-on-accent: 17 17 17;
+    --smitten-bg: 15 15 15;
+    --smitten-surface: 28 28 30;
+    --smitten-cream: 35 35 38;
+    --smitten-text: 245 245 245;
+    --smitten-strip: 28 28 30;
+    color-scheme: dark;
+  }
 }
 
 body {

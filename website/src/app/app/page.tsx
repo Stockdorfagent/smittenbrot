@@ -43,7 +43,7 @@ function StoreLink({
 }) {
   if (!href) {
     return (
-      <div className="flex-1 rounded-xl border border-smitten-cream bg-white p-5">
+      <div className="flex-1 rounded-xl border border-smitten-cream bg-smitten-surface p-5">
         <p className="font-display font-bold text-smitten-text">{store}</p>
         <p className="mt-1 text-sm text-smitten-secondary">Kommt in Kürze</p>
       </div>
@@ -55,7 +55,7 @@ function StoreLink({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${store}: ${hint}`}
-      className="flex-1 rounded-xl border border-smitten-cream bg-white p-5 flex flex-col items-start gap-3 transition-colors hover:border-smitten-text"
+      className="flex-1 rounded-xl border border-smitten-cream bg-smitten-surface p-5 flex flex-col items-start gap-3 transition-colors hover:border-smitten-text"
     >
       <p className="text-sm text-smitten-secondary">{hint}</p>
       {/* eslint-disable-next-line @next/next/no-img-element */}

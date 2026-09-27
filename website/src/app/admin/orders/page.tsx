@@ -341,12 +341,12 @@ export default function AdminOrdersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Kunde oder Bestellnummer..."
-          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent w-56"
+          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent w-56"
         />
         <select
           value={bucketFilter}
           onChange={(e) => setBucketFilter(e.target.value as '' | OrderBucket)}
-          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
           <option value="">Alle Status</option>
           {Object.entries(orderBucketLabels).map(([key, label]) => (
@@ -356,7 +356,7 @@ export default function AdminOrdersPage() {
         <select
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
           <option value="">Alle Abholtage</option>
           {pickupDates.map((d) => (
@@ -366,7 +366,7 @@ export default function AdminOrdersPage() {
         <select
           value={locationFilter}
           onChange={(e) => setLocationFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-white focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+          className="px-3 py-2 rounded-lg border border-smitten-cream text-sm bg-smitten-surface focus:outline-none focus:ring-2 focus:ring-smitten-accent"
         >
           <option value="">Alle Orte</option>
           {locations.map((l) => (
@@ -374,7 +374,7 @@ export default function AdminOrdersPage() {
           ))}
         </select>
         {testOrderCount > 0 && (
-          <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-smitten-cream bg-white text-sm text-smitten-text">
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-smitten-cream bg-smitten-surface text-sm text-smitten-text">
             <input
               type="checkbox"
               checked={hideTestOrders}
@@ -384,7 +384,7 @@ export default function AdminOrdersPage() {
             Testbestellungen ausblenden ({testOrderCount})
           </label>
         )}
-        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-smitten-cream bg-white text-sm text-smitten-text">
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-smitten-cream bg-smitten-surface text-sm text-smitten-text">
           <input
             type="checkbox"
             checked={showPast}
@@ -396,7 +396,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {eligibleIds.length > 0 && (
-        <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-center gap-3 flex-wrap">
+        <div className="mt-4 p-4 bg-smitten-surface rounded-xl border border-smitten-cream flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-sm text-smitten-text">
             <input
               type="checkbox"
@@ -428,16 +428,16 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      <div className="mt-4 p-4 bg-white rounded-xl border border-smitten-cream flex items-end gap-3 flex-wrap">
+      <div className="mt-4 p-4 bg-smitten-surface rounded-xl border border-smitten-cream flex items-end gap-3 flex-wrap">
         <div>
           <label className="block text-xs text-smitten-text/60 mb-1">Rechnungen von</label>
           <input type="date" value={invoiceFrom} onChange={e => setInvoiceFrom(e.target.value)}
-            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
         </div>
         <div>
           <label className="block text-xs text-smitten-text/60 mb-1">bis</label>
           <input type="date" value={invoiceTo} onChange={e => setInvoiceTo(e.target.value)}
-            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-white" />
+            className="rounded-lg border border-smitten-cream px-3 py-2 text-sm bg-smitten-surface" />
         </div>
         <button onClick={listInvoices}
           className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors">
@@ -462,7 +462,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {filteredOrders.length === 0 ? (
-        <div className="mt-6 bg-white rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
+        <div className="mt-6 bg-smitten-surface rounded-xl p-8 border border-smitten-cream text-center text-smitten-text/60 text-sm">
           Keine Bestellungen gefunden.
         </div>
       ) : (
@@ -473,7 +473,7 @@ export default function AdminOrdersPage() {
             return (
               <div
                 key={order.id}
-                className="bg-white rounded-xl border border-smitten-cream overflow-hidden"
+                className="bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden"
               >
                 <div className="w-full text-left p-4 hover:bg-smitten-bg/50 transition-colors flex items-center gap-3">
                   {orderBucket(order) === 'zu_backen' && (

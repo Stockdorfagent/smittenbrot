@@ -41,10 +41,10 @@ export default function NavBar() {
   };
 
   return (
-    <nav className="border-b border-smitten-cream bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b border-smitten-cream bg-smitten-surface/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         <a href="/" className="font-display text-xl text-smitten-text font-bold flex items-center gap-2 shrink-0">
-          <img src="/small-logo.png" alt="Smittenbrot" className="h-8 w-auto" />
+          <img src="/small-logo.png" alt="Smittenbrot" className="h-8 w-auto dark:hidden" /><img src="/small-logo-dark.png" alt="" aria-hidden="true" className="h-8 w-auto hidden dark:block" />
           <span className="hidden sm:inline">Smittenbrot</span>
         </a>
 
@@ -96,7 +96,7 @@ export default function NavBar() {
 
       {/* Mobile menu drawer */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-smitten-cream bg-white/95 backdrop-blur-sm">
+        <div className="lg:hidden border-t border-smitten-cream bg-smitten-surface/95 backdrop-blur-sm">
           <div className="px-4 py-4 space-y-2">
             {navLinks.map(link => (
               <a key={link.href} href={link.href}
