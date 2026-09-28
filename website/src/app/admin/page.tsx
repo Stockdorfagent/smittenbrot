@@ -16,6 +16,8 @@ export default function AdminDashboard() {
   const [productionRows, setProductionRows] = useState<ProductionRow[]>([]);
   const [productionDay, setProductionDay] = useState<string>('');
   const [activeSubs, setActiveSubs] = useState<number>(0);
+  // Abandoned checkouts of the last 7 days (from Stripe via /api/admin/abandoned-checkouts).
+  const [abandoned, setAbandoned] = useState<{ id: string; created: number; name: string; email: string; amount: number; fulfillment_date: string | null; paid_later: boolean; mailed_at: string | null }[]>([]);
   const [revenueMonth, setRevenueMonth] = useState<number>(0);
   const [revenueDay, setRevenueDay] = useState<number>(0);
   const [totalRevenue, setTotalRevenue] = useState<number>(0);
@@ -98,6 +100,12 @@ export default function AdminDashboard() {
         setProductionRows(rows);
       }
 
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const r = await fetch('/api/admin/abandoned-checkouts', { headers: { Authorization: `Bearer ${session?.access_token ?? ''}` } });
+        if (r.ok) setAbandoned(((await r.json()).rows ?? []));
+      } catch { /* the tile simply stays empty */ }
+
       const { count: subCount } = await supabase
         .from('subscriptions')
         .select('id', { count: 'exact', head: true })
@@ -163,6 +171,42 @@ export default function AdminDashboard() {
           <p className="text-3xl font-display font-bold text-smitten-text mt-1">{formatPrice(totalRevenue)}</p>
         </div>
       </div>
+
+      {abandoned.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-display font-bold text-smitten-text">Abgebrochene Zahlungen (7 Tage)</h2>
+          <p className="mt-1 text-sm text-smitten-text/60">
+            Kassenvorgänge, bei denen die Zahlung nicht abgeschlossen wurde – es wurde nichts abgebucht und es gibt keine
+            Bestellung. Wer nicht später doch bezahlt hat, bekommt nach 30 Minuten automatisch eine E-Mail.
+          </p>
+          <div className="mt-4 bg-smitten-surface rounded-xl border border-smitten-cream overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-smitten-cream bg-smitten-cream/50">
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Zeitpunkt</th>
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Kunde</th>
+                  <th className="text-right px-4 py-3 font-medium text-smitten-text">Betrag</th>
+                  <th className="text-left px-4 py-3 font-medium text-smitten-text">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {abandoned.map((a) => (
+                  <tr key={a.id} className="border-b border-smitten-cream last:border-0">
+                    <td className="px-4 py-3 text-smitten-text/70 whitespace-nowrap">
+                      {new Date(a.created * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })}
+                    </td>
+                    <td className="px-4 py-3 text-smitten-text">{a.name || '—'}<span className="block text-xs text-smitten-text/50">{a.email}</span></td>
+                    <td className="px-4 py-3 text-right text-smitten-text">{formatPrice(a.amount)}</td>
+                    <td className="px-4 py-3 text-smitten-text/70">
+                      {a.paid_later ? 'Später bezahlt' : a.mailed_at ? `E-Mail gesendet ${new Date(a.mailed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}` : 'Offen (E-Mail folgt)'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <h2 className="text-lg font-display font-bold text-smitten-text">

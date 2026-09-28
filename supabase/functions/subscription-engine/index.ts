@@ -2310,6 +2310,17 @@ serve(withCors(async (req: Request): Promise<Response> => {
       case "process-cancellations":
       case "process_cancellations": {
         const result = await processCancellations();
+        // Piggyback (28.09.2026): the abandoned-checkout mails ride on this
+        // 30-minute cron instead of a schedule of their own. Best-effort.
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/abandoned-checkouts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+            signal: AbortSignal.timeout(25000),
+          });
+        } catch (e) {
+          console.warn("[subscription-engine] abandoned-checkouts call failed:", e instanceof Error ? e.message : e);
+        }
         return json(result);
       }
 
