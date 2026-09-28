@@ -16,7 +16,7 @@ import type { ThemeColors } from '@/lib/theme';
  * anyone with a blank name here, so this cannot be skipped.
  */
 export default function ProfileSetupScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, refreshUser } = useAuth();
   const [name, setName] = useState('');
@@ -77,7 +77,7 @@ export default function ProfileSetupScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Image source={require('../assets/logo-mark.png')} style={styles.logoImg} />
+            <Image source={isDark ? require('../assets/logo-mark-dark.png') : require('../assets/logo-mark.png')} style={styles.logoImg} />
             <Text style={styles.brand}>Smittenbrot</Text>
             <Text style={styles.subtitle}>Sauerteig aus Stockdorf</Text>
           </View>

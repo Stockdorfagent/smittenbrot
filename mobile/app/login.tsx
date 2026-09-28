@@ -10,7 +10,7 @@ import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 
 export default function LoginScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user, signIn, signUp, resetPassword } = useAuth();
@@ -72,7 +72,7 @@ export default function LoginScreen() {
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Image source={require('../assets/logo-mark.png')} style={styles.logoImg} />
+            <Image source={isDark ? require('../assets/logo-mark-dark.png') : require('../assets/logo-mark.png')} style={styles.logoImg} />
             <Text style={styles.brand}>Smittenbrot</Text>
             <Text style={styles.subtitle}>Sauerteig aus Stockdorf</Text>
           </View>

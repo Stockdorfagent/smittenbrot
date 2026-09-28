@@ -24,7 +24,7 @@ import type { ThemeColors } from '@/lib/theme';
  * the auth gate then asks for the name once via /profile-setup.
  */
 export default function CodeLoginScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
@@ -94,7 +94,7 @@ export default function CodeLoginScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Image source={require('../assets/logo-mark.png')} style={styles.logoImg} />
+            <Image source={isDark ? require('../assets/logo-mark-dark.png') : require('../assets/logo-mark.png')} style={styles.logoImg} />
             <Text style={styles.brand}>Smittenbrot</Text>
             <Text style={styles.subtitle}>Sauerteig aus Stockdorf</Text>
           </View>
