@@ -471,16 +471,37 @@ async function createOrderFromPaymentIntent(
   const idempotencyKey = md.idempotency_key || null;
 
   // Idempotency: skip if this order was already created (event redelivery).
+  // The authoritative amount actually charged (already discount-adjusted).
+  // Equals sum(u*q) for the app (no discounts); for website orders with a
+  // discount code it is the reduced total.
+  const totalCents = paymentIntent.amount;
+
+  // Optional discount metadata (website checkout only; absent for the app).
+  const discountId = md.discount_id || null;
+  const discountCents = Number(md.discount_cents) || 0;
+  const discountCode = md.discount_code || null;
+
   if (idempotencyKey) {
     const { data: existing } = await supabase
       .from("orders")
-      .select("id")
+      .select("id, payment_status")
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
-    if (existing) {
+    if (existing?.payment_status === "paid") {
       console.log(
-        `[stripe-webhook] Order for idempotency_key ${idempotencyKey} already exists — skipping.`,
+        `[stripe-webhook] Order for idempotency_key ${idempotencyKey} already paid — skipping.`,
       );
+      return;
+    }
+    if (existing) {
+      // 27.09.2026: an order was found inserted as pending with its items but
+      // never flipped to paid — the runtime had cut the function off after the
+      // 200 was sent (see serve()). A redelivered/replayed event now finishes
+      // the job instead of being skipped as a duplicate.
+      console.warn(
+        `[stripe-webhook] Order ${existing.id} for PI ${paymentIntent.id} is still pending — finishing it now.`,
+      );
+      await finalizePaidOrder(existing.id as string, paymentIntent, md, totalCents, discountId, discountCents);
       return;
     }
   }
@@ -496,16 +517,6 @@ async function createOrderFromPaymentIntent(
     console.error(`[stripe-webhook] PI ${paymentIntent.id}: empty items metadata.`);
     return;
   }
-
-  // The authoritative amount actually charged (already discount-adjusted).
-  // Equals sum(u*q) for the app (no discounts); for website orders with a
-  // discount code it is the reduced total.
-  const totalCents = paymentIntent.amount;
-
-  // Optional discount metadata (website checkout only; absent for the app).
-  const discountId = md.discount_id || null;
-  const discountCents = Number(md.discount_cents) || 0;
-  const discountCode = md.discount_code || null;
 
   // orders.customer_id is a foreign key to customers(id). If the profile row is
   // missing, the insert below would fail and the money would be charged with no
@@ -581,6 +592,24 @@ async function createOrderFromPaymentIntent(
     );
   }
 
+  await finalizePaidOrder(order.id as string, paymentIntent, md, totalCents, discountId, discountCents);
+}
+
+/**
+ * Second half of the one-time order creation: flip the pending order to paid
+ * (the trigger assigns order_number + invoice_number), record the discount
+ * usage, send the Bestellbestätigung and the admin alert. Separate so that a
+ * replayed event can finish an order that got stuck as pending.
+ */
+async function finalizePaidOrder(
+  orderId: string,
+  paymentIntent: Stripe.PaymentIntent,
+  md: Record<string, string>,
+  totalCents: number,
+  discountId: string | null,
+  discountCents: number,
+): Promise<void> {
+  const order = { id: orderId };
   // 3. Flip to paid → assigns order_number + invoice_number via trigger.
   //
   // NOTE: inserting the order_items above fired trg_update_order_totals, which
@@ -646,7 +675,7 @@ async function createOrderFromPaymentIntent(
   }
 
   console.log(
-    `[stripe-webhook] Created + paid one-time order ${order.id} from PI ${paymentIntent.id}.`,
+    `[stripe-webhook] Paid one-time order ${order.id} from PI ${paymentIntent.id} finalized.`,
   );
 }
 
@@ -930,24 +959,23 @@ async function handleChargeRefunded(
  *
  * Returns true if the event type is one we handle, false otherwise.
  */
-function dispatchEvent(event: Stripe.Event): boolean {
+async function dispatchEvent(event: Stripe.Event): Promise<boolean> {
   switch (event.type) {
     case "payment_intent.succeeded": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      // Fire-and-forget — 200 has already been returned.
-      handlePaymentIntentSucceeded(paymentIntent);
+      await handlePaymentIntentSucceeded(paymentIntent);
       return true;
     }
 
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      handlePaymentIntentFailed(paymentIntent);
+      await handlePaymentIntentFailed(paymentIntent);
       return true;
     }
 
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
-      handleChargeRefunded(charge);
+      await handleChargeRefunded(charge);
       return true;
     }
 
@@ -997,13 +1025,24 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  // Return 200 immediately — handlers run asynchronously
-  const handled = dispatchEvent(event);
-
-  if (!handled) {
-    console.log(`[stripe-webhook] Unhandled event type: ${event.type}`);
+  // Do the work BEFORE answering (27.09.2026). The previous "return 200 and
+  // continue in the background" left an order stuck as pending: the edge
+  // runtime does not guarantee that work after the response completes, and
+  // Stripe, having seen the 200, never redelivered. A failure now returns 500,
+  // so Stripe retries and the idempotent handlers finish the job.
+  try {
+    const handled = await dispatchEvent(event);
+    if (!handled) {
+      console.log(`[stripe-webhook] Unhandled event type: ${event.type}`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[stripe-webhook] ${event.type} failed: ${message}`);
+    return new Response(JSON.stringify({ received: false, error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
-
   return new Response(JSON.stringify({ received: true }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
