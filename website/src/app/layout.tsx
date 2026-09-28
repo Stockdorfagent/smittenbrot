@@ -79,7 +79,7 @@ export default function RootLayout({
                 </div>
                 {/* Center: logo */}
                 <div className="order-1 md:order-2 flex justify-center">
-                  <img src="/logo.svg" alt="Smittenbrot" className="h-40 md:h-48 w-auto dark:invert" />
+                  <img src="/logo.svg" alt="Smittenbrot" className="h-40 md:h-48 w-auto dark:hidden" /><img src="/logo-dark.png" alt="" aria-hidden="true" className="h-40 md:h-48 w-auto hidden dark:block" />
                 </div>
                 {/* Right: legal links */}
                 <nav className="order-3 flex flex-wrap justify-center md:justify-end gap-x-5 gap-y-2 text-sm text-smitten-secondary">
