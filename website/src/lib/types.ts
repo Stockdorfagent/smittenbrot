@@ -23,6 +23,8 @@ export interface Product {
   slug: string | null;
   /** Shop section on /products (migration 031). Display only — never decides availability. */
   display_group: ProductDisplayGroup;
+  /** What one price buys, shown next to it (migration 034): '5 Stück' → "3,00 € / 5 Stück". null = per piece. */
+  unit_label?: string | null;
 }
 
 export type ProductDisplayGroup = 'classic' | 'weekly' | 'special';
@@ -106,4 +108,10 @@ export interface Customer {
 /** Money, German-style: 4,00 € — comma decimal, symbol after the amount. */
 export function formatPrice(cents: number): string {
   return `${((cents ?? 0) / 100).toFixed(2).replace('.', ',')} €`;
+}
+
+/** Price with its unit where one is set: "3,00 € / 5 Stück"; otherwise just the price. */
+export function formatPriceWithUnit(cents: number, unit?: string | null): string {
+  const u = (unit ?? '').trim();
+  return u ? `${formatPrice(cents)} / ${u}` : formatPrice(cents);
 }

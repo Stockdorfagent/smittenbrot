@@ -138,6 +138,7 @@ export default function ProductDetailPage() {
           </h1>
           <p className="mt-2 text-smitten-accent text-2xl font-bold">
             {formatPrice(product.price_cents)}
+            {product.unit_label?.trim() && <span className="text-base font-medium text-smitten-text/60"> / {product.unit_label.trim()}</span>}
           </p>
           <p className="text-xs text-smitten-text/40">inkl. 7 % MwSt.</p>
 

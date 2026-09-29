@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
-import { Product, formatPrice } from '@/lib/types';
+import { Product, formatPrice, formatPriceWithUnit } from '@/lib/types';
 import { getNextPickup } from '@/lib/pickup';
 import Link from 'next/link';
 
@@ -112,7 +112,7 @@ export default function HomePage() {
                 <div className="flex items-baseline justify-between gap-2">
                   <h3 className="font-bold text-smitten-text truncate">{product.name}</h3>
                   <span className="shrink-0 font-semibold text-smitten-text">
-                    {formatPrice(product.price_cents)}
+                    {formatPriceWithUnit(product.price_cents, product.unit_label)}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-smitten-text line-clamp-2">

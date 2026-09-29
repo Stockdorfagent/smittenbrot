@@ -25,6 +25,7 @@ export default function AdminProductsPage() {
     capacity: 10,
     cycle: 'permanent' as string,
     display_group: 'classic' as Product['display_group'],
+    unit_label: '',
     available_wed: true,
     available_sat: true,
     subscribable: true,
@@ -148,6 +149,7 @@ export default function AdminProductsPage() {
         name: editForm.name,
         description: editForm.description,
         weight: editForm.weight?.trim() || null,
+        unit_label: editForm.unit_label?.trim() || null,
         ingredients: editForm.ingredients?.trim() || null,
         allergens: editForm.allergens?.trim() || null,
         price_cents: editForm.price_cents,
@@ -234,6 +236,7 @@ export default function AdminProductsPage() {
         name: newForm.name,
         description: newForm.description,
         weight: newForm.weight.trim() || null,
+        unit_label: newForm.unit_label.trim() || null,
         ingredients: newForm.ingredients.trim() || null,
         allergens: newForm.allergens.trim() || null,
         price_cents: newForm.price_cents,
@@ -262,7 +265,7 @@ export default function AdminProductsPage() {
       if (urls.length > 0) await supabase.from('products').update({ cover_image_url: urls[0], images: urls }).eq('id', data.id);
     }
     setCreating(false);
-    setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', available_wed: true, available_sat: true, subscribable: true, active: false });
+    setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', unit_label: '', available_wed: true, available_sat: true, subscribable: true, active: false });
     setNewPhotos([]);
     loadProducts();
     } finally {
@@ -321,6 +324,9 @@ export default function AdminProductsPage() {
             <div>
               <label className="block text-xs text-smitten-text/60 mb-1">Preis (€)</label>
               <input type="number" step="0.01" value={newForm.price_cents / 100} onChange={e => setNewForm({...newForm, price_cents: Math.round(Number(e.target.value) * 100)})}
+                className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+              <label className="block text-xs text-smitten-text/60 mb-1 mt-2">Einheit (optional, z. B. „5 Stück“ → 3,00 € / 5 Stück)</label>
+              <input type="text" value={newForm.unit_label} onChange={e => setNewForm({...newForm, unit_label: e.target.value})} placeholder="leer = pro Stück"
                 className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
             </div>
             <div>
@@ -462,6 +468,16 @@ export default function AdminProductsPage() {
                     />
                   </div>
                   <div>
+                    <label className="block text-xs text-smitten-text/60 mb-1">Einheit (optional, z. B. „5 Stück“)</label>
+                    <input
+                      type="text"
+                      value={editForm.unit_label ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, unit_label: e.target.value })}
+                      placeholder="leer = pro Stück"
+                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-xs text-smitten-text/60 mb-1">Kapazität</label>
                     <input
                       type="number"
@@ -594,8 +610,8 @@ export default function AdminProductsPage() {
                         <img src={url} alt="" className={`h-16 w-16 object-cover rounded ${i === 0 ? 'ring-2 ring-smitten-primary' : ''}`} />
                         <div className="mt-1 flex gap-1 justify-center">
                           {i !== 0 && (
-                            <button type="button" title="Als Titelbild" onClick={() => { const a = (editForm.images ?? []).slice(); const [u] = a.splice(i, 1); a.unshift(u); saveGallery(editingId!, a); }}
-                              className="text-[10px] px-1.5 py-0.5 border border-smitten-cream rounded hover:bg-smitten-bg">Titelbild</button>
+                            <button type="button" title="Dieses Foto nach vorn (zum Titelbild machen)" onClick={() => { const a = (editForm.images ?? []).slice(); const [u] = a.splice(i, 1); a.unshift(u); saveGallery(editingId!, a); }}
+                              className="text-[10px] px-1.5 py-0.5 border border-smitten-cream rounded hover:bg-smitten-bg">↑ nach vorn</button>
                           )}
                           <button type="button" title="Entfernen" onClick={() => { if (confirm('Dieses Foto entfernen?')) saveGallery(editingId!, (editForm.images ?? []).filter((u) => u !== url)); }}
                             className="text-[10px] px-1.5 py-0.5 border border-smitten-cream rounded hover:bg-smitten-bg text-red-600">✕</button>

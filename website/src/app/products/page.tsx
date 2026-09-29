@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
-import { Product, formatPrice } from '@/lib/types';
+import { Product, formatPriceWithUnit } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
 import { fetchSoldOut } from '@/lib/soldOut';
@@ -119,7 +119,7 @@ export default function ProductsPage() {
                 {/* PAngV: the VAT hint must be on any page a customer can order from (BGH I ZR 143/04), so it
                     sits under each price in the same quiet grey as on the detail page. */}
                 <span className="shrink-0 flex flex-col items-end">
-                  <span className="font-semibold text-smitten-text">{formatPrice(product.price_cents)}</span>
+                  <span className="font-semibold text-smitten-text">{formatPriceWithUnit(product.price_cents, product.unit_label)}</span>
                   <span className="text-[11px] leading-tight text-smitten-text/40">inkl. MwSt.</span>
                 </span>
               </div>

@@ -49,6 +49,8 @@ export interface Product {
   capacity: number;
   cycle: ProductCycle;
   display_group?: ProductDisplayGroup;
+  /** What one price buys (migration 034): '5 Stück' → "3,00 € / 5 Stück". */
+  unit_label?: string | null;
   available_wed: boolean;
   available_sat: boolean;
   subscribable: boolean;

@@ -59,7 +59,7 @@ export function ProductCard({
       <View style={styles.content}>
         <View style={styles.row}>
           <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
-          <Text style={styles.price}>{(product.price_cents / 100).toFixed(2).replace('.', ',')} €</Text>
+          <Text style={styles.price}>{(product.price_cents / 100).toFixed(2).replace('.', ',')} €{product.unit_label?.trim() ? ` / ${product.unit_label.trim()}` : ''}</Text>
         </View>
 
         {soldOut ? (

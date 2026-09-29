@@ -83,7 +83,7 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
           <View style={styles.body}>
             <View style={styles.headerRow}>
               <Text style={styles.name}>{product.name}</Text>
-              <Text style={styles.price}>{(product.price_cents / 100).toFixed(2).replace('.', ',')} €</Text>
+              <Text style={styles.price}>{(product.price_cents / 100).toFixed(2).replace('.', ',')} €{product.unit_label?.trim() ? ` / ${product.unit_label.trim()}` : ''}</Text>
             </View>
 
             {mainDesc ? <Text style={styles.description}>{mainDesc}</Text> : null}
