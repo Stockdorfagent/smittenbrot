@@ -25,6 +25,8 @@ export interface Product {
   display_group: ProductDisplayGroup;
   /** What one price buys, shown next to it (migration 034): '5 Stück' → "3,00 € / 5 Stück". null = per piece. */
   unit_label?: string | null;
+  /** One word for the section-heading summary (migration 035): "Diese Woche · Dinkel, Ciabatta". */
+  short_label?: string | null;
 }
 
 export type ProductDisplayGroup = 'classic' | 'weekly' | 'special';

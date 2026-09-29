@@ -18,6 +18,8 @@ export interface ProductSection {
   group: ProductDisplayGroup;
   label: string;
   products: Product[];
+  /** Distinct short_label words of the section's products, in product order. */
+  summary: string[];
 }
 
 /** Non-empty sections in page order; input order is preserved. */
@@ -31,6 +33,14 @@ export function groupProducts(products: Product[]): ProductSection[] {
     buckets.get(g)!.push(p);
   }
   return DISPLAY_GROUP_ORDER
-    .map((group) => ({ group, label: displayGroupLabels[group], products: buckets.get(group)! }))
+    .map((group) => {
+      const products = buckets.get(group)!;
+      const summary: string[] = [];
+      for (const p of products) {
+        const w = (p.short_label ?? '').trim();
+        if (w && !summary.includes(w)) summary.push(w);
+      }
+      return { group, label: displayGroupLabels[group], products, summary };
+    })
     .filter((s) => s.products.length > 0);
 }

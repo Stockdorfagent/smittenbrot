@@ -353,7 +353,10 @@ export default function HomeScreen() {
             Same as the website since 21.09.2026. Cards unchanged. */}
         {groupProducts(products).map((section, idx) => (
           <View key={section.group} style={idx > 0 ? styles.groupSpacer : undefined}>
-            <Text style={styles.groupTitle}>{section.label}</Text>
+            <Text style={styles.groupTitle}>
+              {section.label}
+              {section.summary.length > 0 && <Text style={styles.groupSummary}> · {section.summary.join(', ')}</Text>}
+            </Text>
             {section.products.map((product) => {
               const qty = cartQuantity(product.id);
               const isSoldOut = soldOut[product.id] === true;
@@ -467,6 +470,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.text,
     marginBottom: theme.spacing.md,
   },
+  groupSummary: { fontSize: theme.fontSize.sm, fontWeight: '400', color: colors.textLight },
   groupSpacer: {
     marginTop: theme.spacing.md,
     paddingTop: theme.spacing.lg,

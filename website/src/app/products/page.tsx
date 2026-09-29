@@ -88,7 +88,12 @@ export default function ProductsPage() {
           (typically the specials) simply does not render. Cards are unchanged. */}
       {groupProducts(products).map((section, idx) => (
         <section key={section.group} className={idx === 0 ? 'mt-8' : 'mt-12 pt-8 border-t border-smitten-cream'}>
-          <h2 className="text-lg font-semibold text-smitten-text">{section.label}</h2>
+          <h2 className="text-lg font-semibold text-smitten-text">
+            {section.label}
+            {section.summary.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-smitten-text/50">· {section.summary.join(', ')}</span>
+            )}
+          </h2>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {section.products.map(product => (
           <div

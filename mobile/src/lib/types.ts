@@ -51,6 +51,8 @@ export interface Product {
   display_group?: ProductDisplayGroup;
   /** What one price buys (migration 034): '5 Stück' → "3,00 € / 5 Stück". */
   unit_label?: string | null;
+  /** One word for the section-heading summary (migration 035). */
+  short_label?: string | null;
   available_wed: boolean;
   available_sat: boolean;
   subscribable: boolean;
