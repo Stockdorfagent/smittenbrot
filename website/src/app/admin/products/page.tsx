@@ -31,7 +31,9 @@ export default function AdminProductsPage() {
     active: false,
   });
   const [uploading, setUploading] = useState(false);
-  const [newPhoto, setNewPhoto] = useState<File | null>(null);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  // Guard against a second click while insert + photo upload run (29.09.: a double click created two products).
+  const [creatingBusy, setCreatingBusy] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [warningAction, setWarningAction] = useState<(() => void) | null>(null);
 
@@ -223,6 +225,9 @@ export default function AdminProductsPage() {
   }
 
   async function handleCreateProduct() {
+    if (creatingBusy || !newForm.name.trim()) return;
+    setCreatingBusy(true);
+    try {
     const { data, error } = await supabase
       .from('products')
       .insert({
@@ -242,35 +247,53 @@ export default function AdminProductsPage() {
       })
       .select()
       .single();
-    if (!error && data) {
-      // If a photo was chosen, upload it now that we have the product id.
-      if (newPhoto) {
-        try {
-          const url = await uploadPhoto(newPhoto, data.id);
-          if (url) await supabase.from('products').update({ cover_image_url: url }).eq('id', data.id);
-        } catch (err) {
-          console.error('Photo upload failed:', err);
-        }
+    if (error || !data) {
+      showToast(`Anlegen fehlgeschlagen: ${error?.message ?? 'unbekannter Fehler'}`);
+      return;
+    }
+    // Photos: all of them go into the gallery (`images`), the first one is the cover —
+    // the convention every existing product follows (cover_image_url === images[0]).
+    if (newPhotos.length > 0) {
+      const urls: string[] = [];
+      for (const f of newPhotos) {
+        try { const url = await uploadPhoto(f, data.id); if (url) urls.push(url); }
+        catch (err) { console.error('Photo upload failed:', err); }
       }
-      setCreating(false);
-      setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', available_wed: true, available_sat: true, subscribable: true, active: false });
-      setNewPhoto(null);
-      loadProducts();
+      if (urls.length > 0) await supabase.from('products').update({ cover_image_url: urls[0], images: urls }).eq('id', data.id);
+    }
+    setCreating(false);
+    setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', available_wed: true, available_sat: true, subscribable: true, active: false });
+    setNewPhotos([]);
+    loadProducts();
+    } finally {
+      setCreatingBusy(false);
     }
   }
 
+  /** Gallery helpers — `images` holds every photo, images[0] is the cover (house convention). */
+  async function saveGallery(productId: string, images: string[]) {
+    const { error } = await supabase.from('products').update({ images, cover_image_url: images[0] ?? null }).eq('id', productId);
+    if (error) { showToast(`Fotos speichern fehlgeschlagen: ${error.message}`); return; }
+    setEditForm((f) => ({ ...f, images, cover_image_url: images[0] ?? null }));
+    loadProducts();
+  }
+
+  /** "Fotos hinzufügen" in the edit form: upload one or more files, append to the gallery (first upload becomes the cover if there is none). */
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>, productId: string) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
     setUploading(true);
     try {
-      const url = await uploadPhoto(file, productId);
-      if (url) {
-        await supabase.from('products').update({ cover_image_url: url }).eq('id', productId);
-        loadProducts();
+      const current = (editForm.images ?? []).slice();
+      for (const f of files) {
+        const url = await uploadPhoto(f, productId);
+        if (url) current.push(url);
       }
+      await saveGallery(productId, current);
     } catch (err) {
       console.error('Upload failed:', err);
+      showToast('Foto-Upload fehlgeschlagen.');
     }
     setUploading(false);
   }
@@ -346,9 +369,9 @@ export default function AdminProductsPage() {
           </div>
           <div>
             <label className="block text-xs text-smitten-text/60 mb-1">Foto</label>
-            <input type="file" accept="image/*" onChange={e => setNewPhoto(e.target.files?.[0] ?? null)}
+            <input type="file" accept="image/*" multiple onChange={e => setNewPhotos(Array.from(e.target.files ?? []))}
               className="w-full text-sm text-smitten-text/70" />
-            {newPhoto && <p className="text-xs text-smitten-text/60 mt-1">Ausgewählt: {newPhoto.name}</p>}
+            {newPhotos.length > 0 && <p className="text-xs text-smitten-text/60 mt-1">Ausgewählt: {newPhotos.map((f) => f.name).join(', ')} (das erste wird das Titelbild)</p>}
           </div>
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
@@ -357,7 +380,7 @@ export default function AdminProductsPage() {
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.active} onChange={e => setNewForm({...newForm, active: e.target.checked})} className="rounded" /> Aktiv</label>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleCreateProduct} disabled={!newForm.name}
+            <button onClick={handleCreateProduct} disabled={!newForm.name || creatingBusy}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 disabled:opacity-50">
               Speichern
             </button>
@@ -563,17 +586,30 @@ export default function AdminProductsPage() {
                     Aktiv
                   </label>
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-smitten-text cursor-pointer">
-                    <span className="px-3 py-1.5 border border-smitten-cream text-xs rounded-lg hover:bg-smitten-bg transition-colors">
-                      {uploading ? 'Lade hoch...' : 'Foto hochladen'}
-                    </span>
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={(e) => handlePhotoUpload(e, editingId)} disabled={uploading} />
-                  </label>
-                  {editForm.cover_image_url && (
-                    <img src={editForm.cover_image_url} alt="" className="h-10 w-10 object-cover rounded" />
-                  )}
+                <div>
+                  <label className="block text-xs text-smitten-text/60 mb-2">Fotos (das erste ist das Titelbild)</label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {(editForm.images ?? []).map((url, i) => (
+                      <div key={url} className="relative">
+                        <img src={url} alt="" className={`h-16 w-16 object-cover rounded ${i === 0 ? 'ring-2 ring-smitten-primary' : ''}`} />
+                        <div className="mt-1 flex gap-1 justify-center">
+                          {i !== 0 && (
+                            <button type="button" title="Als Titelbild" onClick={() => { const a = (editForm.images ?? []).slice(); const [u] = a.splice(i, 1); a.unshift(u); saveGallery(editingId!, a); }}
+                              className="text-[10px] px-1.5 py-0.5 border border-smitten-cream rounded hover:bg-smitten-bg">Titelbild</button>
+                          )}
+                          <button type="button" title="Entfernen" onClick={() => { if (confirm('Dieses Foto entfernen?')) saveGallery(editingId!, (editForm.images ?? []).filter((u) => u !== url)); }}
+                            className="text-[10px] px-1.5 py-0.5 border border-smitten-cream rounded hover:bg-smitten-bg text-red-600">✕</button>
+                        </div>
+                      </div>
+                    ))}
+                    <label className="flex items-center gap-2 text-sm text-smitten-text cursor-pointer">
+                      <span className="px-3 py-1.5 border border-smitten-cream text-xs rounded-lg hover:bg-smitten-bg transition-colors">
+                        {uploading ? 'Lade hoch...' : 'Fotos hinzufügen'}
+                      </span>
+                      <input type="file" accept="image/*" multiple className="hidden"
+                        onChange={(e) => handlePhotoUpload(e, editingId!)} disabled={uploading} />
+                    </label>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
