@@ -123,7 +123,7 @@ export default function ProductsPage() {
                   <span className="text-[11px] leading-tight text-smitten-text/40">inkl. MwSt.</span>
                 </span>
               </div>
-              <p className="mt-1 text-sm text-smitten-text line-clamp-2">
+              <p className="mt-1 text-sm text-smitten-text line-clamp-3 flex-1">
                 {splitDescription(product.description).main}
               </p>
               {soldOut[product.id] ? (

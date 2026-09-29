@@ -459,13 +459,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   productItem: { marginBottom: theme.spacing.lg },
+  // Section headings (owner 29.09.: "a little more distinct, not extreme"): one step larger and bolder than a
+  // product name (md/600), a hairline above every section after the first, a bit more air — not Facebook-much.
   groupTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
-  groupSpacer: { marginTop: theme.spacing.sm },
+  groupSpacer: {
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
   addButton: { flex: 1 },
   cartBar: {
