@@ -123,9 +123,11 @@ export default function ProductsPage() {
                   <span className="text-[11px] leading-tight text-smitten-text/40">inkl. MwSt.</span>
                 </span>
               </div>
-              <p className="mt-1 text-sm text-smitten-text line-clamp-3 flex-1">
-                {splitDescription(product.description).main}
-              </p>
+              <div className="flex-1">
+                <p className="mt-1 text-sm text-smitten-text line-clamp-3">
+                  {splitDescription(product.description).main}
+                </p>
+              </div>
               {soldOut[product.id] ? (
                 <div className="mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold text-center bg-smitten-cream text-smitten-secondary">
                   Ausverkauft
