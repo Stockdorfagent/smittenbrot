@@ -14,6 +14,9 @@ const nextConfig = {
   async redirects() {
     return [
       { source: '/home', destination: '/', permanent: true },
+      // Short addresses for print/e-mail (owner, 29.09.2026)
+      { source: '/abo', destination: '/subscriptions', permanent: true },
+      { source: '/dauerbestellung', destination: '/subscriptions', permanent: true },
       { source: '/so-funktioniert-es', destination: '/how-it-works', permanent: true },
       { source: '/shop', destination: '/products', permanent: true },
       // old Squarespace product pages → new slugs (specific ones first)
