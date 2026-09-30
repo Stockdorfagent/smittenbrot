@@ -6,11 +6,11 @@ import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
 import { getNextPickupFor, PickupDays } from '@/lib/pickup';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
-import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import type { StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import Link from 'next/link';
+import { getStripe } from '@/lib/stripeClient';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface DiscountInfo {
   id: string;
@@ -470,7 +470,7 @@ function CheckoutForm() {
           </div>
         </div>
 
-        <Elements stripe={stripePromise} options={options}>
+        <Elements stripe={getStripe()} options={options}>
           <PaymentForm clientSecret={clientSecret} onSuccess={handlePaymentSuccess} onBack={handleBack} />
         </Elements>
       </div>

@@ -114,6 +114,12 @@ export default function DatenschutzPage() {
 
       <p className="font-medium text-smitten-text mt-4">Brevo (E-Mail-Versand)</p>
       <p>
+        Gelegentliche Informations-E-Mails (z. B. zu neuen Funktionen) versende ich nur an Bestandskunden gemäß
+        § 7 Abs. 3 UWG und jeweils mit einem Abmeldelink. Brevo kann bei solchen E-Mails technisch erfassen, ob sie
+        geöffnet und Links angeklickt wurden; Bestellbestätigungen, Rechnungen und Erinnerungen enthalten keine
+        solche Erfassung.
+      </p>
+      <p>
         Für den Versand von Bestellbestätigungen, Rechnungen und Benachrichtigungen nutze ich <strong>Sendinblue GmbH</strong> (Brevo), Köpenicker Str. 126, 10179 Berlin. Brevo verarbeitet deine E-Mail-Adresse und Name zum Zweck des E-Mail-Versands. Die Server von Brevo stehen in der EU. Weitere Informationen: <a href="https://www.brevo.com/de/legal/privacypolicy/" className="text-smitten-primary underline">brevo.com/de/legal/privacypolicy</a>.
       </p>
 
@@ -150,9 +156,22 @@ export default function DatenschutzPage() {
         Wenn du ein Kundenkonto auf dieser Website oder in der App erstellst, erhebe ich folgende Daten: Name, E-Mail-Adresse und optional Telefonnummer und bevorzugten Abholort. Die Verarbeitung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO.
       </p>
 
-      <h3 className="font-display font-bold text-smitten-text mt-6">Cookies</h3>
+      <h3 className="font-display font-bold text-smitten-text mt-6">Cookies und Local Storage</h3>
       <p>
-        Diese Website verwendet ausschließlich technisch notwendige Cookies (Local Storage) zur Aufrechterhaltung des Warenkorbs und des Login-Status. Diese Cookies sind für den Betrieb der Website erforderlich und können nicht deaktiviert werden. Es werden keine Tracking-Cookies, Analyse-Cookies oder Werbe-Cookies eingesetzt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Funktionsfähigkeit der Website).
+        Diese Website setzt keine Tracking-, Analyse- oder Werbe-Cookies ein und verwendet keine Statistik- oder
+        Analysedienste. Es werden nur technisch notwendige Speichertechniken verwendet: Der Warenkorb und die
+        Anzeigeeinstellungen liegen im Local Storage deines Browsers; nach einer Anmeldung speichert ein Cookie von
+        Supabase deinen Login-Status. Diese Speicherung ist für die von dir angeforderte Funktion erforderlich
+        (§ 25 Abs. 2 Nr. 2 TDDDG, Art. 6 Abs. 1 lit. b DSGVO) und bedarf keiner Einwilligung; sie enthält keine
+        Werbe- oder Profilbildungsdaten.
+      </p>
+      <p>
+        Erst wenn du im Bestellvorgang das Zahlungsformular öffnest, wird das Skript unseres Zahlungsdienstleisters
+        Stripe geladen. Stripe setzt dabei Cookies zur Betrugserkennung und zur Sicherung der Zahlung (u. a.
+        <code>__stripe_mid</code>, Laufzeit bis zu einem Jahr, und <code>__stripe_sid</code>, Sitzungscookie). Diese
+        sind für die sichere Abwicklung der von dir gewählten Zahlung erforderlich (Art. 6 Abs. 1 lit. b und lit. f
+        DSGVO, § 25 Abs. 2 Nr. 2 TDDDG). Auf allen anderen Seiten wird Stripe nicht geladen. Einen Cookie-Banner gibt
+        es deshalb nicht: Es gibt nichts, dem du zustimmen oder widersprechen müsstest.
       </p>
 
       <h3 className="font-display font-bold text-smitten-text mt-6">Server-Log-Dateien</h3>

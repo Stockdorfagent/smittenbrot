@@ -7,10 +7,9 @@ import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
 import AboExplainer, { ReminderHint } from '@/components/AboExplainer';
 import { useRouter } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { getStripe } from '@/lib/stripeClient';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 /**
  * Inline card-update form for a payment_failed Abo — the web counterpart of
@@ -159,7 +158,7 @@ export default function SubscriptionsPage() {
     const pendingUpdate = sessionStorage.getItem('pending_payment_update');
     if (pendingUpdate) {
       sessionStorage.removeItem('pending_payment_update');
-      const stripe = await stripePromise;
+      const stripe = await getStripe();
       if (!stripe) return;
       const { setupIntent } = await stripe.retrieveSetupIntent(setupSecret);
       if (setupIntent?.status !== 'succeeded') return;
@@ -172,7 +171,7 @@ export default function SubscriptionsPage() {
     if (!stored) return;
     sessionStorage.removeItem('pending_subscription');
 
-    const stripe = await stripePromise;
+    const stripe = await getStripe();
     if (!stripe) return;
 
     const { setupIntent } = await stripe.retrieveSetupIntent(setupSecret);
@@ -462,7 +461,7 @@ export default function SubscriptionsPage() {
 
                 {/* Card update inline (payment_failed) */}
                 {cardUpdate?.subId === sub.id && (
-                  <Elements stripe={stripePromise} options={{ clientSecret: cardUpdate.clientSecret }}>
+                  <Elements stripe={getStripe()} options={{ clientSecret: cardUpdate.clientSecret }}>
                     <CardUpdateForm
                       subId={sub.id}
                       onDone={() => finishCardUpdate(sub.id)}

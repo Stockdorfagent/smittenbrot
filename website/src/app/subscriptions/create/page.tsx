@@ -6,8 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { Product, PickupLocation, formatPrice } from '@/lib/types';
 import { User } from '@supabase/supabase-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
 import Link from 'next/link';
+import { getStripe } from '@/lib/stripeClient';
 
 const DAY_LABELS: Record<'wednesday' | 'saturday' | 'both', string> = {
   wednesday: 'Mittwoch',
@@ -15,7 +15,6 @@ const DAY_LABELS: Record<'wednesday' | 'saturday' | 'both', string> = {
   both: 'Mittwoch + Samstag',
 };
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface SubItem {
   productId: string;
@@ -516,7 +515,7 @@ function SubscriptionCreateForm() {
         <div className="max-w-md mx-auto">
           <div className="bg-smitten-surface rounded-xl border border-smitten-cream p-6">
             <h3 className="font-display font-bold text-smitten-text mb-4">Zahlungsmethode</h3>
-            <Elements stripe={stripePromise} options={{ clientSecret, locale: 'de' }}>
+            <Elements stripe={getStripe()} options={{ clientSecret, locale: 'de' }}>
               <SetupForm
                 onSaved={async () => {
                   // Payment method saved - now create the subscription
