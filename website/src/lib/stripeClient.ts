@@ -1,4 +1,5 @@
-import { loadStripe, type Stripe } from '@stripe/stripe-js';
+// The default entry point injects Stripe.js on IMPORT; '/pure' only does so when loadStripe() is called.
+import { loadStripe, type Stripe } from '@stripe/stripe-js/pure';
 
 /**
  * Stripe.js on demand (30.09.2026). It used to be started at module load in
