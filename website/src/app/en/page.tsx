@@ -45,7 +45,7 @@ const faqs: { q: string; a: string }[] = [
   },
   {
     q: 'How exactly does the subscription work?',
-    a: 'You choose your favourite products and the order is placed automatically every week. On the ordering day you get a reminder at midday and can make changes or pause until 20:00. The order is then placed, and you still have until 22:00 to cancel it. After that your bread is baked fresh for you.',
+    a: 'You choose your favourite products and the order is placed automatically every week. On the ordering day you get a reminder at midday and can make changes or pause until 20:00. At 20:00 the order is placed and your saved card is charged. You can still cancel it until 22:00. After that your bread is baked fresh for you.',
   },
   {
     q: 'Can I pause my subscription?',

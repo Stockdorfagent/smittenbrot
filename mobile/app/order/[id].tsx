@@ -191,9 +191,10 @@ export default function OrderDetailScreen() {
   const cancelCutoff = new Date(order.fulfillment_date + 'T22:00:00');
   cancelCutoff.setDate(cancelCutoff.getDate() - 2);
 
+  // Subscription orders too: since 05.10.2026 they are created paid at 20:00
+  // and cancel (refund) like any other order until the cutoff.
   const canCancel =
     isOwnOrder &&
-    order.order_type === 'one_time' &&
     order.payment_status === 'paid' &&
     new Date() <= cancelCutoff &&
     !['cancelled', 'refunded', 'fulfilled', 'locked_for_production'].includes(order.status);

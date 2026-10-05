@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
 import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
-import { localDateISO } from '@/lib/pickup';
+import { localDateISO, nextSubscriptionRun } from '@/lib/pickup';
 import { collectPaymentMethod } from '@/lib/stripeSetup';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
@@ -132,8 +132,9 @@ export default function SubscriptionsScreen() {
     // and toISOString() would be the UTC date, i.e. yesterday for a pick made
     // shortly after midnight.
     const resumeDate = localDateISO(pauseDate);
-    // The engine also removes any not-yet-charged upcoming order so the paused
-    // week isn't charged.
+    // Paused before 20:00 on the order day = that week is not placed or
+    // charged. An order already placed (and paid) at 20:00 stays and can be
+    // cancelled separately until 22:00.
     const { error } = await supabase.functions.invoke('subscription-engine/pause', {
       body: { subscription_id: subId, resume_date: resumeDate },
     });
@@ -143,7 +144,7 @@ export default function SubscriptionsScreen() {
   };
 
   const handleResume = async (subId: string) => {
-    // The engine also regenerates the upcoming order if still before its cutoff.
+    // No order is created now; the next 20:00 run places and pays it.
     const { error } = await supabase.functions.invoke('subscription-engine/resume', {
       body: { subscription_id: subId },
     });
@@ -304,6 +305,11 @@ export default function SubscriptionsScreen() {
               <Text style={styles.subLocation}>
                 {DAY_LABELS[sub.pickup_day] ?? ''} · Abholung: {sub.pickup_location?.name}
               </Text>
+              {sub.status === 'active' && (
+                <Text style={styles.subNextRun}>
+                  Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day).label}
+                </Text>
+              )}
 
               {sub.status === 'active' && (
                 <View style={styles.actionRow}>
@@ -467,6 +473,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: colors.textLight,
     marginTop: theme.spacing.sm,
+  },
+  subNextRun: {
+    fontSize: theme.fontSize.sm,
+    color: colors.textLight,
+    marginTop: theme.spacing.xs,
   },
   actionRow: {
     flexDirection: 'row',

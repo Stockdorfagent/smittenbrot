@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
-import { berlinDatePlusDays, berlinTodayISO } from '@/lib/pickup';
+import { berlinDatePlusDays, berlinTodayISO, nextSubscriptionRun } from '@/lib/pickup';
 import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
 import AboExplainer, { ReminderHint } from '@/components/AboExplainer';
@@ -397,6 +397,13 @@ export default function SubscriptionsPage() {
                 {sub.pickup_locations && (
                   <p className="mt-2 text-xs text-smitten-text/40">
                     Abholung: {sub.pickup_locations.name}
+                  </p>
+                )}
+
+                {/* When the next order is placed and paid (nothing exists before 20:00) */}
+                {sub.status === 'active' && (
+                  <p className="mt-1 text-xs text-smitten-text/60">
+                    Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day).label}
                   </p>
                 )}
 

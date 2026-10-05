@@ -282,29 +282,24 @@ export default function SubscriptionCreateScreen() {
         return;
       }
 
-      // 2. Generate the concrete order for the next pickup right away so it
-      //    shows up immediately (reserves capacity, changeable until the 22:00
-      //    cutoff, charged then). Best-effort — the weekly cron is the backstop.
-      try {
-        await supabase.functions.invoke('subscription-engine/process-single-subscription', {
-          body: { subscription_id: sub.id },
-        });
-      } catch {
-        /* ignore — the scheduled run will generate it */
-      }
-
-      Alert.alert('Dauerbestellung eingerichtet', 'Deine Dauerbestellung ist aktiv. Deine erste Bestellung ist bereits vorgemerkt.', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Finished: the next "Neues Abo" must start from the beginning.
-            // Leaving mid-way and coming back still resumes — that is wanted —
-            // but a completed one must not linger.
-            resetWizard();
-            router.back();
+      // No order is created now: the engine places AND charges it at 20:00
+      // on the order day (Mon for Wed, Thu for Sat). No payment, no order.
+      Alert.alert(
+        'Dauerbestellung eingerichtet',
+        'Deine Dauerbestellung ist aktiv. Am Bestelltag um 20:00 Uhr wird deine erste Bestellung automatisch aufgegeben und bezahlt.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Finished: the next "Neues Abo" must start from the beginning.
+              // Leaving mid-way and coming back still resumes — that is wanted —
+              // but a completed one must not linger.
+              resetWizard();
+              router.back();
+            },
           },
-        },
-      ]);
+        ],
+      );
     } finally {
       setLoading(false);
     }

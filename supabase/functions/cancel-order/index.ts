@@ -110,13 +110,10 @@ serve(async (req: Request): Promise<Response> => {
     return json({ error: "Nicht autorisiert." }, 403);
   }
 
-  // ── Only paid one-time orders can be self-cancelled here ──
-  if (order.order_type !== "one_time") {
-    return json(
-      { error: "Abo-Bestellungen verwaltest du in deinen Abonnements." },
-      400,
-    );
-  }
+  // ── Any PAID order can be self-cancelled until the cutoff. Since
+  //    05.10.2026 a subscription order is created already paid at 20:00 and
+  //    is an ordinary order from then on; the subscription itself is not
+  //    touched by cancelling one week's order. ──
   if (order.status === "cancelled" || order.status === "refunded") {
     return json({ error: "Bestellung wurde bereits storniert." }, 400);
   }

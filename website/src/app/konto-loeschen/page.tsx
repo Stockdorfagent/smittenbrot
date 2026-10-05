@@ -33,7 +33,7 @@ export default function KontoLoeschenPage() {
         <li>Deine Kontodaten (Name, E-Mail-Adresse, Telefonnummer)</li>
         <li>Deine gespeicherte Zahlungsmethode (bei unserem Zahlungsdienstleister Stripe)</li>
         <li>Deine Abonnements</li>
-        <li>Vorgemerkte Bestellungen, die noch nicht abgerechnet wurden</li>
+        <li>Noch nicht bezahlte Bestellvorgänge (z. B. abgebrochene Zahlungen)</li>
       </ul>
 
       <h2 className="mt-8 text-lg font-semibold text-smitten-text">Welche Daten wir aufbewahren</h2>

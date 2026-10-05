@@ -47,11 +47,11 @@ const NOTIFICATION_LINK_SINCE = '2026-08-26';
 /**
  * Guard against ticking off an order that is not ready to be ticked off.
  *
- * Marking an order fulfilled removes it from the 22:00 charge run, which only
- * looks at `scheduled` and `grace_period_open`. So doing it to an unpaid order
- * means that order will never be charged — quietly, with no error anywhere.
- * It has already happened once, to a subscription order announced seven days
- * before its pickup date.
+ * Since 05.10.2026 a subscription order is created paid at 20:00, so an
+ * unpaid row is an abandoned checkout or an import. Marking it fulfilled
+ * means handing over bread that was never paid — quietly, with no error
+ * anywhere. It happened once under the old flow, to a subscription order
+ * announced seven days before its pickup date.
  *
  * Unpaid is a hard stop for the notification button (also enforced server-side)
  * and a loud confirmation for the silent one, because handing over unpaid bread

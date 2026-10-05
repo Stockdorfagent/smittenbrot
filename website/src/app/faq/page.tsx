@@ -38,7 +38,7 @@ export default function FAQPage() {
     },
     {
       q: 'Wie funktioniert das Abo genau?',
-      a: 'Du legst deine Lieblingsprodukte fest und deine Bestellung wird jede Woche automatisch aufgegeben. Am Bestelltag bekommst du mittags eine Erinnerung und kannst bis 20:00 Uhr Änderungen vornehmen oder dein Abo pausieren. Danach wird die Bestellung ausgelöst und du hast noch bis 22:00 Uhr Zeit für eine Stornierung. Anschließend wird dein Brot frisch für dich gebacken.',
+      a: 'Du legst deine Lieblingsprodukte fest und deine Bestellung wird jede Woche automatisch aufgegeben. Am Bestelltag bekommst du mittags eine Erinnerung und kannst bis 20:00 Uhr Änderungen vornehmen oder dein Abo pausieren. Um 20:00 Uhr wird die Bestellung aufgegeben und der Betrag von deiner hinterlegten Karte abgebucht. Stornieren kannst du sie noch bis 22:00 Uhr. Anschließend wird dein Brot frisch für dich gebacken.',
     },
     {
       q: 'Kann ich mein Abo pausieren?',

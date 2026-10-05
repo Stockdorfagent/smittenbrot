@@ -828,9 +828,10 @@ const NOTIFICATION_TEMPLATES: Record<
 > = {
   subscription_reminder: (d) => {
     const text =
-      `Dein Smittenbrot-Abo wird heute um 20:00 Uhr als Bestellung` +
-      `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben. ` +
-      `Änderungen oder Stornierung sind bis 22:00 Uhr möglich.`;
+      `Deine Smittenbrot-Dauerbestellung wird heute um 20:00 Uhr als Bestellung` +
+      `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben ` +
+      `und der Betrag von deiner hinterlegten Karte abgebucht. ` +
+      `Änderungen oder eine Pause sind bis 20:00 Uhr möglich, eine Stornierung bis 22:00 Uhr.`;
     // This week's items (already A/B-filtered by the engine) so the customer
     // knows exactly what's coming — important for bi-weekly breads.
     const list = Array.isArray(d.items) ? (d.items as { name: string; quantity: number }[]) : [];
@@ -855,7 +856,7 @@ const NOTIFICATION_TEMPLATES: Record<
       ? ` Diese Woche dabei: ${list.map((i) => `${i.quantity}x ${i.name}`).join(", ")}.`
       : "";
     return {
-      title: "Deine Abo-Bestellung wird heute Abend aufgegeben",
+      title: "Deine Dauerbestellung wird heute um 20:00 Uhr aufgegeben",
       body: `${text}${itemsText}`,
       html: `<p style="margin:0">${text}</p>${itemsHtml}${unsub}`,
     };
@@ -891,17 +892,19 @@ const NOTIFICATION_TEMPLATES: Record<
         `</div>`,
     };
   },
+  // Push only (the Bestellbestätigung e-mail is the written confirmation).
   order_placed: (d) => ({
-    title: "Deine Abo-Bestellung wurde aufgegeben",
+    title: "Deine Bestellung wurde aufgegeben",
     body:
       `Deine Bestellung${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} ` +
-      `wurde aufgegeben. Du kannst sie bis 22:00 Uhr noch ändern oder stornieren.`,
+      `wurde aufgegeben und bezahlt. Stornieren kannst du sie noch bis 22:00 Uhr.`,
   }),
-  payment_failed: () => ({
+  payment_failed: (d) => ({
     title: "Zahlung fehlgeschlagen",
     body:
-      "Die Zahlung für deine Smittenbrot-Bestellung ist fehlgeschlagen. " +
-      "Bitte aktualisiere deine Zahlungsmethode in der App.",
+      `Die Zahlung für deine Smittenbrot-Dauerbestellung${d.fulfillment_date ? ` (Abholung ${formatDe(d.fulfillment_date)})` : ""} ` +
+      `ist fehlgeschlagen, deshalb wurde keine Bestellung aufgegeben. ` +
+      `Bitte hinterlege eine neue Zahlungsmethode und setze deine Dauerbestellung fort.`,
   }),
   subscription_cancelled: () => ({
     title: "Abonnement gekündigt",

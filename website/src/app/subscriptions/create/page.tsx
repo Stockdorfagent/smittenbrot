@@ -252,7 +252,7 @@ function SubscriptionCreateForm() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-2xl text-green-600">✓</div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Abo eingerichtet!</h1>
         <p className="mt-2 text-smitten-text">
-          Dein Abo ist aktiv. Du bekommst vor jedem Bestelltag eine Erinnerung.
+          Dein Abo ist aktiv. Am Bestelltag um 20:00 Uhr wird deine erste Bestellung automatisch aufgegeben und bezahlt. Mittags bekommst du vorher eine Erinnerung.
         </p>
         <Link href="/subscriptions" className="mt-6 inline-block bg-smitten-accent text-smitten-on-accent px-6 py-2 rounded-full text-sm">
           Zu meinen Abos

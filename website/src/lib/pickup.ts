@@ -158,3 +158,51 @@ export function isProductAvailableOn(p: ProductDayAvailability, pickup: NextPick
   if (p.cycle === 'week_b' && weekForPickup !== 'B') return false;
   return true;
 }
+
+/**
+ * When a Dauerbestellung will next be placed. Since 05.10.2026 the engine
+ * places AND charges a subscription order at 20:00 on the order day (Monday
+ * for Wednesday, Thursday for Saturday); nothing exists before that moment.
+ * This names the next such moment for the customer: the first order day
+ * (for the subscription's pickup weekday(s)) whose 20:00 is still ahead.
+ * Europe/Berlin, like everything else here.
+ */
+export interface NextSubscriptionRun {
+  orderDate: string;   // YYYY-MM-DD of the order day (Mon/Thu)
+  pickupDate: string;  // YYYY-MM-DD of the pickup (Wed/Sat)
+  label: string;       // e.g. "Montag, 05.10. um 20:00 Uhr · Abholung Mittwoch, 07.10."
+}
+
+export function nextSubscriptionRun(
+  pickupDay: 'wednesday' | 'saturday' | 'both' | null | undefined,
+  now: Date = new Date(),
+): NextSubscriptionRun {
+  const b = berlinNow(now);
+  const wantWed = pickupDay !== 'saturday';
+  const wantSat = pickupDay === 'saturday' || pickupDay === 'both';
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fmt = (d: Date) =>
+    `${d.toLocaleDateString('de-DE', { weekday: 'long' })}, ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+
+  let first: { order: Date; pickup: Date } | null = null;
+  for (let i = 0; i < 21 && !first; i++) {
+    const pickup = new Date(b);
+    pickup.setHours(0, 0, 0, 0);
+    pickup.setDate(b.getDate() + i);
+    const dow = pickup.getDay();
+    if (!((dow === 3 && wantWed) || (dow === 6 && wantSat))) continue;
+    const order = new Date(pickup);
+    order.setDate(pickup.getDate() - 2);
+    order.setHours(20, 0, 0, 0);
+    if (b < order) first = { order, pickup };
+  }
+  // 21 days always contain a matching weekday; the fallback only satisfies the type.
+  const chosen = first ?? { order: b, pickup: b };
+  const sameDay = iso(chosen.order) === iso(b);
+  return {
+    orderDate: iso(chosen.order),
+    pickupDate: iso(chosen.pickup),
+    label: `${sameDay ? 'heute' : fmt(chosen.order)} um 20:00 Uhr · Abholung ${fmt(chosen.pickup)}`,
+  };
+}

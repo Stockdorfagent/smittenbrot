@@ -14,9 +14,9 @@ function getSupabaseAdmin() {
  *
  * Both of these used to be direct browser writes into `orders`:
  *
- * - mark_fulfilled ("Nur abhaken") takes the order out of the 22:00 charge
- *   run, which only picks up `scheduled`/`grace_period_open` — doing it to an
- *   unpaid order silently forfeits the money. It has happened once (see
+ * - mark_fulfilled ("Nur abhaken") on an UNPAID order forfeits the money
+ *   silently (since 05.10.2026 subscription orders are born paid at 20:00,
+ *   so an unpaid row is an abandoned checkout or an import). It has happened once (see
  *   /api/send-pickup-notification). The loud warning lives in the client;
  *   the HARD rule lives here: unpaid needs the explicit allow_unpaid flag,
  *   because handing over unpaid bread legitimately happens (cash, imports).

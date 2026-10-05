@@ -3,8 +3,9 @@
 // ============================================================
 // Processes the weekly subscription schedule:
 //   - Monday/Thursday 12:00: Send subscription reminders
-//   - Monday/Thursday 20:00: Auto-place subscription orders
-//   - Monday/Thursday 22:00: Lock orders and charge payments
+//   - Monday/Thursday 20:00: Place subscription orders = charge the saved
+//                            card; an order exists only once it is paid
+//   - Monday/Thursday 22:00: Bestellschluss — lock paid orders for production
 //   - Monday/Thursday 22:00: Process cancellations
 //
 // Time zone: Europe/Berlin
@@ -491,7 +492,7 @@ async function getOrCreateStripeCustomer(
 
 /**
  * Get the default payment method for a Stripe customer.
- * Returns the first attached card/billing payment method, or null.
+ * Returns the first attached card, or null.
  */
 async function getDefaultPaymentMethod(
   stripeCustomerId: string,
@@ -507,17 +508,8 @@ async function getDefaultPaymentMethod(
       return paymentMethods.data[0];
     }
 
-    // Also check SEPA debit payment methods
-    const sepaMethods = await stripe.paymentMethods.list({
-      customer: stripeCustomerId,
-      type: "sepa_debit",
-      limit: 1,
-    });
-
-    if (sepaMethods.data.length > 0) {
-      return sepaMethods.data[0];
-    }
-
+    // Cards only: they settle synchronously, so "charged" is known at 20:00.
+    // (sepa_debit is not enabled on the live account anyway.)
     return null;
   } catch (err) {
     console.error(
@@ -773,36 +765,265 @@ async function processOrderReminders(dayOverride?: string): Promise<{
 }
 
 /**
+ * This week's basket of ONE subscription, reduced to what is actually baked
+ * for `fulfillmentDate`: available on that weekday, matching the A/B cycle,
+ * subscribable and still active. Shared by the 20:00 placement, the noon
+ * reminder's "Diese Woche dabei" and the client preview so all three agree.
+ */
+type DraftItem = {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_price_cents: number;
+};
+
+async function buildSubscriptionDraft(
+  subscriptionId: string,
+  fulfillmentDate: string,
+  currentWeek: "A" | "B",
+): Promise<{ items: DraftItem[]; totalCents: number; error: string | null }> {
+  const pickupDayColumn = availabilityColumnForDate(fulfillmentDate);
+  const { data: rows, error } = await supabase
+    .from("subscription_items")
+    .select(`
+      quantity,
+      products!inner (
+        id,
+        name,
+        price_cents,
+        cycle,
+        subscribable,
+        active,
+        ${pickupDayColumn}
+      )
+    `)
+    .eq("subscription_id", subscriptionId);
+  if (error) return { items: [], totalCents: 0, error: error.message };
+
+  const items: DraftItem[] = [];
+  for (const row of rows ?? []) {
+    const p = row.products as unknown as {
+      id: string;
+      name: string;
+      price_cents: number;
+      cycle: string;
+      subscribable: boolean;
+      active: boolean;
+      [key: string]: unknown;
+    };
+    if (!p[pickupDayColumn]) continue;
+    if (p.subscribable === false) continue;
+    if (p.active === false) continue;
+    if (p.cycle === "hidden") continue;
+    if (p.cycle === "week_a" && currentWeek !== "A") continue;
+    if (p.cycle === "week_b" && currentWeek !== "B") continue;
+    items.push({
+      product_id: p.id,
+      name: p.name,
+      quantity: row.quantity as number,
+      unit_price_cents: p.price_cents,
+    });
+  }
+  const totalCents = items.reduce((sum, i) => sum + i.unit_price_cents * i.quantity, 0);
+  return { items, totalCents, error: null };
+}
+
+/**
+ * Bestellbestätigung for a PAID order — the same e-mail a one-time checkout
+ * produces. Re-reads the order so the number/invoice/net/VAT assigned by the
+ * triggers on the paid transition are what the customer sees.
+ */
+async function sendOrderReceipt(
+  orderId: string,
+  customer: { id: string; email: string; name: string },
+): Promise<void> {
+  const { data: paidOrder } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("id", orderId)
+    .single();
+  if (!paidOrder) {
+    await logReceiptOutcome(customer.id, { id: orderId }, false, "order not found for receipt");
+    return;
+  }
+  try {
+    const invoiceNumber = (paidOrder.invoice_number as string) ||
+      orderId.substring(0, 8).toUpperCase();
+    const { data: receiptItems } = await supabase
+      .from("order_items")
+      .select("quantity, unit_price_cents, product:product_id(name)")
+      .eq("order_id", orderId);
+    const items = (receiptItems ?? []).map((it: Record<string, unknown>) => ({
+      quantity: it.quantity as number,
+      unit_price_cents: it.unit_price_cents as number,
+      name: ((it.product as { name?: string } | null)?.name) ?? "Produkt",
+    }));
+    const fulfillmentDate = paidOrder.fulfillment_date as string;
+    const { data: pickupLoc } = paidOrder.pickup_location_id
+      ? await supabase.from("pickup_locations").select("name, address, pickup_instructions").eq("id", paidOrder.pickup_location_id as string).single()
+      : { data: null };
+    const pickupInstructions = (pickupLoc?.pickup_instructions as string) ||
+      "Deine Bestellnummer steht auf der Verpackung deiner Bestellung.";
+    const pickupName = pickupLoc ? `${pickupLoc.name} (${pickupLoc.address})` : "Abholort";
+
+    const html = buildReceiptHtml(paidOrder, customer, items, invoiceNumber, fulfillmentDate, pickupInstructions, pickupName);
+    const brevoKey = Deno.env.get("BREVO_API_KEY") ?? "";
+    if (!brevoKey) {
+      console.error("[subscription-engine] BREVO_API_KEY not configured — cannot send receipt.");
+      await logReceiptOutcome(customer.id, paidOrder, false, "BREVO_API_KEY not configured");
+      return;
+    }
+    const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": brevoKey,
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { email: "info@smittenbrot.de", name: "Smittenbrot" },
+        to: [{ email: customer.email }],
+        subject: `Deine Smittenbrot Bestellbestätigung ${(paidOrder.order_number as string) || invoiceNumber}`,
+        htmlContent: html,
+      }),
+    });
+    if (resp.ok) {
+      console.log(`[subscription-engine] Receipt sent to ${customer.email} for order ${orderId}`);
+      await logReceiptOutcome(customer.id, paidOrder, true);
+    } else {
+      const body = await resp.text();
+      console.warn(`[subscription-engine] Failed to send receipt: ${body}`);
+      await logReceiptOutcome(customer.id, paidOrder, false, `Brevo ${resp.status}: ${body.slice(0, 300)}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[subscription-engine] Receipt sending error for order ${orderId}:`, err);
+    await logReceiptOutcome(customer.id, paidOrder, false, msg);
+  }
+}
+
+/** Mirror of stripe-webhook's paymentMethodOf: "card", "card/apple_pay", … */
+async function paymentMethodLabel(pi: Stripe.PaymentIntent): Promise<string | null> {
+  try {
+    const lc = pi.latest_charge;
+    if (!lc) return null;
+    const charge = typeof lc === "string" ? await stripe.charges.retrieve(lc) : lc;
+    const pmd = charge.payment_method_details;
+    if (!pmd?.type) return null;
+    const wallet = pmd.type === "card" ? pmd.card?.wallet?.type : undefined;
+    return wallet ? `${pmd.type}/${wallet}` : pmd.type;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Charge a subscription's saved card off-session. Returns the PaymentIntent
+ * on success, otherwise the reason — a declined card throws a StripeCardError
+ * which is caught here, so callers only ever branch on `ok`.
+ *
+ * Only `succeeded` counts. Cards settle synchronously; anything else
+ * (requires_action, processing, …) is NOT a payment and must not become an
+ * order.
+ */
+async function chargeSubscriptionAmount(
+  customer: { id: string; email: string; name: string; stripe_customer_id?: string | null },
+  amountCents: number,
+  idempotencyKey: string,
+  metadata: Record<string, string>,
+): Promise<{ ok: true; pi: Stripe.PaymentIntent } | { ok: false; reason: string; piId: string | null }> {
+  let stripeCustomer: Stripe.Customer | null = null;
+  if (customer.stripe_customer_id) {
+    try {
+      const c = await stripe.customers.retrieve(customer.stripe_customer_id);
+      if (!("deleted" in c && c.deleted)) stripeCustomer = c as Stripe.Customer;
+    } catch { /* fall through to the e-mail lookup */ }
+  }
+  if (!stripeCustomer) {
+    stripeCustomer = await getOrCreateStripeCustomer(customer.id, customer.email, customer.name);
+  }
+  if (!stripeCustomer) {
+    return { ok: false, reason: "Stripe-Kunde konnte nicht ermittelt werden", piId: null };
+  }
+  const paymentMethod = await getDefaultPaymentMethod(stripeCustomer.id);
+  if (!paymentMethod) {
+    return { ok: false, reason: "Keine gespeicherte Zahlungsmethode", piId: null };
+  }
+
+  try {
+    const pi = await stripe.paymentIntents.create(
+      {
+        amount: amountCents,
+        currency: "eur",
+        customer: stripeCustomer.id,
+        payment_method: paymentMethod.id,
+        off_session: true,
+        confirm: true,
+        description: `Smittenbrot Dauerbestellung — Abholung ${metadata.fulfillment_date ?? ""}`.trim(),
+        metadata,
+      },
+      { idempotencyKey },
+    );
+    if (pi.status === "succeeded") return { ok: true, pi };
+    const reason = pi.last_payment_error?.message ?? `Zahlung nicht abgeschlossen (${pi.status})`;
+    return { ok: false, reason, piId: pi.id };
+  } catch (err) {
+    // Stripe surfaces a decline as an exception carrying the failed PI.
+    const e = err as { message?: string; raw?: { payment_intent?: { id?: string } }; payment_intent?: { id?: string } };
+    const piId = e.payment_intent?.id ?? e.raw?.payment_intent?.id ?? null;
+    return { ok: false, reason: e.message ?? String(err), piId };
+  }
+}
+
+/**
  * 2. process_8pm_order_placement()
  *
- * Called at Monday/Thursday 20:00.
- * For each active subscription:
- *   - Check if the week cycle matches (skip Week A products in B weeks, etc.)
- *   - Create order + order_items from subscription_items
- *   - Set order status = 'grace_period_open', payment_status = 'pending'
- *   - Send notification that order was placed
- *   - Set subscription next_processing_at (if applicable)
+ * Called at Monday/Thursday 20:00. Owner's rule (05.10.2026): placing an
+ * order IS paying for it — there is no order without a successful payment,
+ * and the card is charged at 20:00, not at 22:00.
+ *
+ * For every active subscription of this run's pickup day:
+ *   1. build this week's basket (day availability, A/B cycle)
+ *   2. charge the saved card for the total
+ *   3. ONLY if the charge succeeded: insert the order as paid (number +
+ *      invoice via trigger), send the Bestellbestätigung, push "aufgegeben"
+ *   4. if the charge failed: no order at all; the subscription goes to
+ *      payment_failed and customer + admin are told
+ *
+ * From here on the row is an ordinary paid order: the customer may cancel it
+ * (refund) until the 22:00 cutoff, after which process10pmLock locks it for
+ * production. Nothing is pre-booked before 20:00 any more.
+ *
+ * `dryRun` (forced runs only) computes and reports the plan without charging,
+ * inserting or notifying.
  */
-async function process8pmOrderPlacement(): Promise<{
+async function process8pmOrderPlacement(options?: {
+  dryRun?: boolean;
+  dayOverride?: "wednesday" | "saturday";
+}): Promise<{
+  fulfillmentDate: string;
+  week: "A" | "B";
   ordersCreated: number;
+  paymentsFailed: number;
   skippedSubscriptions: number;
   errors: string[];
+  dryRun?: boolean;
+  plan?: unknown[];
 }> {
-  const fulfillmentDate = getNextFulfillmentDate();
+  const dryRun = options?.dryRun === true;
   const dow = currentDayOfWeek();
-  // Monday → Wednesday pickup: check available_wed
-  // Thursday → Saturday pickup: check available_sat
-  const pickupDayColumn = dow === 1 ? "available_wed" : "available_sat";
-
-  // Get current week type (A or B)
+  const runDay: "wednesday" | "saturday" =
+    options?.dayOverride ?? (dow === 1 ? "wednesday" : "saturday");
+  const fulfillmentDate = options?.dayOverride
+    ? getNextDateForPickupDay(options.dayOverride)
+    : getNextFulfillmentDate();
   const currentWeek = await getCurrentWeekType();
 
   console.log(
     `[subscription-engine] process8pmOrderPlacement: ` +
-      `fulfillmentDate=${fulfillmentDate}, week=${currentWeek}, pickupDay=${pickupDayColumn}`,
+      `fulfillmentDate=${fulfillmentDate}, week=${currentWeek}, day=${runDay}${dryRun ? " (DRY RUN)" : ""}`,
   );
 
-  // Get all active subscriptions (not paused, not cancelled)
   const { data: subscriptions, error: subError } = await supabase
     .from("subscriptions")
     .select(`
@@ -814,165 +1035,167 @@ async function process8pmOrderPlacement(): Promise<{
         email,
         name,
         push_token,
-        reminder_email,
-        unsubscribe_token
+        stripe_customer_id
       )
     `)
     .eq("status", "active")
     // A "both" Abo runs on Wednesday AND Saturday, so it belongs to both runs.
-    .in("pickup_day", [dow === 1 ? "wednesday" : "saturday", "both"])
-    .or(`paused_until.is.null,paused_until.lt.${todayInTz()}`);
+    .in("pickup_day", [runDay, "both"])
+    .or(`paused_until.is.null,paused_until.lt.${fulfillmentDate}`);
 
+  const empty = {
+    fulfillmentDate,
+    week: currentWeek,
+    ordersCreated: 0,
+    paymentsFailed: 0,
+    skippedSubscriptions: 0,
+    errors: [] as string[],
+  };
   if (subError) {
-    console.error(
-      "[subscription-engine] Failed to fetch subscriptions for order placement:",
-      subError,
-    );
-    return { ordersCreated: 0, skippedSubscriptions: 0, errors: [subError.message] };
+    console.error("[subscription-engine] Failed to fetch subscriptions for order placement:", subError);
+    return { ...empty, errors: [subError.message] };
   }
-
   if (!subscriptions || subscriptions.length === 0) {
     console.log("[subscription-engine] No subscriptions to process for order placement.");
-    return { ordersCreated: 0, skippedSubscriptions: 0, errors: [] };
+    return dryRun ? { ...empty, dryRun, plan: [] } : empty;
   }
 
   let ordersCreated = 0;
+  let paymentsFailed = 0;
   let skippedSubscriptions = 0;
   const errors: string[] = [];
+  const plan: unknown[] = [];
 
   for (const sub of subscriptions) {
+    const customer = sub.customers as unknown as {
+      id: string;
+      email: string;
+      name: string;
+      push_token: string | null;
+      stripe_customer_id: string | null;
+    };
     try {
-      const customer = sub.customers as unknown as {
-        id: string;
-        email: string;
-        name: string;
-        push_token: string | null;
-      };
-
-      // Check for existing order with the same subscription + fulfillment date (idempotency)
+      // ── Idempotency: one order per subscription and pickup date ──
       const idempotencyKey = `sub_${sub.id}_${fulfillmentDate}`;
       const { data: existingOrder } = await supabase
         .from("orders")
-        .select("id")
+        .select("id, payment_status, status")
         .eq("idempotency_key", idempotencyKey)
         .maybeSingle();
 
       if (existingOrder) {
-        // The order was pre-created (subscribe / resume / edit) as Vorgemerkt.
-        // It IS being placed for this week now, so send the "order placed"
-        // email on schedule (the pre-create path deliberately stays silent).
-        // The 22:00 lock charges it like any other pending order.
-        console.log(
-          `[subscription-engine] Order already exists for subscription ${sub.id} on ${fulfillmentDate}. Sending placed notification.`,
-        );
-        await dispatchNotification(
-          customer.id,
-          "order_placed",
-          customer.push_token ? "both" : "email",
-          // order_id rides along purely so tapping the push opens THIS order
-          // instead of the start page.
-          { fulfillment_date: fulfillmentDate, order_id: existingOrder.id },
-        );
-        skippedSubscriptions++;
-        continue;
-      }
-
-      // Fetch subscription items with product details
-      const { data: items, error: itemsError } = await supabase
-        .from("subscription_items")
-        .select(`
-          id,
-          product_id,
-          quantity,
-          products!inner (
-            id,
-            name,
-            price_cents,
-            cycle,
-            subscribable,
-            ${pickupDayColumn}
-          )
-        `)
-        .eq("subscription_id", sub.id);
-
-      if (itemsError) {
-        errors.push(
-          `Subscription ${sub.id}: failed to fetch items — ${itemsError.message}`,
-        );
-        console.error(
-          `[subscription-engine] Error fetching items for subscription ${sub.id}:`,
-          itemsError,
-        );
-        continue;
-      }
-
-      if (!items || items.length === 0) {
-        console.log(
-          `[subscription-engine] Subscription ${sub.id} has no items. Skipping.`,
-        );
-        skippedSubscriptions++;
-        continue;
-      }
-
-      // Filter items: only include products that are:
-      // 1. Available on the pickup day (available_wed / available_sat)
-      // 2. Match the current week cycle (permanent always, week_a only in A, week_b only in B)
-      const validItems = items.filter((item) => {
-        const product = item.products as unknown as {
-          id: string;
-          name: string;
-          price_cents: number;
-          cycle: string;
-          [key: string]: unknown;
-        };
-
-        // Check pickup day availability
-        const availableForDay = product[pickupDayColumn];
-        if (!availableForDay) {
+        if (existingOrder.payment_status === "paid" ||
+            existingOrder.status === "cancelled" || existingOrder.status === "refunded" ||
+            existingOrder.status === "locked_for_production" || existingOrder.status === "fulfilled") {
+          // Already placed and paid (a re-run), or placed and cancelled by the
+          // customer — either way this week is settled.
           console.log(
-            `[subscription-engine] Product ${product.id} not available for ${pickupDayColumn}. Skipping.`,
+            `[subscription-engine] Subscription ${sub.id}: order ${existingOrder.id} already exists for ${fulfillmentDate} (${existingOrder.status}/${existingOrder.payment_status}). Skipping.`,
           );
-          return false;
+          skippedSubscriptions++;
+          plan.push({ subscription_id: sub.id, email: customer.email, action: "skip_existing", order_id: existingOrder.id });
+          continue;
         }
+        // An UNPAID leftover (pre-booked by the retired flow). It is not an
+        // order in the owner's sense; drop it and place properly below.
+        if (!dryRun) {
+          await supabase.from("order_items").delete().eq("order_id", existingOrder.id);
+          await supabase.from("orders").delete().eq("id", existingOrder.id);
+          console.log(`[subscription-engine] Removed unpaid leftover order ${existingOrder.id} for subscription ${sub.id}.`);
+        }
+      }
 
-        // Seasonal/temporary products can't be part of a subscription
-        if (product.subscribable === false) {
-          return false;
-        }
-
-        // Check week cycle
-        if (product.cycle === "hidden") {
-          return false;
-        }
-        if (product.cycle === "week_a" && currentWeek !== "A") {
-          return false;
-        }
-        if (product.cycle === "week_b" && currentWeek !== "B") {
-          return false;
-        }
-        // 'permanent' is always included
-
-        return true;
-      });
-
-      if (validItems.length === 0) {
-        console.log(
-          `[subscription-engine] Subscription ${sub.id}: no valid items for this week/day. Skipping.`,
-        );
+      // ── This week's basket ──
+      const draft = await buildSubscriptionDraft(sub.id, fulfillmentDate, currentWeek);
+      if (draft.error) {
+        errors.push(`Subscription ${sub.id}: failed to fetch items — ${draft.error}`);
+        continue;
+      }
+      if (draft.items.length === 0) {
+        console.log(`[subscription-engine] Subscription ${sub.id}: nothing from the basket is baked this week/day. Skipping.`);
         skippedSubscriptions++;
+        plan.push({ subscription_id: sub.id, email: customer.email, action: "skip_no_items" });
         continue;
       }
 
-      // Calculate total_cents
-      const totalCents = validItems.reduce((sum, item) => {
-        const product = item.products as unknown as { price_cents: number };
-        return sum + product.price_cents * item.quantity;
-      }, 0);
+      if (dryRun) {
+        plan.push({
+          subscription_id: sub.id,
+          email: customer.email,
+          action: "charge_and_place",
+          total_cents: draft.totalCents,
+          items: draft.items.map((i) => `${i.quantity}× ${i.name}`),
+        });
+        continue;
+      }
 
-      // Create the order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
+      // ── Charge FIRST. The order id is fixed up front and travels in the
+      //    PaymentIntent metadata, so a charge can always be traced back to
+      //    the order it paid for even if the insert below should fail. ──
+      const orderId = crypto.randomUUID();
+      const charge = await chargeSubscriptionAmount(
+        customer,
+        draft.totalCents,
+        `sub_place_${sub.id}_${fulfillmentDate}`,
+        {
+          order_id: orderId,
+          order_type: "subscription",
+          subscription_id: sub.id,
+          fulfillment_date: fulfillmentDate,
+          idempotency_key: idempotencyKey,
+        },
+      );
+
+      if (!charge.ok) {
+        // No payment → no order. The subscription stops until the customer
+        // saves a working card and resumes it.
+        paymentsFailed++;
+        console.error(`[subscription-engine] Payment failed for subscription ${sub.id}: ${charge.reason}`);
+
+        const { error: subFailError } = await supabase
+          .from("subscriptions")
+          .update({ status: "payment_failed", updated_at: new Date().toISOString() })
+          .eq("id", sub.id);
+        if (subFailError) {
+          console.error(`[subscription-engine] Failed to mark subscription ${sub.id} as payment_failed:`, subFailError);
+        }
+
+        await dispatchNotification(customer.id, "payment_failed", "both", {
+          subscription_id: sub.id,
+          fulfillment_date: fulfillmentDate,
+        });
+        await dispatchNotification(null, "admin_alert", "both", {
+          category: "payment_failed",
+          message:
+            `Abo-Zahlung fehlgeschlagen${customer.name ? ` (${customer.name})` : ""}` +
+            ` für ${fulfillmentDate}, ${eur(draft.totalCents)}: ${charge.reason}. Keine Bestellung angelegt.`,
+        });
+        await logAudit(
+          "subscription_payment_failed",
+          "subscription",
+          sub.id,
+          { status: "active" },
+          {
+            status: "payment_failed",
+            fulfillment_date: fulfillmentDate,
+            total_cents: draft.totalCents,
+            error: charge.reason,
+            stripe_payment_intent_id: charge.piId,
+          },
+        );
+        errors.push(`Subscription ${sub.id}: payment failed — ${charge.reason}`);
+        continue;
+      }
+
+      // ── Paid. Now, and only now, the order exists. ──
+      // Inserted as pending and flipped to paid in a second write so the
+      // numbering trigger (BEFORE UPDATE, migration 007) assigns
+      // order_number + invoice_number exactly as for a checkout order. The
+      // PaymentIntent id is set in that same flip, so the stripe-webhook
+      // cannot find a half-written order under this PI.
+      const insertOrder = () =>
+        supabase.from("orders").insert({
+          id: orderId,
           customer_id: customer.id,
           order_type: "subscription",
           subscription_id: sub.id,
@@ -980,500 +1203,189 @@ async function process8pmOrderPlacement(): Promise<{
           pickup_location_id: sub.pickup_location_id,
           status: "scheduled",
           payment_status: "pending",
-          total_cents: totalCents,
+          total_cents: draft.totalCents,
           customer_email: customer.email,
           customer_name: customer.name,
           idempotency_key: idempotencyKey,
-        })
-        .select("id")
-        .single();
+        });
+      let { error: orderError } = await insertOrder();
+      if (orderError) ({ error: orderError } = await insertOrder());
 
-      if (orderError || !order) {
-        errors.push(
-          `Subscription ${sub.id}: failed to create order — ${orderError?.message ?? "unknown error"}`,
+      let itemsError: { message: string } | null = null;
+      if (!orderError) {
+        const r = await supabase.from("order_items").insert(
+          draft.items.map((i) => ({
+            order_id: orderId,
+            product_id: i.product_id,
+            quantity: i.quantity,
+            unit_price_cents: i.unit_price_cents,
+          })),
         );
-        console.error(
-          `[subscription-engine] Failed to create order for subscription ${sub.id}:`,
-          orderError,
-        );
+        itemsError = r.error;
+      }
+
+      let paidError: { message: string } | null = null;
+      if (!orderError && !itemsError) {
+        const r = await supabase
+          .from("orders")
+          .update({
+            payment_status: "paid",
+            stripe_payment_intent_id: charge.pi.id,
+            payment_method: await paymentMethodLabel(charge.pi),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", orderId);
+        paidError = r.error;
+      }
+
+      if (orderError || itemsError || paidError) {
+        // Money has moved but the order could not be written. Never silent:
+        // the owner must reconcile this one by hand (PI id in the alert).
+        const msg = orderError?.message ?? itemsError?.message ?? paidError?.message ?? "unknown";
+        console.error(`[subscription-engine] CRITICAL: charge ${charge.pi.id} succeeded but order ${orderId} could not be saved: ${msg}`);
+        await dispatchNotification(null, "admin_alert", "both", {
+          category: "payment_failed",
+          message:
+            `KRITISCH: Abo-Zahlung ${charge.pi.id} (${eur(draft.totalCents)}${customer.name ? `, ${customer.name}` : ""}) ` +
+            `ist eingegangen, aber die Bestellung ${orderId} für ${fulfillmentDate} konnte nicht gespeichert werden: ${msg}. Bitte in Stripe/Supabase prüfen.`,
+        });
+        await logAudit("subscription_order_write_failed", "order", orderId, null, {
+          subscription_id: sub.id,
+          fulfillment_date: fulfillmentDate,
+          total_cents: draft.totalCents,
+          stripe_payment_intent_id: charge.pi.id,
+          error: msg,
+        });
+        errors.push(`Subscription ${sub.id}: charged (${charge.pi.id}) but order not saved — ${msg}`);
         continue;
       }
 
-      // Create order_items
-      const orderItemsData = validItems.map((item) => {
-        const product = item.products as unknown as {
-          id: string;
-          price_cents: number;
-        };
-        return {
-          order_id: order.id,
-          product_id: product.id,
-          quantity: item.quantity,
-          unit_price_cents: product.price_cents,
-        };
-      });
+      ordersCreated++;
 
-      const { error: orderItemsError } = await supabase
-        .from("order_items")
-        .insert(orderItemsData);
-
-      if (orderItemsError) {
-        // Rollback: delete the order if order_items failed
-        await supabase.from("orders").delete().eq("id", order.id);
-        errors.push(
-          `Subscription ${sub.id}: failed to create order_items — ${orderItemsError.message}`,
-        );
-        console.error(
-          `[subscription-engine] Failed to create order_items for order ${order.id}:`,
-          orderItemsError,
-        );
-        continue;
+      // Bestellbestätigung by e-mail (the receipt IS the confirmation), plus a
+      // push for app users — no second e-mail.
+      await sendOrderReceipt(orderId, customer);
+      if (customer.push_token && customer.push_token.trim()) {
+        await dispatchNotification(customer.id, "order_placed", "push", {
+          fulfillment_date: fulfillmentDate,
+          order_id: orderId,
+        });
       }
 
-      // Send "order placed" notification (push/email + logging)
-      await dispatchNotification(
-        customer.id,
-        "order_placed",
-        customer.push_token ? "both" : "email",
-        { fulfillment_date: fulfillmentDate, order_id: order.id },
-      );
-
-      // Audit log
       await logAudit(
         "subscription_order_placed",
         "order",
-        order.id,
+        orderId,
         null,
         {
           subscription_id: sub.id,
           fulfillment_date: fulfillmentDate,
-          total_cents: totalCents,
-          items_count: validItems.length,
+          total_cents: draft.totalCents,
+          items_count: draft.items.length,
+          stripe_payment_intent_id: charge.pi.id,
         },
       );
 
-      ordersCreated++;
-
       console.log(
-        `[subscription-engine] Order ${order.id} created for subscription ${sub.id} (${fulfillmentDate}), total=${totalCents}¢`,
+        `[subscription-engine] Order ${orderId} placed AND paid for subscription ${sub.id} (${fulfillmentDate}), total=${draft.totalCents}¢, PI=${charge.pi.id}`,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       errors.push(`Subscription ${sub.id}: ${msg}`);
-      console.error(
-        `[subscription-engine] Error processing order placement for subscription ${sub.id}:`,
-        err,
-      );
+      console.error(`[subscription-engine] Error processing order placement for subscription ${sub.id}:`, err);
     }
   }
 
   console.log(
     `[subscription-engine] process8pmOrderPlacement done: ` +
-      `${ordersCreated} orders created, ${skippedSubscriptions} skipped, ${errors.length} errors`,
+      `${ordersCreated} orders placed+paid, ${paymentsFailed} payments failed, ${skippedSubscriptions} skipped, ${errors.length} errors`,
   );
-  return { ordersCreated, skippedSubscriptions, errors };
+  const result = { fulfillmentDate, week: currentWeek, ordersCreated, paymentsFailed, skippedSubscriptions, errors };
+  return dryRun ? { ...result, dryRun, plan } : result;
 }
 
 /**
  * 3. process_10pm_lock()
  *
- * Called at Monday/Thursday 22:00.
- * For all orders with status='grace_period_open':
- *   - Change status to 'locked_for_production'
- *   - Process payment via Stripe (create PaymentIntent, confirm)
- *   - Mark payment_status='paid' or 'failed'
- *   - If payment fails, set subscription status='payment_failed', notify admin
+ * Called at Monday/Thursday 22:00 — the Bestellschluss. Nothing is charged
+ * here any more (the 20:00 run pays as it places). This run only
+ *   - moves every PAID order for the imminent pickup date (subscription and
+ *     one-time alike) to 'locked_for_production': from now on no
+ *     cancellation, the bread is being baked;
+ *   - removes any UNPAID subscription row for that date, which must not exist
+ *     under the "no order without payment" rule, and alerts the owner so the
+ *     anomaly is seen.
  */
 async function process10pmLock(): Promise<{
+  fulfillmentDate: string;
   locked: number;
-  paid: number;
-  failed: number;
+  removedUnpaid: number;
   errors: string[];
 }> {
-  console.log(
-    "[subscription-engine] process10pmLock: locking grace_period_open orders",
-  );
-
-  // Find all orders in grace period
-  const { data: orders, error: ordersError } = await supabase
-    .from("orders")
-    .select(`
-      id,
-      customer_id,
-      subscription_id,
-      total_cents,
-      order_type,
-      customers!inner (
-        id,
-        email,
-        name,
-        push_token
-      ),
-      subscriptions (
-        id,
-        status
-      )
-    `)
-    // Charge the subscription orders whose cutoff is NOW — i.e. those for the
-    // imminent pickup date. Orders may have been created early (at subscription
-    // time) as 'scheduled', so we accept 'scheduled' or 'grace_period_open'
-    // but only for this run's pickup date, never future ones.
-    .in("status", ["scheduled", "grace_period_open"])
-    .eq("order_type", "subscription")
-    .eq("fulfillment_date", getNextFulfillmentDate());
-
-  if (ordersError) {
-    console.error(
-      "[subscription-engine] Failed to fetch orders to lock:",
-      ordersError,
-    );
-    return { locked: 0, paid: 0, failed: 0, errors: [ordersError.message] };
-  }
-
-  if (!orders || orders.length === 0) {
-    console.log("[subscription-engine] No orders in grace period to lock.");
-    return { locked: 0, paid: 0, failed: 0, errors: [] };
-  }
+  const fulfillmentDate = getNextFulfillmentDate();
+  console.log(`[subscription-engine] process10pmLock: locking paid orders for ${fulfillmentDate}`);
 
   let locked = 0;
-  let paid = 0;
-  let failed = 0;
+  let removedUnpaid = 0;
   const errors: string[] = [];
 
-  for (const order of orders) {
-    try {
-      // Never charge an order whose subscription is no longer active. The
-      // cancellation trigger (migration 021) normally removes such an order
-      // outright, but this is the guarantee: cancelling before the 22:00
-      // charge must mean no charge, exactly as the 12:00 reminder promises.
-      const sub = order.subscriptions as unknown as { status?: string } | null;
-      if (sub && sub.status !== "active") {
-        console.log(
-          `[subscription-engine] Skipping order ${order.id}: subscription is '${sub.status}', not active.`,
-        );
-        continue;
-      }
-
-      const customer = order.customers as unknown as {
-        id: string;
-        email: string;
-        name: string;
-        push_token: string | null;
-      };
-
-      // Step 1: Lock the order for production (change status regardless of payment outcome)
-      const { error: lockError } = await supabase
-        .from("orders")
-        .update({
-          status: "locked_for_production",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", order.id)
-        .in("status", ["scheduled", "grace_period_open"]); // Conditional update for safety
-
-      if (lockError) {
-        errors.push(
-          `Order ${order.id}: failed to lock — ${lockError.message}`,
-        );
-        console.error(
-          `[subscription-engine] Failed to lock order ${order.id}:`,
-          lockError,
-        );
-        continue;
-      }
-
-      locked++;
-
-      // Step 2: Process Stripe payment
-      try {
-        // Get or create Stripe customer
-        const stripeCustomer = await getOrCreateStripeCustomer(
-          customer.id,
-          customer.email,
-          customer.name,
-        );
-
-        if (!stripeCustomer) {
-          throw new Error("Could not create/find Stripe customer");
-        }
-
-        // Get default payment method
-        const paymentMethod = await getDefaultPaymentMethod(stripeCustomer.id);
-
-        if (!paymentMethod) {
-          throw new Error(
-            `No payment method found for customer ${stripeCustomer.id}`,
-          );
-        }
-
-        // Create PaymentIntent
-        const paymentIntent = await stripe.paymentIntents.create(
-          {
-            amount: order.total_cents,
-            currency: "eur",
-            customer: stripeCustomer.id,
-            payment_method: paymentMethod.id,
-            off_session: true,
-            confirm: true,
-            description: `Smittenbrot subscription order — ${order.id}`,
-            metadata: {
-              order_id: order.id,
-              order_type: "subscription",
-            },
-          },
-          {
-            idempotencyKey: `sub_lock_${order.id}`,
-          },
-        );
-
-        if (paymentIntent.status === "succeeded" ||
-            paymentIntent.status === "processing") {
-          // Payment succeeded or is processing
-          const paymentStatus = paymentIntent.status === "succeeded"
-            ? "paid"
-            : "pending";
-
-          const { error: updateError } = await supabase
-            .from("orders")
-            .update({
-              payment_status: paymentStatus,
-              stripe_payment_intent_id: paymentIntent.id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", order.id);
-
-          if (updateError) {
-            errors.push(
-              `Order ${order.id}: payment captured but failed to update status — ${updateError.message}`,
-            );
-            console.error(
-              `[subscription-engine] Failed to update payment status for order ${order.id}:`,
-              updateError,
-            );
-          } else {
-            paid++;
-
-            // ── Send receipt email ──
-            try {
-              const receiptUrl = `${SUPABASE_URL}/functions/v1/notification-dispatch`;
-              // Call notification-dispatch via direct function import pattern
-              // Since we can't import from other functions, build and send receipt here
-              const customerEmail = customer.email;
-              // Re-fetch the order so we get the invoice_number, order_number and
-              // net/vat/total assigned by the numbering + tax triggers on the
-              // paid transition (the in-loop `order` predates them).
-              const { data: paidOrder } = await supabase
-                .from("orders")
-                .select("*")
-                .eq("id", order.id)
-                .single();
-              const fullOrder = paidOrder ?? order;
-              const invoiceNumber = (fullOrder.invoice_number as string) ||
-                order.id.substring(0, 8).toUpperCase();
-              const { data: receiptItems } = await supabase
-                .from("order_items")
-                .select("quantity, unit_price_cents, product:product_id(name)")
-                .eq("order_id", order.id);
-              const items = (receiptItems ?? []).map((it: Record<string, unknown>) => ({
-                quantity: it.quantity as number,
-                unit_price_cents: it.unit_price_cents as number,
-                name: ((it.product as { name?: string } | null)?.name) ?? "Produkt",
-              }));
-              const fulfillmentDate = await getFulfillmentDateFromOrder(order.id);
-              const { data: pickupLoc } = fullOrder.pickup_location_id
-                ? await supabase.from("pickup_locations").select("name, address, pickup_instructions").eq("id", fullOrder.pickup_location_id as string).single()
-                : { data: null };
-              const pickupInstructions = (pickupLoc?.pickup_instructions as string) ||
-                "Deine Bestellnummer steht auf der Verpackung deiner Bestellung.";
-              const pickupName = pickupLoc ? `${pickupLoc.name} (${pickupLoc.address})` : "Abholort";
-
-              const htmlReceipt = buildReceiptHtml(fullOrder, customer, items, invoiceNumber, fulfillmentDate, pickupInstructions, pickupName);
-
-              // Send via Brevo API directly
-              const brevoPayload = {
-                sender: { email: "info@smittenbrot.de", name: "Smittenbrot" },
-                to: [{ email: customerEmail }],
-                subject: `Deine Smittenbrot Bestellbestätigung ${(fullOrder.order_number as string) || invoiceNumber}`,
-                htmlContent: htmlReceipt,
-              };
-              
-              const brevoKey = Deno.env.get("BREVO_API_KEY") ?? "";
-              if (brevoKey) {
-                const brevoResp = await fetch("https://api.brevo.com/v3/smtp/email", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "api-key": brevoKey,
-                    "Accept": "application/json",
-                  },
-                  body: JSON.stringify(brevoPayload),
-                });
-                if (brevoResp.ok) {
-                  console.log(`[subscription-engine] Receipt sent to ${customerEmail} for order ${order.id}`);
-                  await logReceiptOutcome(customer.id, fullOrder, true);
-                } else {
-                  const body = await brevoResp.text();
-                  console.warn(`[subscription-engine] Failed to send receipt: ${body}`);
-                  await logReceiptOutcome(
-                    customer.id,
-                    fullOrder,
-                    false,
-                    `Brevo ${brevoResp.status}: ${body.slice(0, 300)}`,
-                  );
-                }
-              } else {
-                console.error("[subscription-engine] BREVO_API_KEY not configured — cannot send receipt.");
-                await logReceiptOutcome(customer.id, fullOrder, false, "BREVO_API_KEY not configured");
-              }
-            } catch (receiptError) {
-              const msg = receiptError instanceof Error ? receiptError.message : String(receiptError);
-              console.warn(`[subscription-engine] Receipt sending error for order ${order.id}:`, receiptError);
-              // `fullOrder` is scoped to the try block; `order` is always in scope
-              // and logReceiptOutcome falls back to its id when there is no number.
-              await logReceiptOutcome(customer.id, order as unknown as Record<string, unknown>, false, msg);
-            }
-
-            console.log(
-              `[subscription-engine] Order ${order.id}: payment ${paymentStatus} (PI: ${paymentIntent.id})`,
-            );
-          }
-
-          // Audit log for payment
-          await logAudit(
-            "subscription_payment_captured",
-            "order",
-            order.id,
-            { payment_status: "pending", status: "grace_period_open" },
-            {
-              payment_status: paymentStatus,
-              status: "locked_for_production",
-              stripe_payment_intent_id: paymentIntent.id,
-            },
-          );
-        } else {
-          // Payment requires further action or failed
-          const failureReason =
-            paymentIntent.last_payment_error?.message ?? "Payment declined";
-
-          throw new Error(
-            `Payment not successful (${paymentIntent.status}): ${failureReason}`,
-          );
-        }
-      } catch (paymentError) {
-        // Payment failed — mark order and subscription
-        const msg = paymentError instanceof Error
-          ? paymentError.message
-          : String(paymentError);
-
-        console.error(
-          `[subscription-engine] Payment failed for order ${order.id}: ${msg}`,
-        );
-
-        failed++;
-
-        // The declined order will never be baked or charged — nothing ever
-        // retries it (recovery goes through resume, which creates NEXT week's
-        // order). Cancelling it here, at the source, is what frees its
-        // capacity slot (capacity-manager excludes cancelled), takes it off
-        // every bake list and shows it truthfully as "Storniert" in the
-        // customer's order list — for every client, with no per-screen query
-        // filters. Same principle as migration 021 for cancellations. The row
-        // is kept (not deleted) so support can see what failed and when.
-        const { error: failUpdateError } = await supabase
-          .from("orders")
-          .update({
-            status: "cancelled",
-            payment_status: "failed",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", order.id);
-
-        if (failUpdateError) {
-          console.error(
-            `[subscription-engine] Failed to mark order ${order.id} as payment_failed:`,
-            failUpdateError,
-          );
-        }
-
-        // If this is a subscription order, mark subscription as payment_failed
-        if (order.subscription_id) {
-          const { error: subFailError } = await supabase
-            .from("subscriptions")
-            .update({
-              status: "payment_failed",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", order.subscription_id);
-
-          if (subFailError) {
-            console.error(
-              `[subscription-engine] Failed to mark subscription ${order.subscription_id} as payment_failed:`,
-              subFailError,
-            );
-          }
-        }
-
-        // Send payment_failed notification to customer
-        await dispatchNotification(customer.id, "payment_failed", "both", {
-          subscription_id: order.subscription_id,
-        });
-
-        // Send admin alert about payment failure
-        await dispatchNotification(null, "admin_alert", "both", {
-          category: "payment_failed",
-          message:
-            `Zahlung fehlgeschlagen für Bestellung ${order.id}` +
-            `${customer.name ? ` (${customer.name})` : ""}: ${msg}`,
-        });
-
-        // Audit log
-        await logAudit(
-          "subscription_payment_failed",
-          "order",
-          order.id,
-          { payment_status: "pending", status: "locked_for_production" },
-          { payment_status: "failed", status: "cancelled", error: msg },
-        );
-
-        errors.push(`Order ${order.id}: ${msg}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Order ${order.id}: ${msg}`);
-      console.error(
-        `[subscription-engine] Error processing lock for order ${order.id}:`,
-        err,
-      );
-    }
-  }
-
-  // One-time orders are paid the moment they are placed, so there is nothing
-  // to charge — but they were never moved out of 'scheduled' either, which the
-  // app shows as "Vorgemerkt". A customer whose bread is being baked tomorrow
-  // saw their paid order labelled as merely pencilled in, next to a
-  // subscription order for the same day reading "In Produktion". Same pickup,
-  // same oven, two different words. They now converge at the cutoff.
-  const { data: onetime, error: onetimeErr } = await supabase
+  // 1. Lock every paid order for the pickup date.
+  const { data: lockedRows, error: lockError } = await supabase
     .from("orders")
     .update({ status: "locked_for_production", updated_at: new Date().toISOString() })
-    .eq("order_type", "one_time")
+    .eq("fulfillment_date", fulfillmentDate)
     .eq("payment_status", "paid")
     .in("status", ["scheduled", "grace_period_open"])
-    .eq("fulfillment_date", getNextFulfillmentDate())
-    .select("id");
-  if (onetimeErr) {
-    errors.push(`one-time lock: ${onetimeErr.message}`);
-    console.error("[subscription-engine] Failed to lock one-time orders:", onetimeErr);
-  } else if (onetime && onetime.length > 0) {
-    locked += onetime.length;
-    console.log(`[subscription-engine] Locked ${onetime.length} paid one-time order(s) for production.`);
+    .select("id, order_type");
+  if (lockError) {
+    errors.push(`lock: ${lockError.message}`);
+    console.error("[subscription-engine] Failed to lock paid orders:", lockError);
+  } else {
+    locked = lockedRows?.length ?? 0;
+    for (const row of lockedRows ?? []) {
+      await logAudit("order_locked_for_production", "order", row.id as string,
+        { status: "scheduled" }, { status: "locked_for_production", fulfillment_date: fulfillmentDate });
+    }
+    console.log(`[subscription-engine] Locked ${locked} paid order(s) for ${fulfillmentDate}.`);
+  }
+
+  // 2. Unpaid subscription rows for this date are not orders — drop them.
+  const { data: unpaid, error: unpaidError } = await supabase
+    .from("orders")
+    .select("id, subscription_id, customer_name, customer_email, total_cents, payment_status, status")
+    .eq("order_type", "subscription")
+    .eq("fulfillment_date", fulfillmentDate)
+    .neq("payment_status", "paid")
+    .in("status", ["scheduled", "grace_period_open", "processing"]);
+  if (unpaidError) {
+    errors.push(`unpaid scan: ${unpaidError.message}`);
+    console.error("[subscription-engine] Failed to scan unpaid subscription orders:", unpaidError);
+  } else if (unpaid && unpaid.length > 0) {
+    for (const o of unpaid) {
+      await supabase.from("order_items").delete().eq("order_id", o.id);
+      const { error: delErr } = await supabase.from("orders").delete().eq("id", o.id);
+      if (delErr) {
+        errors.push(`Order ${o.id}: could not remove unpaid row — ${delErr.message}`);
+        continue;
+      }
+      removedUnpaid++;
+      await logAudit("unpaid_subscription_order_removed", "order", o.id as string,
+        { status: o.status, payment_status: o.payment_status },
+        { subscription_id: o.subscription_id, fulfillment_date: fulfillmentDate, total_cents: o.total_cents });
+    }
+    await dispatchNotification(null, "admin_alert", "both", {
+      category: "other",
+      message:
+        `Bestellschluss ${fulfillmentDate}: ${removedUnpaid} unbezahlte Abo-Bestellung(en) entfernt ` +
+        `(${unpaid.map((o) => o.customer_name || o.customer_email).join(", ")}). Es wurde nichts abgebucht.`,
+    });
+    console.warn(`[subscription-engine] Removed ${removedUnpaid} unpaid subscription order(s) for ${fulfillmentDate}.`);
   }
 
   console.log(
-    `[subscription-engine] process10pmLock done: ` +
-      `${locked} locked, ${paid} paid, ${failed} failed, ${errors.length} errors`,
+    `[subscription-engine] process10pmLock done: ${locked} locked, ${removedUnpaid} unpaid removed, ${errors.length} errors`,
   );
-  return { locked, paid, failed, errors };
+  return { fulfillmentDate, locked, removedUnpaid, errors };
 }
 
 /**
@@ -1513,22 +1425,7 @@ async function resumeExpiredPauses(): Promise<{ resumed: number }> {
     console.log(
       `[subscription-engine] Resumed ${resumed} subscription(s) whose pause ended on or before ${today}.`,
     );
-    // Generate the upcoming order straight away, exactly as tapping
-    // "Fortsetzen" does. Without this an auto-resumed Abo showed as active
-    // with no upcoming order until the next Mon/Thu run — which reads as
-    // "my resume did not work". skipIfExisting (default) prevents duplicates,
-    // and if the imminent cutoff has passed this simply targets the next
-    // delivery, which the weekly run will then skip.
-    for (const row of data ?? []) {
-      try {
-        await processSingleSubscription(row.id as string);
-      } catch (err) {
-        console.error(
-          `[subscription-engine] Auto-resume: could not generate an order for ${row.id}:`,
-          err,
-        );
-      }
-    }
+    // No order is created here: the next 20:00 run places (and pays) it.
   }
   return { resumed };
 }
@@ -1627,263 +1524,86 @@ async function processCancellations(): Promise<{
 }
 
 /**
- * 5. process_single_subscription(subscription_id)
+ * What the 20:00 run WOULD place for one subscription — nothing is written.
  *
- * Processes a single subscription's order for the next fulfillment date.
- * This is an on-demand function that creates an order for a specific
- * subscription, following the same logic as process8pmOrderPlacement
- * but for a single subscription.
+ * Until 05.10.2026 this path pre-created an unpaid "Vorgemerkt" order on
+ * subscribe / resume / edit, which the 22:00 run then charged. Owner's rule:
+ * an order exists only once it is paid, and payment happens at 20:00 on the
+ * order day. So the clients get a preview here (date, items, total) and the
+ * order itself is born — paid — in process8pmOrderPlacement.
+ *
+ * `reason` when nothing would be placed:
+ *   'not_active'         — paused / payment_failed / cancelled subscription
+ *   'paused'             — the pause still covers that date
+ *   'no_items_this_week' — nothing in the basket is baked that day/week
+ *   'already_placed'     — that date's order exists and is paid (order_id set)
  */
-async function processSingleSubscription(
-  subscriptionId: string,
-  options?: {
-    fulfillmentDate?: string;
-    skipIfExisting?: boolean;
-  },
-): Promise<{
-  orderId: string | null;
+type PreviewResult = {
   success: boolean;
+  fulfillment_date: string | null;
+  items: { product_id: string; name: string; quantity: number; unit_price_cents: number }[];
+  total_cents: number;
+  order_id: string | null;
+  reason?: "not_active" | "paused" | "no_items_this_week" | "already_placed";
   error: string | null;
-}> {
-  const skipIfExisting = options?.skipIfExisting ?? true;
+};
 
-  // Fetch subscription (incl. its chosen pickup_day) first — the fulfillment
-  // date depends on which weekday this subscription is for.
+async function previewSubscriptionOrder(
+  subscriptionId: string,
+  options?: { fulfillmentDate?: string },
+): Promise<PreviewResult> {
+  const none = (
+    reason: PreviewResult["reason"] | undefined,
+    error: string | null,
+    fulfillmentDate: string | null = null,
+    orderId: string | null = null,
+  ): PreviewResult => ({
+    success: false,
+    fulfillment_date: fulfillmentDate,
+    items: [],
+    total_cents: 0,
+    order_id: orderId,
+    ...(reason ? { reason } : {}),
+    error,
+  });
+
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
-    .select(`
-      id,
-      customer_id,
-      pickup_day,
-      pickup_location_id,
-      status,
-      paused_until,
-      customers!inner (
-        id,
-        email,
-        name,
-        push_token
-      )
-    `)
+    .select("id, pickup_day, status, paused_until")
     .eq("id", subscriptionId)
     .single();
-
   if (subError || !sub) {
-    const msg = subError?.message ?? "Subscription not found";
-    console.error(
-      `[subscription-engine] Failed to fetch subscription ${subscriptionId}:`,
-      subError,
-    );
-    return { orderId: null, success: false, error: msg };
+    return none(undefined, subError?.message ?? "Subscription not found");
   }
 
   const subPickupDay = (sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday";
   const fulfillmentDate = options?.fulfillmentDate ?? getNextDateForSubscription(subPickupDay);
-  // Derive from the resolved date: for a "both" Abo the pickup_day alone
-  // cannot tell us which day's product availability applies.
-  const pickupDayColumn = availabilityColumnForDate(fulfillmentDate);
-  const currentWeek = await getCurrentWeekType();
 
-  console.log(
-    `[subscription-engine] processSingleSubscription: ` +
-      `sub=${subscriptionId}, fulfillmentDate=${fulfillmentDate}, week=${currentWeek}`,
-  );
-
-  const customer = sub.customers as unknown as {
-    id: string;
-    email: string;
-    name: string;
-    push_token: string | null;
-  };
-
-  // Check subscription status
-  if (sub.status !== "active") {
-    const msg = `Subscription ${subscriptionId} is not active (status=${sub.status})`;
-    console.log(`[subscription-engine] ${msg}`);
-    return { orderId: null, success: false, error: msg };
+  if (sub.status !== "active") return none("not_active", null, fulfillmentDate);
+  if (sub.paused_until && (sub.paused_until as string) >= fulfillmentDate) {
+    return none("paused", null, fulfillmentDate);
   }
 
-  // Check if paused
-  if (sub.paused_until) {
-    const pausedUntil = new Date(sub.paused_until);
-    const fulfillmentDateObj = new Date(fulfillmentDate);
-    // Format both as YYYY-MM-DD for comparison
-    const pausedDate = sub.paused_until;
-    if (pausedDate >= fulfillmentDate) {
-      const msg = `Subscription ${subscriptionId} is paused until ${pausedDate}`;
-      console.log(`[subscription-engine] ${msg}`);
-      return { orderId: null, success: false, error: msg };
-    }
-  }
-
-  // Check idempotency
-  const idempotencyKey = `sub_${sub.id}_${fulfillmentDate}`;
-  if (skipIfExisting) {
-    const { data: existingOrder } = await supabase
-      .from("orders")
-      .select("id")
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
-
-    if (existingOrder) {
-      console.log(
-        `[subscription-engine] Order already exists for subscription ${sub.id} on ${fulfillmentDate}.`,
-      );
-      return {
-        orderId: existingOrder.id,
-        success: true,
-        error: null,
-      };
-    }
-  }
-
-  // Fetch subscription items with product details
-  const { data: items, error: itemsError } = await supabase
-    .from("subscription_items")
-    .select(`
-      id,
-      product_id,
-      quantity,
-      products!inner (
-        id,
-        name,
-        price_cents,
-        cycle,
-        subscribable,
-        ${pickupDayColumn}
-      )
-    `)
-    .eq("subscription_id", sub.id);
-
-  if (itemsError) {
-    const msg = `Failed to fetch items: ${itemsError.message}`;
-    console.error(
-      `[subscription-engine] ${msg} for subscription ${sub.id}:`,
-      itemsError,
-    );
-    return { orderId: null, success: false, error: msg };
-  }
-
-  if (!items || items.length === 0) {
-    const msg = `Subscription ${sub.id} has no items`;
-    return { orderId: null, success: false, error: msg };
-  }
-
-  // Filter valid items (same logic as bulk placement)
-  const validItems = items.filter((item) => {
-    const product = item.products as unknown as {
-      id: string;
-      name: string;
-      price_cents: number;
-      cycle: string;
-      [key: string]: unknown;
-    };
-
-    const availableForDay = product[pickupDayColumn];
-    if (!availableForDay) return false;
-
-    if (product.subscribable === false) return false;
-    if (product.cycle === "hidden") return false;
-    if (product.cycle === "week_a" && currentWeek !== "A") return false;
-    if (product.cycle === "week_b" && currentWeek !== "B") return false;
-
-    return true;
-  });
-
-  if (validItems.length === 0) {
-    const msg = `No valid items for this fulfillment date`;
-    return { orderId: null, success: false, error: msg };
-  }
-
-  // Calculate total
-  const totalCents = validItems.reduce((sum, item) => {
-    const product = item.products as unknown as { price_cents: number };
-    return sum + product.price_cents * item.quantity;
-  }, 0);
-
-  // Create order
-  const { data: order, error: orderError } = await supabase
+  const { data: existing } = await supabase
     .from("orders")
-    .insert({
-      customer_id: customer.id,
-      order_type: "subscription",
-      subscription_id: sub.id,
-      fulfillment_date: fulfillmentDate,
-      pickup_location_id: sub.pickup_location_id,
-      status: "scheduled",
-      payment_status: "pending",
-      total_cents: totalCents,
-      customer_email: customer.email,
-      customer_name: customer.name,
-      idempotency_key: idempotencyKey,
-    })
-    .select("id")
-    .single();
-
-  if (orderError || !order) {
-    const msg = orderError?.message ?? "Failed to create order";
-    console.error(
-      `[subscription-engine] Failed to create order for subscription ${sub.id}:`,
-      orderError,
-    );
-    return { orderId: null, success: false, error: msg };
+    .select("id, payment_status")
+    .eq("idempotency_key", `sub_${sub.id}_${fulfillmentDate}`)
+    .maybeSingle();
+  if (existing && existing.payment_status === "paid") {
+    return none("already_placed", null, fulfillmentDate, existing.id);
   }
 
-  // Create order_items
-  const orderItemsData = validItems.map((item) => {
-    const product = item.products as unknown as {
-      id: string;
-      price_cents: number;
-    };
-    return {
-      order_id: order.id,
-      product_id: product.id,
-      quantity: item.quantity,
-      unit_price_cents: product.price_cents,
-    };
-  });
-
-  const { error: oiError } = await supabase
-    .from("order_items")
-    .insert(orderItemsData);
-
-  if (oiError) {
-    // Rollback order
-    await supabase.from("orders").delete().eq("id", order.id);
-    const msg = `Failed to create order_items: ${oiError.message}`;
-    console.error(
-      `[subscription-engine] ${msg} for order ${order.id}:`,
-      oiError,
-    );
-    return { orderId: null, success: false, error: msg };
-  }
-
-  // NOTE: no "order placed" email here. This path just pre-creates the
-  // Vorgemerkt (pending) order on subscribe / resume / edit. The customer is
-  // told "order placed, change until 22h" only on the scheduled placement day
-  // (process8pmOrderPlacement, Mon/Thu) — not immediately when they resume.
-
-  // Audit log
-  await logAudit(
-    "subscription_order_prenoted",
-    "order",
-    order.id,
-    null,
-    {
-      subscription_id: sub.id,
-      fulfillment_date: fulfillmentDate,
-      total_cents: totalCents,
-      items_count: validItems.length,
-    },
-  );
-
-  console.log(
-    `[subscription-engine] Single order ${order.id} created for subscription ${sub.id}`,
-  );
+  const currentWeek = await getCurrentWeekType();
+  const draft = await buildSubscriptionDraft(sub.id, fulfillmentDate, currentWeek);
+  if (draft.error) return none(undefined, draft.error, fulfillmentDate);
+  if (draft.items.length === 0) return none("no_items_this_week", null, fulfillmentDate);
 
   return {
-    orderId: order.id,
     success: true,
+    fulfillment_date: fulfillmentDate,
+    items: draft.items,
+    total_cents: draft.totalCents,
+    order_id: null,
     error: null,
   };
 }
@@ -1927,11 +1647,11 @@ async function pauseSubscription(
 
   // Remove only the orders the pause actually covers: fulfillment dates from
   // today up to and INCLUDING paused_until (order generation is blocked while
-  // `paused_until >= fulfillment_date`, see processSingleSubscription). An
-  // order AFTER the pause window must survive — nothing would regenerate it:
-  // the auto-resume's processSingleSubscription skips dates whose cutoff has
-  // passed, and the Mon/Thu batch may only run after that delivery. An
-  // indefinite pause (no resume date) still clears every future pending order.
+  // `paused_until >= fulfillment_date`, see previewSubscriptionOrder). Since
+  // 05.10.2026 no unpaid subscription order exists any more (the 20:00 run
+  // pays as it places), so this is a safety net for leftovers only. A PAID
+  // order is never touched by a pause — the customer cancels it separately
+  // (refund) until the 22:00 cutoff if they do not want it.
   let ordersQuery = supabase
     .from("orders")
     .select("id")
@@ -1958,8 +1678,9 @@ async function pauseSubscription(
 }
 
 /**
- * Resume a paused subscription and regenerate the upcoming order (if still
- * before its cutoff). Idempotent — if an order already exists it is kept.
+ * Resume a paused subscription. No order is created here — the next 20:00
+ * run places and pays it. `orderId` stays in the response for the clients
+ * and is always null now.
  */
 async function resumeSubscription(
   subscriptionId: string,
@@ -1974,28 +1695,25 @@ async function resumeSubscription(
     .eq("id", subscriptionId);
   if (subErr) return { success: false, orderId: null, error: subErr.message };
 
-  const result = await processSingleSubscription(subscriptionId);
-  await logAudit("subscription_resumed", "subscription", subscriptionId, null, {
-    order_id: result.orderId,
-  });
-  return { success: true, orderId: result.orderId, error: null };
+  await logAudit("subscription_resumed", "subscription", subscriptionId, null, null);
+  return { success: true, orderId: null, error: null };
 }
 
 /**
  * Customer-facing: modify an active/paused subscription's items (and optionally
  * its pickup location). Ownership is verified against the caller's user id.
  *
- * Reuses processSingleSubscription so the not-yet-charged upcoming order is
- * rebuilt from the new items — the change lands on this week's single charge
- * when that order isn't locked yet, otherwise it applies from the next
- * delivery (no refund/recharge, no second transaction).
+ * Items are only saved: the 20:00 run builds the order from them. Until that
+ * run the change applies to this week's order; once this week's order is
+ * placed and paid, the change applies from the next delivery (no refund /
+ * recharge, no second transaction).
  */
 /**
  * `reason` explains an applied_this_week === false, so the client can say
  * something useful instead of a bare "saved":
  *   'no_items_this_week' — nothing in the basket is baked this week (A/B
  *                          cycle or day availability), so there is no order
- *   'already_charged'    — this week's order is paid/locked; change applies next time
+ *   'already_charged'    — this week's order is placed and paid; change applies next time
  *   'paused'             — a paused Abo gets its order when it resumes
  *   'payment_failed'     — no order until the customer reactivates the Abo
  */
@@ -2073,40 +1791,23 @@ async function updateSubscription(
     .insert(clean.map((i) => ({ subscription_id: sub.id, product_id: i.product_id, quantity: i.quantity })));
   if (insErr) return { success: false, applied_this_week: false, error: insErr.message };
 
-  // 5. Rebuild the upcoming order (active subs only; paused and
-  //    payment_failed subs get a fresh order when they resume).
+  // 5. Tell the client whether the change lands on THIS week's order. Nothing
+  //    is written here: the 20:00 run builds and pays the order from the
+  //    saved items.
   let appliedThisWeek = false;
   let reason: UpdateResult["reason"];
   if (sub.status === "active") {
-    const nextDate = getNextDateForSubscription((sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday");
-    const { data: existing } = await supabase
-      .from("orders")
-      .select("id, payment_status, status")
-      .eq("subscription_id", sub.id)
-      .eq("fulfillment_date", nextDate)
-      .maybeSingle();
-
-    if (existing) {
-      const charged = existing.payment_status === "paid" ||
-        existing.status === "locked_for_production" || existing.status === "fulfilled";
-      if (!charged) {
-        // Not yet charged → replace it with a fresh order from the new items.
-        await supabase.from("order_items").delete().eq("order_id", existing.id);
-        await supabase.from("orders").delete().eq("id", existing.id);
-        const r = await processSingleSubscription(sub.id, { skipIfExisting: false });
-        appliedThisWeek = r.success;
-        // The rebuild can legitimately produce nothing — e.g. the basket now
-        // holds only a week_a bread and this is week B. Correct, but the
-        // customer must be told, or they simply get no bread with no
-        // explanation after being shown "saved".
-        if (!r.success) reason = "no_items_this_week";
-      } else {
-        reason = "already_charged";
-      }
+    const preview = await previewSubscriptionOrder(sub.id);
+    if (preview.reason === "already_placed") {
+      reason = "already_charged";
+    } else if (preview.success) {
+      appliedThisWeek = true;
     } else {
-      const r = await processSingleSubscription(sub.id, { skipIfExisting: true });
-      appliedThisWeek = r.success;
-      if (!r.success) reason = "no_items_this_week";
+      // The preview can legitimately be empty — e.g. the basket now holds
+      // only a week_a bread and this is week B. Correct, but the customer
+      // must be told, or they simply get no bread with no explanation after
+      // being shown "saved".
+      reason = "no_items_this_week";
     }
   } else if (sub.status === "paused") {
     reason = "paused";
@@ -2123,10 +1824,9 @@ async function updateSubscription(
  * This function is deployed --no-verify-jwt so that cron can reach it, which
  * means neither the platform nor the router above authenticates anybody: each
  * customer-facing route must verify the caller's JWT and their ownership of
- * the subscription itself. A pause DELETES the not-yet-charged orders and
- * process-single-subscription CREATES a chargeable order, so an
- * unauthenticated caller holding a UUID could destroy — or force a charge
- * for — someone else's bread. The internal engine paths (crons, auto-resume)
+ * the subscription itself. A pause changes what gets charged at 20:00 and the
+ * preview reveals someone's basket, so an unauthenticated caller holding a
+ * UUID could interfere with — or read — someone else's bread. The internal engine paths (crons, auto-resume)
  * call the worker functions directly and never pass through this guard.
  *
  * Returns the caller's user id when they own the subscription, or the error
@@ -2297,7 +1997,17 @@ serve(withCors(async (req: Request): Promise<Response> => {
 
       case "process-8pm-order-placement":
       case "process_8pm_order_placement": {
-        const result = await process8pmOrderPlacement();
+        // `dry=1` / `day=` only for forced (cron-secret) manual runs: plan
+        // without charging. The scheduled run never takes either.
+        const dayParam = url.searchParams.get("day");
+        const result = await process8pmOrderPlacement(
+          forcedRun
+            ? {
+              dryRun: url.searchParams.get("dry") === "1",
+              dayOverride: dayParam === "wednesday" || dayParam === "saturday" ? dayParam : undefined,
+            }
+            : undefined,
+        );
         return json(result);
       }
 
@@ -2326,7 +2036,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
 
       case "process-single-subscription":
       case "process_single_subscription": {
-        let body: { subscription_id?: string; fulfillment_date?: string; skip_if_existing?: boolean };
+        let body: { subscription_id?: string; fulfillment_date?: string };
         try {
           body = await req.json();
         } catch {
@@ -2337,19 +2047,19 @@ serve(withCors(async (req: Request): Promise<Response> => {
           return json({ error: "subscription_id is required" }, 400);
         }
 
-        // Customer-facing (the app calls it right after creating an Abo) and
-        // it CREATES an order that the 22:00 lock will charge — same ownership
-        // rule as pause/resume. Cron and auto-resume call
-        // processSingleSubscription() in-process and never hit this route.
+        // Customer-facing: a PREVIEW of what the next 20:00 run will place
+        // (date, items, total). It writes nothing — the order is created,
+        // paid, by the 20:00 run only. App ≤ 1.0.6 still calls this right
+        // after creating an Abo and ignores the body; harmless. Same
+        // ownership rule as pause/resume.
         const auth = await requireSubscriptionOwner(req, body.subscription_id);
         if (auth instanceof Response) return auth;
 
-        const result = await processSingleSubscription(body.subscription_id, {
+        const result = await previewSubscriptionOrder(body.subscription_id, {
           fulfillmentDate: body.fulfillment_date,
-          skipIfExisting: body.skip_if_existing ?? true,
         });
-
-        return json(result, result.success ? 200 : 400);
+        // A "nothing to place" preview is a valid answer, not a failure.
+        return json(result, result.error ? 400 : 200);
       }
 
       // One case group: the two routes are identical except for the worker
@@ -2392,7 +2102,7 @@ serve(withCors(async (req: Request): Promise<Response> => {
        * with the same products, Abholort and weekday (tester request).
        *
        * Two rules make it safe:
-       * - A saved payment method is REQUIRED (the 22:00 run charges
+       * - A saved payment method is REQUIRED (the 20:00 run charges
        *   off-session). Checkouts save the card (setup_future_usage), but if
        *   none is on file the client gets needs_payment_method and runs its
        *   card-setup flow first.

@@ -114,8 +114,9 @@ export default function OrderDetailPage() {
       // 22:00 Europe/Berlin, DST-correct via wall-clock string compare.
       // (This check used to be the stale lenient '14:00 on pickup day' rule,
       // so the button outlived the real cutoff — tester find, 2026-09-01.)
+      // Subscription orders too: since 05.10.2026 they are created paid at
+      // 20:00 and cancel (refund) like any other order until the cutoff.
       if (orderData.payment_status === 'paid' &&
-          orderData.order_type === 'one_time' &&
           !['cancelled', 'refunded', 'fulfilled', 'locked_for_production'].includes(orderData.status)) {
         const cutoffCal = new Date(orderData.fulfillment_date + 'T12:00:00Z');
         cutoffCal.setUTCDate(cutoffCal.getUTCDate() - 2);
