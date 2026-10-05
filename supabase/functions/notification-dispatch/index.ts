@@ -831,7 +831,7 @@ const NOTIFICATION_TEMPLATES: Record<
       `Deine Smittenbrot-Dauerbestellung wird heute um 20:00 Uhr als Bestellung` +
       `${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} aufgegeben ` +
       `und der Betrag von deiner hinterlegten Karte abgebucht. ` +
-      `Änderungen oder eine Pause sind bis 20:00 Uhr möglich, eine Stornierung bis 22:00 Uhr.`;
+      `Änderungen oder eine Pause sind bis 20:00 Uhr möglich.`;
     // This week's items (already A/B-filtered by the engine) so the customer
     // knows exactly what's coming — important for bi-weekly breads.
     const list = Array.isArray(d.items) ? (d.items as { name: string; quantity: number }[]) : [];
@@ -892,12 +892,14 @@ const NOTIFICATION_TEMPLATES: Record<
         `</div>`,
     };
   },
-  // Push only (the Bestellbestätigung e-mail is the written confirmation).
+  // Not sent by the engine any more (05.10.2026): a placed Abo order gets the
+  // Bestellbestätigung e-mail like any single order, nothing else. Kept for
+  // old notification rows / callers.
   order_placed: (d) => ({
     title: "Deine Bestellung wurde aufgegeben",
     body:
       `Deine Bestellung${d.fulfillment_date ? ` für ${formatDe(d.fulfillment_date)}` : ""} ` +
-      `wurde aufgegeben und bezahlt. Stornieren kannst du sie noch bis 22:00 Uhr.`,
+      `wurde aufgegeben und bezahlt.`,
   }),
   payment_failed: (d) => ({
     title: "Zahlung fehlgeschlagen",

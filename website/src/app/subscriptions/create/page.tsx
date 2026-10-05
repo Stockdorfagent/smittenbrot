@@ -8,6 +8,7 @@ import { User } from '@supabase/supabase-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import Link from 'next/link';
 import { getStripe } from '@/lib/stripeClient';
+import { nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
 
 const DAY_LABELS: Record<'wednesday' | 'saturday' | 'both', string> = {
   wednesday: 'Mittwoch',
@@ -61,6 +62,7 @@ function SubscriptionCreateForm() {
   const [stripeLoading, setStripeLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [successNote, setSuccessNote] = useState('');
 
   const pickup = getNextPickup();
 
@@ -241,6 +243,28 @@ function SubscriptionCreateForm() {
       });
     }
 
+    // The engine places AND pays the order at 20:00 on the order day. If that
+    // moment has already passed today (and the 22:00 cutoff has not) it
+    // places and pays this week's order right now — like a single order at
+    // that hour. Either way we say for which pickup date.
+    let note = '';
+    try {
+      const { data } = await supabase.functions.invoke('subscription-engine/process-single-subscription', {
+        body: { subscription_id: newSub.id },
+      });
+      const r = (data ?? {}) as { placed_now?: boolean; fulfillment_date?: string | null; reason?: string; error?: string | null };
+      if (r.placed_now && r.fulfillment_date) {
+        note = `Deine erste Bestellung für ${formatPickupDateDe(r.fulfillment_date)} wurde soeben aufgegeben und bezahlt – die Bestellbestätigung kommt per E-Mail.`;
+      } else if (r.reason === 'payment_failed') {
+        note = `Die Zahlung für die Bestellung${r.fulfillment_date ? ` für ${formatPickupDateDe(r.fulfillment_date)}` : ''} ist fehlgeschlagen${r.error ? ` (${r.error})` : ''}. Bitte prüfe deine Zahlungsmethode und setze die Dauerbestellung fort.`;
+      }
+    } catch { /* fall back to the schedule text */ }
+    if (!note) {
+      const run = nextSubscriptionRun(pickupDay);
+      note = `Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}. Mittags bekommst du vorher eine Erinnerung.`;
+    }
+    setSuccessNote(note);
+
     try { sessionStorage.removeItem('pending_subscription'); } catch { /* ignore */ }
     setSuccess(true);
     setSubmitting(false);
@@ -252,7 +276,7 @@ function SubscriptionCreateForm() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-2xl text-green-600">✓</div>
         <h1 className="mt-4 text-2xl font-display font-bold text-smitten-text">Abo eingerichtet!</h1>
         <p className="mt-2 text-smitten-text">
-          Dein Abo ist aktiv. Am Bestelltag um 20:00 Uhr wird deine erste Bestellung automatisch aufgegeben und bezahlt. Mittags bekommst du vorher eine Erinnerung.
+          Dein Abo ist aktiv. {successNote}
         </p>
         <Link href="/subscriptions" className="mt-6 inline-block bg-smitten-accent text-smitten-on-accent px-6 py-2 rounded-full text-sm">
           Zu meinen Abos

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
-import { berlinDatePlusDays, berlinTodayISO, nextSubscriptionRun } from '@/lib/pickup';
+import { berlinDatePlusDays, berlinTodayISO, nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
 import { formatPrice, type Subscription } from '@/lib/types';
 import Link from 'next/link';
 import AboExplainer, { ReminderHint } from '@/components/AboExplainer';
@@ -245,6 +245,22 @@ export default function SubscriptionsPage() {
     loadSubscriptions();
   }
 
+  /**
+   * The engine places and pays the next order at 20:00 on the order day. If
+   * a resume happens after that moment (and before the 22:00 cutoff) the
+   * engine places this week's order right away and says for which date.
+   */
+  function placedNowNote(data: Record<string, unknown> | null): string | null {
+    const r = (data ?? {}) as { placed_now?: boolean; fulfillment_date?: string | null; reason?: string; error?: string | null };
+    if (r.placed_now && r.fulfillment_date) {
+      return `Deine Bestellung für ${formatPickupDateDe(r.fulfillment_date)} wurde soeben aufgegeben und bezahlt – die Bestellbestätigung kommt per E-Mail.`;
+    }
+    if (r.reason === 'payment_failed') {
+      return `Die Zahlung für die Bestellung${r.fulfillment_date ? ` für ${formatPickupDateDe(r.fulfillment_date)}` : ''} ist fehlgeschlagen${r.error ? ` (${r.error})` : ''}. Bitte prüfe deine Zahlungsmethode.`;
+    }
+    return null;
+  }
+
   async function handleResume(subId: string) {
     setResumeError(null);
     setBusyId(subId);
@@ -258,6 +274,8 @@ export default function SubscriptionsPage() {
       setResumeError({ id: subId, msg: res.message });
       return;
     }
+    const note = placedNowNote(res.data);
+    if (note) setBanner(note);
     loadSubscriptions();
   }
 
@@ -299,7 +317,10 @@ export default function SubscriptionsPage() {
       setResumeError({ id: subId, msg: res.message });
       return;
     }
-    setBanner('Zahlungsmethode gespeichert — deine Dauerbestellung läuft weiter.');
+    setBanner(
+      placedNowNote(res.data) ??
+        'Zahlungsmethode gespeichert — deine Dauerbestellung läuft weiter. Die nächste Bestellung wird am Bestelltag um 20:00 Uhr aufgegeben und bezahlt.',
+    );
     loadSubscriptions();
   }
 

@@ -17,6 +17,7 @@ import type { PickupDay } from '@/lib/types';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 import { paymentSheetAppearance } from '@/lib/stripeAppearance';
+import { nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
 
 type Step = 'location' | 'pickup_day' | 'products' | 'review';
 
@@ -282,11 +283,32 @@ export default function SubscriptionCreateScreen() {
         return;
       }
 
-      // No order is created now: the engine places AND charges it at 20:00
-      // on the order day (Mon for Wed, Thu for Sat). No payment, no order.
+      // 2. The engine places AND pays the order at 20:00 on the order day
+      //    (Mon for Wed, Thu for Sat). If that moment has already passed
+      //    today and the 22:00 cutoff has not, it places and pays this
+      //    week's order right now — like a single order at that hour. Either
+      //    way the customer is told for which pickup date.
+      let message: string;
+      try {
+        const { data } = await supabase.functions.invoke('subscription-engine/process-single-subscription', {
+          body: { subscription_id: sub.id },
+        });
+        const r = (data ?? {}) as { placed_now?: boolean; fulfillment_date?: string | null; reason?: string; error?: string | null };
+        if (r.placed_now && r.fulfillment_date) {
+          message = `Deine Dauerbestellung ist aktiv. Deine erste Bestellung für ${formatPickupDateDe(r.fulfillment_date)} wurde soeben aufgegeben und bezahlt – die Bestellbestätigung kommt per E-Mail.`;
+        } else if (r.reason === 'payment_failed') {
+          message = `Deine Dauerbestellung wurde angelegt, aber die Zahlung für die Bestellung${r.fulfillment_date ? ` für ${formatPickupDateDe(r.fulfillment_date)}` : ''} ist fehlgeschlagen${r.error ? ` (${r.error})` : ''}. Bitte prüfe deine Zahlungsmethode und setze die Dauerbestellung fort.`;
+        } else {
+          const run = nextSubscriptionRun(pickupDay);
+          message = `Deine Dauerbestellung ist aktiv. Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}.`;
+        }
+      } catch {
+        const run = nextSubscriptionRun(pickupDay);
+        message = `Deine Dauerbestellung ist aktiv. Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}.`;
+      }
       Alert.alert(
         'Dauerbestellung eingerichtet',
-        'Deine Dauerbestellung ist aktiv. Am Bestelltag um 20:00 Uhr wird deine erste Bestellung automatisch aufgegeben und bezahlt.',
+        message,
         [
           {
             text: 'OK',

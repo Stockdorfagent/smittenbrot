@@ -206,3 +206,12 @@ export function nextSubscriptionRun(
     label: `${sameDay ? 'heute' : fmt(chosen.order)} um 20:00 Uhr · Abholung ${fmt(chosen.pickup)}`,
   };
 }
+
+/** "Mittwoch, 07.10." for a YYYY-MM-DD pickup date (Europe/Berlin calendar). */
+export function formatPickupDateDe(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+  const weekday = d.toLocaleDateString('de-DE', { weekday: 'long', timeZone: 'UTC' });
+  return `${weekday}, ${m[3]}.${m[2]}.`;
+}

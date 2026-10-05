@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/Button';
 import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
-import { localDateISO, nextSubscriptionRun } from '@/lib/pickup';
+import { localDateISO, nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
 import { collectPaymentMethod } from '@/lib/stripeSetup';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
@@ -143,13 +143,32 @@ export default function SubscriptionsScreen() {
     setPausingId(null);
   };
 
+  /**
+   * The engine places and pays the next order at 20:00 on the order day. If
+   * a resume happens after that moment (and before the 22:00 cutoff) the
+   * engine places this week's order right away and says for which date.
+   */
+  const placedNowMessage = (data: unknown): string | null => {
+    const r = (data ?? {}) as { placed_now?: boolean; fulfillment_date?: string | null; reason?: string; error?: string | null };
+    if (r.placed_now && r.fulfillment_date) {
+      return `Deine Bestellung für ${formatPickupDateDe(r.fulfillment_date)} wurde soeben aufgegeben und bezahlt – die Bestellbestätigung kommt per E-Mail.`;
+    }
+    if (r.reason === 'payment_failed') {
+      return `Die Zahlung für die Bestellung${r.fulfillment_date ? ` für ${formatPickupDateDe(r.fulfillment_date)}` : ''} ist fehlgeschlagen${r.error ? ` (${r.error})` : ''}. Bitte prüfe deine Zahlungsmethode.`;
+    }
+    return null;
+  };
+
   const handleResume = async (subId: string) => {
-    // No order is created now; the next 20:00 run places and pays it.
-    const { error } = await supabase.functions.invoke('subscription-engine/resume', {
+    const { data, error } = await supabase.functions.invoke('subscription-engine/resume', {
       body: { subscription_id: subId },
     });
     if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Fortsetzen fehlgeschlagen.'));
-    else await fetchSubscriptions();
+    else {
+      const msg = placedNowMessage(data);
+      if (msg) Alert.alert('Dauerbestellung fortgesetzt', msg);
+      await fetchSubscriptions();
+    }
   };
 
   /**
@@ -173,7 +192,7 @@ export default function SubscriptionsScreen() {
       // cutoff and cannot be baked any more; the old direct status write left
       // the Abo active but orderless until the next Mon/Thu run — and the
       // home screen with no trace of either.
-      const { error: resumeErr } = await supabase.functions.invoke('subscription-engine/resume', {
+      const { data: resumeData, error: resumeErr } = await supabase.functions.invoke('subscription-engine/resume', {
         body: { subscription_id: subId },
       });
       if (resumeErr) {
@@ -188,7 +207,8 @@ export default function SubscriptionsScreen() {
       }
       Alert.alert(
         'Zahlungsmethode gespeichert',
-        'Deine Dauerbestellung ist wieder aktiv. Die nächste Bestellung wird automatisch erstellt.',
+        placedNowMessage(resumeData) ??
+          'Deine Dauerbestellung ist wieder aktiv. Die nächste Bestellung wird am Bestelltag um 20:00 Uhr aufgegeben und bezahlt.',
       );
       await fetchSubscriptions();
     } finally {
@@ -204,11 +224,15 @@ export default function SubscriptionsScreen() {
    * but not the bread — resume regenerates the order while its cutoff allows.
    */
   const handleUndoCancel = async (subId: string) => {
-    const { error } = await supabase.functions.invoke('subscription-engine/resume', {
+    const { data, error } = await supabase.functions.invoke('subscription-engine/resume', {
       body: { subscription_id: subId },
     });
     if (error) Alert.alert('Fehler', await edgeErrorMessage(error, 'Das konnte nicht zurückgenommen werden.'));
-    else await fetchSubscriptions();
+    else {
+      const msg = placedNowMessage(data);
+      if (msg) Alert.alert('Dauerbestellung läuft weiter', msg);
+      await fetchSubscriptions();
+    }
   };
 
   const handleCancel = (subId: string) => {
