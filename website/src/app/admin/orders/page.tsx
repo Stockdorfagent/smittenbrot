@@ -132,12 +132,18 @@ export default function AdminOrdersPage() {
   async function loadData() {
     setLoading(true);
     const [ordersRes, locsRes] = await Promise.all([
-      // Default to today and later: the unbounded version pulled every order
-      // ever made (plus all their items and notifications) on every visit.
-      // "Vergangene anzeigen" fetches the full history on demand.
+      // Default: today and later, PLUS any past order that is still open
+      // (not ticked off, not cancelled/refunded). Owner 09.10.2026: a forgotten
+      // bake day vanished from this list while the dashboard kept showing it.
+      // The unbounded version pulled every order ever made (plus all their
+      // items and notifications) on every visit, so "Vergangene anzeigen"
+      // still fetches the full history on demand.
       (showPast
         ? supabase.from('orders').select('*')
-        : supabase.from('orders').select('*').gte('fulfillment_date', berlinTodayISO())
+        : supabase
+          .from('orders')
+          .select('*')
+          .or(`fulfillment_date.gte.${berlinTodayISO()},status.not.in.(fulfilled,cancelled,refunded)`)
       )
         .order('fulfillment_date', { ascending: false })
         .order('created_at', { ascending: false }),
