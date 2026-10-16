@@ -98,6 +98,7 @@ export default function AdminOrdersPage() {
   const [dateFilter, setDateFilter] = useState<string>('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkFulfilBusy, setBulkFulfilBusy] = useState(false);
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notificationsByOrder, setNotificationsByOrder] = useState<Record<string, OrderNotification[]>>({});
@@ -335,6 +336,54 @@ export default function AdminOrdersPage() {
     setSelected(new Set());
   }
 
+  /**
+   * "Nur erledigen" for the whole selection: tick every selected order off
+   * WITHOUT a pickup e-mail (owner, 16.10.2026 — until now this meant opening
+   * each order and clicking "Nur erledigen" one by one). Same server action
+   * as the per-order button, one call per order so the audit log reads the
+   * same; failures are reported by order number, the rest still go through.
+   */
+  async function bulkFulfilOnly() {
+    const ids = selectedEligible;
+    if (ids.length === 0) return;
+    const picked = orders.filter((o) => ids.includes(o.id));
+    const unpaid = picked.filter((o) => o.payment_status !== 'paid').length;
+    const future = picked.filter((o) => o.fulfillment_date > berlinTodayISO()).length;
+    let msg = `${ids.length} Bestellung(en) als erledigt markieren (ohne Benachrichtigung)?`;
+    if (unpaid > 0) {
+      msg += `\n\nACHTUNG: ${unpaid} davon ist/sind nicht bezahlt. Als erledigt markierte ` +
+        'Bestellungen werden nie belastet.';
+    }
+    if (future > 0) {
+      msg += `\n\nHinweis: bei ${future} Bestellung(en) liegt der Abholtag noch in der Zukunft.`;
+    }
+    if (!confirm(msg)) return;
+    setBulkFulfilBusy(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ?? '';
+    const done: string[] = [];
+    const failed: { label: string; error: string }[] = [];
+    for (const o of picked) {
+      const res = await fetch('/api/admin/order-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ order_id: o.id, action: 'mark_fulfilled', allow_unpaid: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) done.push(o.id);
+      else failed.push({ label: o.order_number ?? o.id.substring(0, 8), error: data.error ?? `HTTP ${res.status}` });
+    }
+    setBulkFulfilBusy(false);
+    if (done.length > 0) {
+      setOrders((prev) => prev.map((o) =>
+        done.includes(o.id) ? { ...o, status: 'fulfilled' as Order['status'] } : o,
+      ));
+      showToast(`${done.length} Bestellung(en) erledigt (ohne Benachrichtigung).`, 'success');
+    }
+    for (const f of failed) showToast(`Fehlgeschlagen: ${f.label} — ${f.error}`);
+    setSelected(new Set());
+  }
+
   if (loading) return <AdminLoading what="Bestellungen" />;
 
   return (
@@ -416,12 +465,21 @@ export default function AdminOrdersPage() {
           </label>
           <button
             onClick={bulkNotify}
-            disabled={selectedEligible.length === 0 || bulkBusy}
+            disabled={selectedEligible.length === 0 || bulkBusy || bulkFulfilBusy}
             className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {bulkBusy
               ? 'Wird gesendet...'
               : `Abholbereit melden & erledigen (${selectedEligible.length})`}
+          </button>
+          <button
+            onClick={bulkFulfilOnly}
+            disabled={selectedEligible.length === 0 || bulkBusy || bulkFulfilBusy}
+            className="px-4 py-2 border border-smitten-cream text-smitten-text/70 text-sm rounded-lg hover:border-smitten-text/30 transition-colors disabled:opacity-50"
+          >
+            {bulkFulfilBusy
+              ? 'Wird erledigt...'
+              : `Nur erledigen (${selectedEligible.length})`}
           </button>
           {selectedEligible.length > 0 && (
             <button
