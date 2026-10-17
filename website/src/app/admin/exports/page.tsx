@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { buildCsv, downloadCsv } from '@/lib/csv';
+import { berlinTodayISO } from '@/lib/pickup';
 import { formatPrice } from '@/lib/types';
 import { paymentMethodLabel, orderStatusAdminLabels } from '@/lib/adminLabels';
 import JSZip from 'jszip';
@@ -152,6 +153,7 @@ export default function AdminExportsPage() {
         order_number: order.order_number || '',
         customer_name: order.customer_name || '',
         customer_email: order.customer_email || '',
+        order_date: order.created_at ? berlinTodayISO(new Date(order.created_at)) : '',
         fulfillment_date: order.fulfillment_date || '',
         total_gross_cents: order.total_cents,
         total_net_cents: netTotal,
@@ -197,7 +199,10 @@ export default function AdminExportsPage() {
         ID: order.id,
         Bestellnummer: order.order_number || '',
         Rechnungsnummer: order.invoice_number || '',
-        Datum: order.fulfillment_date,
+        // Two explicit dates (owner, 17.10.2026): the single 'Datum' column held the
+        // pickup day and was read as the order date.
+        Bestelldatum: order.created_at ? berlinTodayISO(new Date(order.created_at)) : '',
+        Abholtag: order.fulfillment_date || '',
         Kunde: order.customer_name || order.customer_email || 'Gast',
         Typ: order.order_type === 'subscription' ? 'Abonnement' : 'Einmalig',
         Artikel: items,
