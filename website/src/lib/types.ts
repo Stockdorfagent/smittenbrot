@@ -19,6 +19,9 @@ export interface Product {
   weight: string | null;
   ingredients: string | null;
   allergens: string | null;
+  /** Step 1b: approved list generated from the recipes, **…** = allergen emphasis; wins over `ingredients` when set. */
+  ingredients_generated?: string | null;
+  ingredients_status?: 'generated' | 'manual' | null;
   /** URL name, generated from the product name by a DB trigger (migration 028). */
   slug: string | null;
   /** Shop section on /products (migration 031). Display only — never decides availability. */

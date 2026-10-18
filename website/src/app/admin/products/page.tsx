@@ -8,6 +8,7 @@ import { Product, formatPrice } from '@/lib/types';
 import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { cycleLabels, displayGroupLabels } from '@/lib/adminLabels';
+import { Bold } from '@/components/admin/production/ui';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -562,22 +563,35 @@ export default function AdminProductsPage() {
                       className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-smitten-text/60 mb-1">Zutaten (kommagetrennt)</label>
-                    <input
-                      value={editForm.ingredients ?? ''}
-                      onChange={(e) => setEditForm({ ...editForm, ingredients: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
-                    />
-                  </div>
-                  <div className="md:col-span-3">
-                    <label className="block text-xs text-smitten-text/60 mb-1">Allergene (kommagetrennt) — der Hinweis zu Spuren wird automatisch ergänzt</label>
-                    <input
-                      value={editForm.allergens ?? ''}
-                      onChange={(e) => setEditForm({ ...editForm, allergens: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
-                    />
-                  </div>
+                  {editForm.ingredients_status === 'manual' || !editForm.ingredients_generated ? (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-smitten-text/60 mb-1">Zutaten (kommagetrennt){editForm.ingredients_status === 'manual' && <span className="ml-2 text-amber-700">manuell – nicht generiert</span>}</label>
+                        <input
+                          value={editForm.ingredients ?? ''}
+                          onChange={(e) => setEditForm({ ...editForm, ingredients: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="block text-xs text-smitten-text/60 mb-1">Allergene (kommagetrennt) — der Hinweis zu Spuren wird automatisch ergänzt</label>
+                        <input
+                          value={editForm.allergens ?? ''}
+                          onChange={(e) => setEditForm({ ...editForm, allergens: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                        />
+                        <p className="text-[11px] text-smitten-text/50 mt-1">Zutaten und Allergene werden aus den Rezepten generiert und unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Zutaten lists</a> freigegeben. Diese Felder gelten nur, solange keine Liste freigegeben ist oder &bdquo;manuell&ldquo; gesetzt wurde.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="md:col-span-3 rounded-lg border border-smitten-cream p-3 text-sm">
+                      <p className="text-xs text-smitten-text/60 mb-1">Zutaten (aus den Rezepten generiert, freigegeben)</p>
+                      <p><Bold text={editForm.ingredients_generated ?? ''} /></p>
+                      <p className="text-xs text-smitten-text/60 mt-2 mb-1">Allergene</p>
+                      <p>{editForm.allergens}</p>
+                      <p className="text-[11px] text-smitten-text/50 mt-2">Änderungen laufen über die Rezepte und die Freigabe unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Zutaten lists</a>. Dort lässt sich das Produkt auch auf &bdquo;manuell&ldquo; stellen.</p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm text-smitten-text">

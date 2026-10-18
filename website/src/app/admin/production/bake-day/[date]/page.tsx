@@ -38,6 +38,7 @@ export default function BakeDayPage() {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [newExtra, setNewExtra] = useState<{ pr_product_id: string; qty: string; reason: string }>({ pr_product_id: '', qty: '', reason: 'Freezer stock' });
   const [dirty, setDirty] = useState(false);
+  const [listsPending, setListsPending] = useState<{ name: string; status: string }[]>([]);
 
   const load = useCallback(async (live = false) => {
     try {
@@ -52,6 +53,11 @@ export default function BakeDayPage() {
   }, [date]);
 
   useEffect(() => { if (isValidISODate(date)) load(); else setError('Invalid date.'); }, [date, load]);
+  useEffect(() => {
+    adminFetch<{ rows: { name: string; status: string; active: boolean }[] }>('/api/admin/production/ingredient-lists')
+      .then((r) => setListsPending(r.rows.filter((x) => x.active && (x.status === 'outdated' || x.status === 'new')).map((x) => ({ name: x.name, status: x.status }))))
+      .catch(() => setListsPending([]));
+  }, []);
 
   /** Live recalculation in the browser while the owner edits extras or percentages (frozen days show the snapshot). */
   const sheet = useMemo<BakeSheet | null>(() => {
@@ -155,6 +161,9 @@ export default function BakeDayPage() {
             </Notice>
           ))}
         </div>
+      )}
+      {listsPending.length > 0 && (
+        <div className="mb-4 print:hidden"><Notice tone="warning">Ingredient list outdated / not yet approved: {listsPending.map((x) => x.name).join(', ')} — <Link href="/admin/production/ingredient-lists" className="underline">review and approve</Link>.</Notice></div>
       )}
       {dirty && <div className="mb-4 print:hidden"><Notice tone="info">Unsaved changes — the figures below already reflect them. Click “Save day” to keep them for this bake day.</Notice></div>}
 

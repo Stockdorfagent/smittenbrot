@@ -9,8 +9,8 @@ export const TRACE_NOTICE =
   'In der gleichen Backstube werden oft auch Eier, Erdnüsse, Milch, Schalenfrüchte, Sellerie, Senf, Sesam und Soja verarbeitet. Spuren dieser Allergene können daher nicht ausgeschlossen werden.';
 
 /** True when at least one structured info field is filled. */
-export function hasProductInfo(p: Pick<Product, 'weight' | 'ingredients' | 'allergens'>): boolean {
-  return Boolean(p.weight?.trim() || p.ingredients?.trim() || p.allergens?.trim());
+export function hasProductInfo(p: Pick<Product, 'weight' | 'ingredients' | 'allergens' | 'ingredients_generated'>): boolean {
+  return Boolean(p.weight?.trim() || p.ingredients_generated?.trim() || p.ingredients?.trim() || p.allergens?.trim());
 }
 
 /**
