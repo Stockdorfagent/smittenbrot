@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   if (!isValidISODate(date)) return bad('date must be YYYY-MM-DD.');
   const live = req.nextUrl.searchParams.get('live') === '1';
   return withAdmin(req, async (db) => {
-    const { sheet, row, frozen, data } = await getBakeSheet(db, date, { forceLive: live });
-    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data });
+    const { sheet, row, frozen, data, b2b, web } = await getBakeSheet(db, date, { forceLive: live });
+    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web });
   });
 }
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     } else {
       return bad('Unknown action.');
     }
-    const { sheet, row, frozen, data } = await getBakeSheet(db, date);
-    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data });
+    const { sheet, row, frozen, data, b2b, web } = await getBakeSheet(db, date);
+    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web });
   });
 }

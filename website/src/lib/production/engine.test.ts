@@ -278,11 +278,12 @@ test('Stock products: pieces from the freezer plus coating, no dough from orders
 
 test('Stock product: web orders from the freezer, extra quantities INTO the freezer join the dough batch', () => {
   const data = { ...DATA, products: [...DATA.products, product('Baby-Brioche Lumbono', 'rec-Brioche', 50, { channel: 'intern', product_id: null, link_status: 'internal', production: 'stock' })] };
-  const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 1), { ...demand('Baby-Brioche Lumbono', 6, 'extra'), reason: 'Freezer stock' }, demand('Amaretti Classici', 2)], data);
+  const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 1), { ...demand('Baby-Brioche Lumbono', 6, 'extra'), reason: 'Freezer stock' }, { ...demand('Baby-Brioche Lumbono', 2, 'b2b'), reason: 'Lumbono' }, demand('Amaretti Classici', 2)], data);
   const b = sheet.recipes.find((r) => r.name === 'Brioche')!;
   close(b.total_dough_g, 265 + 6 * 50, 1e-9);
   assert.deepEqual(b.products.map((p) => [p.name, p.qty]), [['Baby-Brioche Lumbono', 6], ['Brioche', 1]]);
-  assert.deepEqual(sheet.stock_products.map((s) => s.name), ['Amaretti Classici']); // web order of a stock product → freezer
+  // web and B2B orders of a stock product are delivered from the freezer, never baked from orders
+  assert.deepEqual(sheet.stock_products.map((s) => [s.name, s.qty]), [['Amaretti Classici', 2], ['Baby-Brioche Lumbono', 2]]);
   assert.equal(sheet.products.some((p) => p.name === 'Amaretti Classici'), false);
 });
 

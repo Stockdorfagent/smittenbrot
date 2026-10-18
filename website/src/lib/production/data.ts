@@ -8,10 +8,11 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Adjustment, BakeSheet, Demand, Ingredient, ProductLink, ProductionData, Recipe, RecipeItem, Starter } from './types';
+import type { Adjustment, B2BClient, BakeSheet, DayOverride, Demand, Ingredient, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Starter } from './types';
 import type { ImportPlan } from './csvImport';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
+import { b2bDemands, planB2BDay, type PlannedClient } from './b2b.ts';
 
 type DB = SupabaseClient;
 
@@ -96,6 +97,43 @@ export async function loadWebDemand(db: DB, date: string, products: ProductLink[
   }));
 }
 
+// ---------- step 2: B2B ----------
+
+export interface B2BData { clients: B2BClient[]; standing: StandingOrder[] }
+
+function items(v: unknown): { pr_product_id: string; qty: number }[] {
+  return Array.isArray(v) ? v.map((i: { pr_product_id: string; qty: unknown }) => ({ pr_product_id: i.pr_product_id, qty: num(i.qty) })) : [];
+}
+
+export async function loadB2B(db: DB): Promise<B2BData> {
+  const [c, s] = await Promise.all([
+    db.from('pr_b2b_clients').select('*').order('name'),
+    db.from('pr_standing_orders').select('*').order('weekday'),
+  ]);
+  if (c.error) throw new Error(c.error.message);
+  if (s.error) throw new Error(s.error.message);
+  return {
+    clients: (c.data ?? []).map((x) => ({ id: x.id, name: x.name, notes: x.notes, active: !!x.active })),
+    standing: (s.data ?? []).map((x) => ({ id: x.id, client_id: x.client_id, weekday: x.weekday, items: items(x.items), valid_from: x.valid_from, valid_to: x.valid_to, active: !!x.active, notes: x.notes })),
+  };
+}
+
+export interface B2BDay { planned: PlannedClient[]; manual: ManualOrder[]; overrides: DayOverride[]; clients: B2BClient[]; standing: StandingOrder[] }
+
+export async function loadB2BDay(db: DB, date: string): Promise<B2BDay> {
+  const [{ clients, standing }, o, m] = await Promise.all([
+    loadB2B(db),
+    db.from('pr_b2b_day_overrides').select('*').eq('date', date),
+    db.from('pr_manual_orders').select('*').eq('date', date).order('created_at'),
+  ]);
+  if (o.error) throw new Error(o.error.message);
+  if (m.error) throw new Error(m.error.message);
+  const overrides: DayOverride[] = (o.data ?? []).map((x) => ({ id: x.id, client_id: x.client_id, date: x.date, skip: !!x.skip, items: x.items === null ? null : items(x.items), note: x.note }));
+  const manual: ManualOrder[] = (m.data ?? []).map((x) => ({ id: x.id, date: x.date, type: x.type, client_id: x.client_id, label: x.label, items: items(x.items), notes: x.notes }));
+  const plan = planB2BDay(date, clients, standing, overrides, manual);
+  return { ...plan, overrides, clients, standing };
+}
+
 export interface BakeDayRow {
   date: string;
   extra_quantities: { pr_product_id: string; qty: number; reason: string | null }[];
@@ -139,21 +177,21 @@ export async function autoLinkPending(db: DB): Promise<string[]> {
  * The first look at a past day without a snapshot computes and stores one
  * (spec 1.4: "after that a snapshot is saved").
  */
-export async function getBakeSheet(db: DB, date: string, opts: { forceLive?: boolean } = {}): Promise<{ sheet: BakeSheet; row: BakeDayRow; frozen: boolean; data: ProductionData }> {
+export async function getBakeSheet(db: DB, date: string, opts: { forceLive?: boolean } = {}): Promise<{ sheet: BakeSheet; row: BakeDayRow; frozen: boolean; data: ProductionData; b2b: B2BDay; web: Demand[] }> {
   await autoLinkPending(db);
-  const [data, row] = await Promise.all([loadProductionData(db), loadBakeDayRow(db, date)]);
+  const [data, row, b2b] = await Promise.all([loadProductionData(db), loadBakeDayRow(db, date), loadB2BDay(db, date)]);
   const past = date < berlinTodayISO();
-  if (row.snapshot && !opts.forceLive) return { sheet: row.snapshot, row, frozen: true, data };
   const web = await loadWebDemand(db, date, data.products);
+  if (row.snapshot && !opts.forceLive) return { sheet: row.snapshot, row, frozen: true, data, b2b, web };
   const byId = new Map(data.products.map((p) => [p.id, p]));
   const extras: Demand[] = row.extra_quantities.map((e) => ({ pr_product_id: e.pr_product_id, product_name: byId.get(e.pr_product_id)?.name ?? 'unknown product', qty: e.qty, source: 'extra', reason: e.reason ?? 'Freezer stock' }));
-  const sheet = computeBakeSheet(date, [...web, ...extras], data, row.adjustments);
+  const sheet = computeBakeSheet(date, [...web, ...b2bDemands(b2b, data.products, b2b.clients), ...extras], data, row.adjustments);
   if (past && !opts.forceLive) {
     const { error } = await db.from('pr_bake_days').upsert({ date, snapshot: sheet, snapshot_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'date' });
     if (error) throw new Error(error.message);
-    return { sheet, row: { ...row, snapshot: sheet }, frozen: true, data };
+    return { sheet, row: { ...row, snapshot: sheet }, frozen: true, data, b2b, web };
   }
-  return { sheet, row, frozen: false, data };
+  return { sheet, row, frozen: false, data, b2b, web };
 }
 
 // ---------- writing ----------

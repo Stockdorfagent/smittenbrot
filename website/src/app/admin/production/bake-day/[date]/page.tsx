@@ -9,8 +9,10 @@ import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, adminDownload, fmtG, fmtPct } from '@/lib/production/client';
 import { computeBakeSheet } from '@/lib/production/engine';
+import { b2bDemands } from '@/lib/production/b2b';
+import type { PlannedClient } from '@/lib/production/b2b';
 import { formatDateEN, isValidISODate } from '@/lib/production/bakeDays';
-import type { Adjustment, BakeSheet, Demand, GramLine, ProductionData, RecipeBlock, StarterNeed, SubBlock } from '@/lib/production/types';
+import type { Adjustment, BakeSheet, Demand, GramLine, ManualOrder, ProductionData, RecipeBlock, StarterNeed, SubBlock, B2BClient, DayOverride, StandingOrder } from '@/lib/production/types';
 
 interface DayResponse {
   sheet: BakeSheet;
@@ -19,6 +21,8 @@ interface DayResponse {
   cutoff: { date: string; hour: number; passed: boolean; label: string };
   is_bake_day: boolean;
   data: ProductionData;
+  b2b: { planned: PlannedClient[]; manual: ManualOrder[]; overrides: DayOverride[]; clients: B2BClient[]; standing: StandingOrder[] };
+  web: Demand[];
 }
 
 export default function BakeDayPage() {
@@ -52,11 +56,8 @@ export default function BakeDayPage() {
     if (!res) return null;
     if (res.frozen && !dirty) return res.sheet;
     const byId = new Map(res.data.products.map((p) => [p.id, p]));
-    const web: Demand[] = res.sheet.products.flatMap((p) => p.by_source.filter((s) => s.source === 'web').map((s) => ({ pr_product_id: p.pr_product_id, product_name: p.name, qty: s.qty, source: 'web' as const })));
-    const stock: Demand[] = res.sheet.stock_products.map((s) => ({ pr_product_id: s.pr_product_id, product_name: s.name, qty: s.qty, source: 'web' as const }));
-    const missing: Demand[] = res.sheet.warnings.filter((w) => w.type === 'missing_recipe' && w.qty).map((w) => ({ pr_product_id: null, product_name: w.product_name ?? '', qty: w.qty ?? 0, source: 'web' as const }));
     const extraDemands: Demand[] = extras.map((e) => ({ pr_product_id: e.pr_product_id, product_name: byId.get(e.pr_product_id)?.name ?? '?', qty: e.qty, source: 'extra' as const, reason: e.reason }));
-    return computeBakeSheet(date, [...web, ...stock, ...missing, ...extraDemands], res.data, adjustments);
+    return computeBakeSheet(date, [...res.web, ...b2bDemands(res.b2b, res.data.products, res.b2b.clients), ...extraDemands], res.data, adjustments);
   }, [res, extras, adjustments, dirty, date]);
 
   async function save() {
@@ -159,22 +160,25 @@ export default function BakeDayPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 print:block">
         <Card title="Quantities" className="print:border-0 print:p-0 print:mb-4">
           <table className="w-full">
-            <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>Web</th><th className={`${th} text-right`}>Extra</th><th className={`${th} text-right`}>Total</th><th className={`${th} text-right`}>Dough</th></tr></thead>
+            <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>Web</th><th className={`${th} text-right`}>B2B</th><th className={`${th} text-right`}>Other</th><th className={`${th} text-right`}>Extra</th><th className={`${th} text-right`}>Total</th><th className={`${th} text-right`}>Dough</th></tr></thead>
             <tbody>
               {sheet.products.map((p) => {
-                const web = p.by_source.filter((s) => s.source === 'web').reduce((n, s) => n + s.qty, 0);
-                const extra = p.by_source.filter((s) => s.source !== 'web').reduce((n, s) => n + s.qty, 0);
+                const sum = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).reduce((n, s) => n + s.qty, 0);
+                const who = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).map((s) => s.reason).filter(Boolean).join(', ');
+                const cell = (src: Demand['source']) => { const n = sum(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
                 return (
                   <tr key={p.pr_product_id} className="border-t border-smitten-cream">
                     <td className={td}>{p.name}</td>
-                    <td className={tdNum}>{web || ''}</td>
-                    <td className={tdNum}>{extra ? <span>{extra} <span className="text-xs text-smitten-text/50">{p.by_source.filter((s) => s.source !== 'web').map((s) => s.reason).filter(Boolean).join(', ')}</span></span> : ''}</td>
+                    <td className={tdNum}>{sum('web') || ''}</td>
+                    <td className={tdNum}>{cell('b2b')}</td>
+                    <td className={tdNum}>{cell('manual')}</td>
+                    <td className={tdNum}>{cell('extra')}</td>
                     <td className={`${tdNum} font-medium`}>{p.qty}</td>
                     <td className={tdNum}>{fmtG(p.dough_g)} g</td>
                   </tr>
                 );
               })}
-              {sheet.products.length === 0 && <tr><td className={td} colSpan={5}><span className="text-smitten-text/50">No orders for this day{res.cutoff.passed ? '' : ' yet'}.</span></td></tr>}
+              {sheet.products.length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">No orders for this day{res.cutoff.passed ? '' : ' yet'}.</span></td></tr>}
             </tbody>
           </table>
 
@@ -221,6 +225,9 @@ export default function BakeDayPage() {
             </div>
           </div>
         </Card>
+
+        {/* B2B and one-off orders */}
+        <B2BCard date={date} b2b={res.b2b} products={products} onChanged={() => load()} busy={busy} setBusy={setBusy} />
 
         {/* Starter feeding schedule */}
         <Card title="Starter feeding schedule" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid">
@@ -407,5 +414,110 @@ function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
       </table>
       {b.subs.map((c) => <SubCard key={c.recipe_id} b={c} depth={depth + 1} />)}
     </div>
+  );
+}
+
+function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
+  date: string; b2b: DayResponse['b2b']; products: ProductionData['products']; onChanged: () => void; busy: boolean; setBusy: (b: boolean) => void;
+}) {
+  const [editClient, setEditClient] = useState<string | null>(null);
+  const [items, setItems] = useState<{ pr_product_id: string; qty: string }[]>([]);
+  const [note, setNote] = useState('');
+  const [manual, setManual] = useState<{ type: ManualOrder['type']; client_id: string; label: string; items: { pr_product_id: string; qty: string }[] } | null>(null);
+  const productName = new Map(products.map((p) => [p.id, p.name]));
+  const clientName = new Map(b2b.clients.map((c) => [c.id, c.name]));
+
+  async function act(body: Record<string, unknown>, okText: string) {
+    setBusy(true);
+    try {
+      await adminFetch('/api/admin/production/b2b', { body });
+      showToast(okText, 'success');
+      setEditClient(null); setManual(null);
+      onChanged();
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  }
+  const itemsText = (list: { pr_product_id: string; qty: number }[]) => list.map((i) => `${i.qty} × ${productName.get(i.pr_product_id) ?? '?'}`).join(', ');
+  const itemEditor = (list: { pr_product_id: string; qty: string }[], set: (l: { pr_product_id: string; qty: string }[]) => void) => (
+    <div>
+      {list.map((it, i) => (
+        <div key={i} className="flex items-center gap-2 mb-1">
+          <input className={`${smallInputCls} w-20`} type="number" min="1" step="1" placeholder="qty" value={it.qty} onChange={(e) => set(list.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))} />
+          <select className={smallInputCls} value={it.pr_product_id} onChange={(e) => set(list.map((x, j) => j === i ? { ...x, pr_product_id: e.target.value } : x))}>
+            <option value="">product…</option>
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.production === 'stock' ? ' · from freezer' : ''}</option>)}
+          </select>
+          <button className="text-xs text-red-700" onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      <button className="text-xs underline text-smitten-text/60" onClick={() => set([...list, { pr_product_id: '', qty: '' }])}>+ item</button>
+    </div>
+  );
+
+  return (
+    <Card title="B2B and one-off orders" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid"
+      right={<Link href="/admin/production/b2b" className="text-xs underline text-smitten-text/60 print:hidden">clients &amp; standing orders</Link>}>
+      {b2b.planned.length === 0 && b2b.manual.length === 0 && <p className="text-sm text-smitten-text/50">No B2B or one-off orders on this day.</p>}
+      <ul className="text-sm divide-y divide-smitten-cream">
+        {b2b.planned.map((p) => (
+          <li key={p.client.id} className="py-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <span className="font-medium">{p.client.name}</span>{' '}
+                {p.skipped ? <StatusPill tone="red">closed – nothing today</StatusPill> : p.source === 'override' ? <StatusPill tone="amber">changed for this day</StatusPill> : <StatusPill tone="blue">standing order</StatusPill>}
+                {!p.skipped && <span className="block">{itemsText(p.items) || <span className="text-smitten-text/40">nothing</span>}</span>}
+                {p.override?.note && <span className="block text-xs text-smitten-text/50">{p.override.note}</span>}
+              </div>
+              <div className="flex gap-2 print:hidden">
+                {editClient !== p.client.id && !p.skipped && <button className="text-xs underline" disabled={busy} onClick={() => { setEditClient(p.client.id); setItems(p.items.map((i) => ({ pr_product_id: i.pr_product_id, qty: String(i.qty) }))); setNote(p.override?.note ?? ''); }}>change today</button>}
+                {!p.skipped && <button className="text-xs underline text-red-700" disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: true, note: 'closed' } }, `${p.client.name}: nothing today.`)}>closed today</button>}
+                {p.override && <button className="text-xs underline" disabled={busy} onClick={() => act({ action: 'delete_override', client_id: p.client.id, date }, 'Back to the standing order.')}>back to standing order</button>}
+              </div>
+            </div>
+            {editClient === p.client.id && (
+              <div className="mt-2 rounded-lg border border-smitten-cream p-3 print:hidden">
+                {itemEditor(items, setItems)}
+                <input className={`${smallInputCls} w-full mt-2`} placeholder="note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+                <div className="mt-2 flex gap-2">
+                  <button className={btnPrimary} disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: false, items: items.filter((i) => i.pr_product_id).map((i) => ({ pr_product_id: i.pr_product_id, qty: Number(i.qty) })), note } }, `${p.client.name} changed for ${date}.`)}>Save for this day</button>
+                  <button className={btnSecondary} onClick={() => setEditClient(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+        {b2b.manual.map((m) => (
+          <li key={m.id} className="py-2 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <span className="font-medium">{m.type === 'b2b' ? (m.client_id ? clientName.get(m.client_id) ?? 'B2B' : m.label || 'B2B') : `${m.type}${m.label ? ` · ${m.label}` : ''}`}</span> <StatusPill tone="gray">one-off</StatusPill>
+              <span className="block">{itemsText(m.items)}</span>
+            </div>
+            <button className="text-xs underline text-red-700 print:hidden" disabled={busy} onClick={() => { if (confirm('Delete this one-off order?')) act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.'); }}>delete</button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 print:hidden">
+        {!manual && <button className={btnSecondary} onClick={() => setManual({ type: 'b2b', client_id: b2b.clients[0]?.id ?? '', label: '', items: [{ pr_product_id: '', qty: '' }] })}>+ one-off order</button>}
+        {manual && (
+          <div className="rounded-lg border border-smitten-cream p-3">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <select className={smallInputCls} value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as ManualOrder['type'] })}>
+                <option value="b2b">B2B</option><option value="market">market</option><option value="test">test bake</option><option value="own">own use</option>
+              </select>
+              {manual.type === 'b2b' && (
+                <select className={smallInputCls} value={manual.client_id} onChange={(e) => setManual({ ...manual, client_id: e.target.value })}>
+                  <option value="">client…</option>{b2b.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+              <input className={`${smallInputCls} w-48`} placeholder="label (optional)" value={manual.label} onChange={(e) => setManual({ ...manual, label: e.target.value })} />
+            </div>
+            {itemEditor(manual.items, (l) => setManual({ ...manual, items: l }))}
+            <div className="mt-2 flex gap-2">
+              <button className={btnPrimary} disabled={busy} onClick={() => act({ action: 'save_manual', manual: { date, type: manual.type, client_id: manual.client_id || null, label: manual.label, items: manual.items.filter((i) => i.pr_product_id).map((i) => ({ pr_product_id: i.pr_product_id, qty: Number(i.qty) })) } }, 'One-off order saved.')}>Save</button>
+              <button className={btnSecondary} onClick={() => setManual(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }

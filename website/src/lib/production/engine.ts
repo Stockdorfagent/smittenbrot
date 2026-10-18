@@ -383,8 +383,8 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
   }
 
   // 2. split into orders-production and stock products, group by recipe.
-  //    Stock products: web orders come FROM the freezer (no dough); extra
-  //    quantities are what goes INTO the freezer, so they join the batch (spec 1.4).
+  //    Stock products: web/B2B/manual orders come FROM the freezer (no dough);
+  //    extra quantities are what goes INTO the freezer, so they join the batch (spec 1.4, step 2).
   const stockLines: StockProductLine[] = [];
   const byRecipe = new Map<string, ProductQty[]>();
   const batchRows: ProductQty[] = [];
@@ -392,8 +392,8 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
     const p = products.get(row.pr_product_id)!;
     let batchRow: ProductQty = row;
     if (p.production === 'stock') {
-      const fromFreezer = row.by_source.filter((s) => s.source === 'web');
-      const intoFreezer = row.by_source.filter((s) => s.source !== 'web');
+      const fromFreezer = row.by_source.filter((s) => s.source !== 'extra');   // web, B2B and manual orders are delivered from stock
+      const intoFreezer = row.by_source.filter((s) => s.source === 'extra');   // extras are made to refill it
       const freezerQty = fromFreezer.reduce((n, s) => n + s.qty, 0);
       if (freezerQty > 0) {
         const rec = p.recipe_id ? ctx.recipes.get(p.recipe_id) : undefined;

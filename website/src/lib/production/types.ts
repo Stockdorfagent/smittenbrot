@@ -102,7 +102,8 @@ export interface Demand {
   pr_product_id: string | null;   // null = no production product for this shop product
   product_name: string;
   qty: number;
-  source: 'web' | 'extra' | 'manual';
+  /** web = shop orders; b2b = standing/one-off B2B; manual = market/test/own; extra = made for the freezer. */
+  source: 'web' | 'b2b' | 'manual' | 'extra';
   reason?: string | null;
 }
 
@@ -257,3 +258,12 @@ export interface BakeSheet {
   totals: { eggs: number };
   versions: Record<string, number>; // recipe_id → version used
 }
+
+// ---------- step 2: B2B ----------
+
+export interface B2BClient { id: string; name: string; notes: string | null; active: boolean }
+export interface OrderItem { pr_product_id: string; qty: number }
+export interface StandingOrder { id: string; client_id: string; weekday: number; items: OrderItem[]; valid_from: string | null; valid_to: string | null; active: boolean; notes: string | null }
+export interface DayOverride { id: string; client_id: string; date: string; skip: boolean; items: OrderItem[] | null; note: string | null }
+export type ManualOrderType = 'b2b' | 'market' | 'test' | 'own';
+export interface ManualOrder { id: string; date: string; type: ManualOrderType; client_id: string | null; label: string | null; items: OrderItem[]; notes: string | null }
