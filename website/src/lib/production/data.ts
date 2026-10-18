@@ -1,0 +1,312 @@
+/**
+ * Data access for the production module (browser via RLS, server via the
+ * service role, scripts via .credentials). Relative imports only, so
+ * scripts/production-import.ts can run it outside Next.
+ *
+ * Every function takes a Supabase client: the API routes pass the service
+ * role (after requireAdmin), the import script passes it from .credentials.
+ */
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Adjustment, BakeSheet, Demand, Ingredient, ProductLink, ProductionData, Recipe, RecipeItem, Starter } from './types';
+import type { ImportPlan } from './csvImport';
+import { computeBakeSheet } from './engine.ts';
+import { berlinTodayISO } from './bakeDays.ts';
+
+type DB = SupabaseClient;
+
+function num(v: unknown): number { return v === null || v === undefined ? 0 : Number(v); }
+function numOrNull(v: unknown): number | null { return v === null || v === undefined || v === '' ? null : Number(v); }
+
+// ---------- loading ----------
+
+export async function loadProductionData(db: DB): Promise<ProductionData> {
+  const [ing, st, stages, rec, items, prod, settings] = await Promise.all([
+    db.from('pr_ingredients').select('*').order('name'),
+    db.from('pr_starters').select('*').order('name'),
+    db.from('pr_starter_stages').select('*').order('stage_no'),
+    db.from('pr_recipes').select('*').order('name'),
+    db.from('pr_recipe_items').select('*').order('position'),
+    db.from('pr_products').select('*').order('name'),
+    db.from('pr_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+  for (const r of [ing, st, stages, rec, items, prod, settings]) if (r.error) throw new Error(r.error.message);
+
+  const ingredients: Ingredient[] = (ing.data ?? []).map((r) => ({
+    id: r.id, name: r.name, unit: r.unit, name_de: r.name_de, allergens: r.allergens, components_de: r.components_de,
+    derived_from: r.derived_from, g_per_source_unit: numOrNull(r.g_per_source_unit), notes: r.notes,
+  }));
+  const starters: Starter[] = (st.data ?? []).map((s) => ({
+    id: s.id, name: s.name, maintenance_flour_ingredient_id: s.maintenance_flour_ingredient_id,
+    stages: (stages.data ?? []).filter((x) => x.starter_id === s.id).map((x) => ({
+      id: x.id, stage_no: x.stage_no, day_offset: x.day_offset, flour_parts: num(x.flour_parts), water_parts: num(x.water_parts),
+      seed_parts: num(x.seed_parts), flour_from_recipe: !!x.flour_from_recipe,
+    })),
+  }));
+  const recipes: Recipe[] = (rec.data ?? []).map((r) => ({
+    id: r.id, name: r.name, kind: r.kind, base_ingredient_id: r.base_ingredient_id,
+    dough_margin_factor: numOrNull(r.dough_margin_factor), build_margin_pct: numOrNull(r.build_margin_pct), max_batch_g: numOrNull(r.max_batch_g),
+    per_batch_items: (r.per_batch_items ?? []).map((p: { ingredient_id: string; amount: unknown }) => ({ ingredient_id: p.ingredient_id, amount: num(p.amount) })),
+    current_version: r.current_version, notes: r.notes,
+    items: (items.data ?? []).filter((x) => x.recipe_id === r.id).map((x): RecipeItem => ({
+      id: x.id, position: x.position, type: x.type, ingredient_id: x.ingredient_id, sub_recipe_id: x.sub_recipe_id, starter_id: x.starter_id,
+      final_flour_ingredient_id: x.final_flour_ingredient_id, pct: num(x.pct), label: x.label,
+    })),
+  }));
+  const products: ProductLink[] = (prod.data ?? []).map((p) => ({
+    id: p.id, product_id: p.product_id, name: p.name, channel: p.channel, recipe_id: p.recipe_id, dough_per_unit_g: num(p.dough_per_unit_g),
+    bake_loss_pct: numOrNull(p.bake_loss_pct), extras: (p.extras ?? []).map((e: { ingredient_id: string; grams: unknown }) => ({ ingredient_id: e.ingredient_id, grams: num(e.grams) })),
+    production: p.production, pieces_per_unit: numOrNull(p.pieces_per_unit), link_status: p.link_status,
+  }));
+  const s = settings.data;
+  return {
+    ingredients, starters, recipes, products,
+    settings: { dough_margin_factor: s ? num(s.dough_margin_factor) : 0.1, build_margin_pct: s ? num(s.build_margin_pct) : 10, final_build_margin_pct: s ? num(s.final_build_margin_pct) : 10 },
+  };
+}
+
+/**
+ * Which orders count (spec 1.2): the SAME selection as the production-plan
+ * export (src/app/api/admin/production-plan/route.ts) — pickup day = bake day,
+ * every status except cancelled/refunded — minus TEST- orders (owner,
+ * 18.10.2026: nothing is ever baked for a test order). Keep the two in step.
+ */
+export async function loadWebDemand(db: DB, date: string, products: ProductLink[]): Promise<Demand[]> {
+  const { data, error } = await db
+    .from('orders')
+    .select('order_number, order_items(quantity, product_id, products(name))')
+    .not('status', 'in', '("cancelled","refunded")')
+    .eq('fulfillment_date', date)
+    .limit(10000);
+  if (error) throw new Error(error.message);
+  const byShopId = new Map(products.filter((p) => p.product_id).map((p) => [p.product_id!, p]));
+  const qty = new Map<string, { name: string; qty: number; product_id: string | null }>();
+  for (const o of data ?? []) {
+    if ((o.order_number ?? '').startsWith('TEST-')) continue;
+    for (const it of (o.order_items ?? []) as { quantity: number; product_id: string | null; products?: { name?: string } | null }[]) {
+      const key = it.product_id ?? `name:${it.products?.name ?? 'Unbekannt'}`;
+      const row = qty.get(key) ?? { name: it.products?.name ?? 'Unbekannt', qty: 0, product_id: it.product_id };
+      row.qty += Number(it.quantity || 0);
+      qty.set(key, row);
+    }
+  }
+  return [...qty.values()].map((r) => ({
+    pr_product_id: r.product_id ? (byShopId.get(r.product_id)?.id ?? null) : null,
+    product_name: r.name, qty: r.qty, source: 'web' as const,
+  }));
+}
+
+export interface BakeDayRow {
+  date: string;
+  extra_quantities: { pr_product_id: string; qty: number; reason: string | null }[];
+  adjustments: Adjustment[];
+  notes: string | null;
+  snapshot: BakeSheet | null;
+  snapshot_at: string | null;
+}
+
+export async function loadBakeDayRow(db: DB, date: string): Promise<BakeDayRow> {
+  const { data, error } = await db.from('pr_bake_days').select('*').eq('date', date).maybeSingle();
+  if (error) throw new Error(error.message);
+  return {
+    date,
+    extra_quantities: (data?.extra_quantities ?? []).map((e: { pr_product_id: string; qty: unknown; reason?: string | null }) => ({ pr_product_id: e.pr_product_id, qty: num(e.qty), reason: e.reason ?? null })),
+    adjustments: (data?.adjustments ?? []).map((a: { recipe_id: string; item_id: string; pct: unknown }) => ({ recipe_id: a.recipe_id, item_id: a.item_id, pct: num(a.pct) })),
+    notes: data?.notes ?? null,
+    snapshot: data?.snapshot ?? null,
+    snapshot_at: data?.snapshot_at ?? null,
+  };
+}
+
+/** Link pending web products whose name now exists in the shop (spec 1.5b). */
+export async function autoLinkPending(db: DB): Promise<string[]> {
+  const { data: pending } = await db.from('pr_products').select('id, name').eq('link_status', 'pending');
+  if (!pending || pending.length === 0) return [];
+  const { data: shop } = await db.from('products').select('id, name, unit_label').in('name', pending.map((p) => p.name));
+  const linked: string[] = [];
+  for (const p of pending) {
+    const s = (shop ?? []).find((x) => x.name === p.name);
+    if (!s) continue;
+    const m = (s.unit_label ?? '').match(/^(\d+)\s*Stück$/i);
+    const { error } = await db.from('pr_products').update({ product_id: s.id, link_status: 'linked', pieces_per_unit: m ? Number(m[1]) : null, updated_at: new Date().toISOString() }).eq('id', p.id);
+    if (!error) linked.push(p.name);
+  }
+  return linked;
+}
+
+/**
+ * The bake sheet for a date: live until the bake day is over, then frozen.
+ * The first look at a past day without a snapshot computes and stores one
+ * (spec 1.4: "after that a snapshot is saved").
+ */
+export async function getBakeSheet(db: DB, date: string, opts: { forceLive?: boolean } = {}): Promise<{ sheet: BakeSheet; row: BakeDayRow; frozen: boolean; data: ProductionData }> {
+  await autoLinkPending(db);
+  const [data, row] = await Promise.all([loadProductionData(db), loadBakeDayRow(db, date)]);
+  const past = date < berlinTodayISO();
+  if (row.snapshot && !opts.forceLive) return { sheet: row.snapshot, row, frozen: true, data };
+  const web = await loadWebDemand(db, date, data.products);
+  const byId = new Map(data.products.map((p) => [p.id, p]));
+  const extras: Demand[] = row.extra_quantities.map((e) => ({ pr_product_id: e.pr_product_id, product_name: byId.get(e.pr_product_id)?.name ?? 'unknown product', qty: e.qty, source: 'extra', reason: e.reason ?? 'Freezer stock' }));
+  const sheet = computeBakeSheet(date, [...web, ...extras], data, row.adjustments);
+  if (past && !opts.forceLive) {
+    const { error } = await db.from('pr_bake_days').upsert({ date, snapshot: sheet, snapshot_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'date' });
+    if (error) throw new Error(error.message);
+    return { sheet, row: { ...row, snapshot: sheet }, frozen: true, data };
+  }
+  return { sheet, row, frozen: false, data };
+}
+
+// ---------- writing ----------
+
+export interface RecipeInput {
+  id?: string | null;
+  name: string;
+  kind: 'dough' | 'sub';
+  base_ingredient_id: string | null;
+  dough_margin_factor: number | null;
+  build_margin_pct: number | null;
+  max_batch_g: number | null;
+  per_batch_items: { ingredient_id: string; amount: number }[];
+  notes: string | null;
+  items: { id?: string | null; position: number; type: 'ingredient' | 'sub' | 'starter'; ingredient_id: string | null; sub_recipe_id: string | null; starter_id: string | null; final_flour_ingredient_id: string | null; pct: number; label: string | null }[];
+}
+
+/** Insert or update a recipe, replace its lines, and write the next version. */
+export async function saveRecipe(db: DB, input: RecipeInput, versionNote: string | null): Promise<{ id: string; version: number }> {
+  const now = new Date().toISOString();
+  let id = input.id ?? null;
+  let version = 1;
+  const head = {
+    name: input.name.trim(), kind: input.kind, base_ingredient_id: input.base_ingredient_id,
+    dough_margin_factor: input.kind === 'dough' ? input.dough_margin_factor : null,
+    build_margin_pct: input.kind === 'sub' ? input.build_margin_pct : null,
+    max_batch_g: input.max_batch_g, per_batch_items: input.per_batch_items, notes: input.notes, updated_at: now,
+  };
+  if (id) {
+    const { data: cur, error } = await db.from('pr_recipes').select('current_version').eq('id', id).single();
+    if (error) throw new Error(error.message);
+    version = (cur.current_version ?? 0) + 1;
+    const { error: e2 } = await db.from('pr_recipes').update({ ...head, current_version: version }).eq('id', id);
+    if (e2) throw new Error(e2.message);
+    const { error: e3 } = await db.from('pr_recipe_items').delete().eq('recipe_id', id);
+    if (e3) throw new Error(e3.message);
+  } else {
+    const { data, error } = await db.from('pr_recipes').insert({ ...head, current_version: 1 }).select('id').single();
+    if (error) throw new Error(error.message);
+    id = data.id;
+  }
+  const rows = input.items.map((it, i) => ({
+    recipe_id: id, position: it.position ?? i + 1, type: it.type,
+    ingredient_id: it.type === 'ingredient' ? it.ingredient_id : null,
+    sub_recipe_id: it.type === 'sub' ? it.sub_recipe_id : null,
+    starter_id: it.type === 'starter' ? it.starter_id : null,
+    final_flour_ingredient_id: it.type === 'starter' ? it.final_flour_ingredient_id : null,
+    pct: it.pct, label: it.label || null,
+  }));
+  if (rows.length) {
+    const { error } = await db.from('pr_recipe_items').insert(rows);
+    if (error) throw new Error(error.message);
+  }
+  const { data: saved } = await db.from('pr_recipe_items').select('*').eq('recipe_id', id).order('position');
+  const { error: ev } = await db.from('pr_recipe_versions').insert({ recipe_id: id, version_no: version, note: versionNote, snapshot: { ...head, items: saved ?? [] } });
+  if (ev) throw new Error(ev.message);
+  return { id: id!, version };
+}
+
+/** Write an import plan (csvImport.planImport) into the pr_ tables. Fails if anything already exists unless `replace`. */
+export async function commitImportPlan(db: DB, plan: ImportPlan, opts: { replace?: boolean } = {}): Promise<{ ingredients: number; starters: number; recipes: number; products: number }> {
+  if (plan.errors.length) throw new Error(`Plan has ${plan.errors.length} error(s); nothing written.`);
+  const { count } = await db.from('pr_recipes').select('id', { count: 'exact', head: true });
+  if ((count ?? 0) > 0 && !opts.replace) throw new Error('Recipes already exist. The CSV import is a one-time import; maintain recipes in the interface, or choose "replace everything".');
+  if (opts.replace) {
+    for (const t of ['pr_recipe_versions', 'pr_recipe_items', 'pr_products', 'pr_recipes', 'pr_starter_stages', 'pr_starters', 'pr_ingredients']) {
+      const { error } = await db.from(t).delete().not('created_at', 'is', null);
+      if (error) throw new Error(`${t}: ${error.message}`);
+    }
+  }
+  // ingredients (two passes: derived_from needs ids)
+  const { data: ingRows, error: e1 } = await db.from('pr_ingredients').insert(plan.ingredients.map((i) => ({
+    name: i.name, unit: i.unit, name_de: i.name_de, allergens: i.allergens, components_de: i.components_de, g_per_source_unit: i.g_per_source_unit,
+  }))).select('id, name');
+  if (e1) throw new Error(e1.message);
+  const ingId = new Map((ingRows ?? []).map((r) => [r.name, r.id]));
+  for (const i of plan.ingredients) {
+    if (!i.derived_from_name) continue;
+    const { error } = await db.from('pr_ingredients').update({ derived_from: ingId.get(i.derived_from_name) }).eq('id', ingId.get(i.name));
+    if (error) throw new Error(error.message);
+  }
+  // starters
+  const starterId = new Map<string, string>();
+  for (const s of plan.starters) {
+    const { data, error } = await db.from('pr_starters').insert({ name: s.name, maintenance_flour_ingredient_id: s.maintenance_flour_name ? ingId.get(s.maintenance_flour_name) ?? null : null }).select('id').single();
+    if (error) throw new Error(error.message);
+    starterId.set(s.name, data.id);
+    const { error: e2 } = await db.from('pr_starter_stages').insert(s.stages.map((st) => ({ starter_id: data.id, stage_no: st.stage_no, day_offset: st.day_offset, flour_parts: st.flour_parts, water_parts: st.water_parts, seed_parts: st.seed_parts, flour_from_recipe: st.flour_from_recipe })));
+    if (e2) throw new Error(e2.message);
+  }
+  // recipes: heads first (subs need ids), then lines + version 1
+  const recipeId = new Map<string, string>();
+  for (const r of plan.recipes) {
+    const { data, error } = await db.from('pr_recipes').insert({
+      name: r.name, kind: r.kind, dough_margin_factor: r.dough_margin_factor, build_margin_pct: r.build_margin_pct, max_batch_g: r.max_batch_g,
+      per_batch_items: r.per_batch_items.map((p) => ({ ingredient_id: ingId.get(p.name), amount: p.amount })), current_version: 0,
+    }).select('id').single();
+    if (error) throw new Error(`${r.name}: ${error.message}`);
+    recipeId.set(r.name, data.id);
+  }
+  for (const r of plan.recipes) {
+    const id = recipeId.get(r.name)!;
+    const items = r.lines.map((l) => ({
+      recipe_id: id, position: l.position, type: l.type,
+      ingredient_id: l.type === 'ingredient' ? ingId.get(l.item) : null,
+      sub_recipe_id: l.type === 'sub' ? recipeId.get(l.item) : null,
+      starter_id: l.type === 'starter' ? starterId.get(l.item) : null,
+      final_flour_ingredient_id: l.type === 'starter' && l.final_flour ? ingId.get(l.final_flour) ?? null : null,
+      pct: l.pct, label: l.label,
+    }));
+    const { data: saved, error } = await db.from('pr_recipe_items').insert(items).select('*');
+    if (error) throw new Error(`${r.name} lines: ${error.message}`);
+    const { error: e2 } = await db.from('pr_recipe_versions').insert({ recipe_id: id, version_no: 1, note: 'CSV import', snapshot: { name: r.name, kind: r.kind, dough_margin_factor: r.dough_margin_factor, build_margin_pct: r.build_margin_pct, max_batch_g: r.max_batch_g, per_batch_items: r.per_batch_items, items: saved } });
+    if (e2) throw new Error(e2.message);
+    const { error: e3 } = await db.from('pr_recipes').update({ current_version: 1 }).eq('id', id);
+    if (e3) throw new Error(e3.message);
+  }
+  // products
+  const { error: ep } = await db.from('pr_products').insert(plan.products.map((p) => ({
+    product_id: p.product_id, name: p.name, channel: p.channel, recipe_id: recipeId.get(p.recipe) ?? null, dough_per_unit_g: p.dough_per_unit_g,
+    bake_loss_pct: p.bake_loss_pct, extras: p.extras.map((e) => ({ ingredient_id: ingId.get(e.name), grams: e.amount })),
+    production: p.production, pieces_per_unit: p.pieces_per_unit, link_status: p.link_status,
+  })));
+  if (ep) throw new Error(ep.message);
+  return { ingredients: plan.ingredients.length, starters: plan.starters.length, recipes: plan.recipes.length, products: plan.products.length };
+}
+
+// ---------- CSV export (backup) ----------
+
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function csv(headers: string[], rows: unknown[][]): string {
+  return [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n';
+}
+
+/** The four CSV files back out of the database, in the import format. */
+export function exportCsv(data: ProductionData): { ingredients: string; recipes: string; products: string; recipe_lines: string } {
+  const ingName = new Map(data.ingredients.map((i) => [i.id, i.name]));
+  const recName = new Map(data.recipes.map((r) => [r.id, r.name]));
+  const stName = new Map(data.starters.map((s) => [s.id, s.name]));
+  const list = (items: { ingredient_id: string; amount?: number; grams?: number }[]) => items.map((p) => `${ingName.get(p.ingredient_id) ?? '?'}=${p.amount ?? p.grams}`).join('|');
+  return {
+    ingredients: csv(['item', 'name_de', 'allergens', 'components_de', 'unit', 'derived_from', 'g_per_source_unit'],
+      data.ingredients.map((i) => [i.name, i.name_de, i.allergens === null ? '' : i.allergens.length ? i.allergens.join('|') : 'none', i.components_de, i.unit, i.derived_from ? ingName.get(i.derived_from) : '', i.g_per_source_unit])),
+    recipes: csv(['recipe', 'kind', 'dough_margin_factor', 'build_margin_pct', 'max_batch_g', 'per_batch_items'],
+      data.recipes.map((r) => [r.name, r.kind, r.dough_margin_factor, r.build_margin_pct, r.max_batch_g, list(r.per_batch_items)])),
+    products: csv(['product', 'recipe', 'channel', 'dough_per_unit_g', 'bake_loss_pct', 'extras', 'production'],
+      data.products.map((p) => [p.name, p.recipe_id ? recName.get(p.recipe_id) : '', p.channel, p.dough_per_unit_g, p.bake_loss_pct, list(p.extras), p.production])),
+    recipe_lines: csv(['recipe', 'position', 'type', 'item', 'pct', 'final_flour', 'label'],
+      data.recipes.flatMap((r) => r.items.map((it) => [r.name, it.position, it.type,
+        it.type === 'ingredient' ? ingName.get(it.ingredient_id!) : it.type === 'sub' ? recName.get(it.sub_recipe_id!) : stName.get(it.starter_id!),
+        it.pct, it.final_flour_ingredient_id ? ingName.get(it.final_flour_ingredient_id) : '', it.label]))),
+  };
+}

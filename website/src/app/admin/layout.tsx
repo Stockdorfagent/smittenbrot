@@ -35,6 +35,12 @@ const navGroups = [
     ],
   },
   {
+    title: 'Produktion',
+    items: [
+      { href: '/admin/production', label: 'Production' },
+    ],
+  },
+  {
     title: 'System',
     items: [
       { href: '/admin/exports', label: 'Exporte' },
@@ -116,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </p>
               <div className="space-y-1">
                 {group.items.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || (item.href === '/admin/production' && pathname.startsWith('/admin/production'));
                   return (
                     <Link
                       key={item.href}

@@ -48,3 +48,11 @@ body {
 h1, h2, h3 {
   letter-spacing: -0.02em;
 }
+
+/* Production bake sheet: one recipe per block, no page break inside a block (spec 1.4). */
+@media print {
+  aside, header, nav { display: none !important; }
+  main { padding: 0 !important; }
+  .print\:break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+  body { background: #fff !important; color: #000 !important; }
+}

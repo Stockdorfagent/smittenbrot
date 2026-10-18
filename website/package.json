@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:production": "node --experimental-strip-types --test src/lib/production/*.test.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^2.9.0",
