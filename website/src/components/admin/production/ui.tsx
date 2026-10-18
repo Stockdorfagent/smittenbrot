@@ -62,6 +62,7 @@ export const SUB_NAV = [
   { href: '/admin/production/ingredients', label: 'Ingredients' },
   { href: '/admin/production/products', label: 'Products' },
   { href: '/admin/production/b2b', label: 'B2B' },
+  { href: '/admin/production/freezer', label: 'Freezer' },
   { href: '/admin/production/settings', label: 'Settings' },
   { href: '/admin/production/import', label: 'Import / backup' },
 ];

@@ -11,6 +11,7 @@ import { adminFetch, adminDownload, fmtG, fmtPct } from '@/lib/production/client
 import { computeBakeSheet } from '@/lib/production/engine';
 import { b2bDemands } from '@/lib/production/b2b';
 import type { PlannedClient } from '@/lib/production/b2b';
+import type { FreezerStatus } from '@/lib/production/freezer';
 import { formatDateEN, isValidISODate } from '@/lib/production/bakeDays';
 import type { Adjustment, BakeSheet, Demand, GramLine, ManualOrder, ProductionData, RecipeBlock, StarterNeed, SubBlock, B2BClient, DayOverride, StandingOrder } from '@/lib/production/types';
 
@@ -23,6 +24,7 @@ interface DayResponse {
   data: ProductionData;
   b2b: { planned: PlannedClient[]; manual: ManualOrder[]; overrides: DayOverride[]; clients: B2BClient[]; standing: StandingOrder[] };
   web: Demand[];
+  freezer: FreezerStatus[];
 }
 
 export default function BakeDayPage() {
@@ -228,6 +230,16 @@ export default function BakeDayPage() {
 
         {/* B2B and one-off orders */}
         <B2BCard date={date} b2b={res.b2b} products={products} onChanged={() => load()} busy={busy} setBusy={setBusy} />
+
+        {/* Freezer */}
+        {res.freezer.length > 0 && (
+          <FreezerCard
+            date={date} freezer={res.freezer} busy={busy} setBusy={setBusy} onChanged={() => load()}
+            bakedToday={(recipeId) => !!recipeId && sheet.recipes.some((r) => r.recipe_id === recipeId)}
+            onAddExtra={(pid, qty) => { setExtras((prev) => [...prev, { pr_product_id: pid, qty, reason: 'Freezer stock' }]); setDirty(true); }}
+            plannedExtra={(pid) => extras.filter((e) => e.pr_product_id === pid).reduce((n, e) => n + e.qty, 0)}
+          />
+        )}
 
         {/* Starter feeding schedule */}
         <Card title="Starter feeding schedule" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid">
@@ -518,6 +530,55 @@ function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
           </div>
         )}
       </div>
+    </Card>
+  );
+}
+
+function FreezerCard({ date, freezer, busy, setBusy, onChanged, onAddExtra, plannedExtra, bakedToday }: {
+  date: string; freezer: FreezerStatus[]; busy: boolean; setBusy: (b: boolean) => void; onChanged: () => void;
+  onAddExtra: (pid: string, qty: number) => void; plannedExtra: (pid: string) => number; bakedToday: (recipeId: string | null) => boolean;
+}) {
+  async function act(body: Record<string, unknown>, okText: string) {
+    setBusy(true);
+    try { await adminFetch('/api/admin/production/freezer', { body }); showToast(okText, 'success'); onChanged(); }
+    catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  }
+  return (
+    <Card title="Freezer" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid"
+      right={<Link href="/admin/production/freezer" className="text-xs underline text-smitten-text/60 print:hidden">stock &amp; ledger</Link>}>
+      <table className="w-full">
+        <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>In stock</th><th className={`${th} text-right`}>Out today</th><th className={`${th} text-right`}>Made today</th><th className={`${th} text-right`}>Then</th><th className={th}>Coming up</th><th className={th}></th></tr></thead>
+        <tbody>
+          {freezer.map((f) => {
+            const planned = plannedExtra(f.pr_product_id) * f.pieces_per_unit;
+            const unconfirmed = planned > 0 && f.batch_today !== planned;
+            return (
+              <tr key={f.pr_product_id} className="border-t border-smitten-cream">
+                <td className={td}>{f.name}{f.too_old && <span className="block text-xs text-red-700">oldest batch {f.oldest_batch_age_days} days</span>}</td>
+                <td className={tdNum}>{f.counter}</td>
+                <td className={tdNum}>{f.usage_today ? `−${f.usage_today}` : ''}</td>
+                <td className={tdNum}>
+                  {f.batch_today ? <span className="text-green-700">+{f.batch_today}</span> : planned ? <span className="text-amber-700">{planned} planned</span> : ''}
+                </td>
+                <td className={`${tdNum} font-medium`}>{f.after_today}</td>
+                <td className={`${td} text-xs`}>
+                  {f.ahead.map((a) => <span key={a.date} className="block">{a.date.slice(8, 10)}.{a.date.slice(5, 7)}. −{a.pieces} <span className="text-smitten-text/50">{a.who}</span></span>)}
+                  <span className={`block ${f.projected < f.settings.min_level ? 'text-red-700 font-medium' : 'text-smitten-text/60'}`}>→ {f.projected} left (min {f.settings.min_level})</span>
+                  {f.suggestion > 0 && (bakedToday(f.recipe_id)
+                    ? <span className="block text-red-700 font-medium">Make {f.suggestion} today</span>
+                    : <span className="block text-amber-700 font-medium">Make {f.suggestion} at the next bake of this dough</span>)}
+                </td>
+                <td className={`${td} text-right whitespace-nowrap print:hidden`}>
+                  {f.suggestion > 0 && planned === 0 && bakedToday(f.recipe_id) && <button className="text-xs underline mr-2" onClick={() => onAddExtra(f.pr_product_id, Math.ceil(f.suggestion / f.pieces_per_unit))}>add {Math.ceil(f.suggestion / f.pieces_per_unit)} extra</button>}
+                  {planned > 0 && unconfirmed && <button className="text-xs underline mr-2 text-green-700" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
+                  {f.batch_today > 0 && <button className="text-xs underline text-smitten-text/60" disabled={busy} onClick={() => act({ action: 'unbook_batch', pr_product_id: f.pr_product_id, date }, 'Batch booking removed.')}>undo</button>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-[11px] text-smitten-text/50 mt-2 print:hidden">Usage is booked automatically once the bake day is over. “Confirm made” books the batch you actually put in the freezer; unsaved extra quantities must be saved with “Save day”.</p>
     </Card>
   );
 }

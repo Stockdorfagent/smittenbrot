@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
-import { getBakeSheet, loadProductionData } from '@/lib/production/data';
+import { getBakeSheet, loadFreezer, loadProductionData } from '@/lib/production/data';
 import { cutoffInfo, isValidISODate, isBakeDay } from '@/lib/production/bakeDays';
 
 export const runtime = 'nodejs';
@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   const live = req.nextUrl.searchParams.get('live') === '1';
   return withAdmin(req, async (db) => {
     const { sheet, row, frozen, data, b2b, web } = await getBakeSheet(db, date, { forceLive: live });
-    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web });
+    const freezer = await loadFreezer(db, date, data, row.extra_quantities);
+    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web, freezer });
   });
 }
 
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       return bad('Unknown action.');
     }
     const { sheet, row, frozen, data, b2b, web } = await getBakeSheet(db, date);
-    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web });
+    const freezer = await loadFreezer(db, date, data, row.extra_quantities);
+    return NextResponse.json({ sheet, row: { ...row, snapshot: undefined }, frozen, cutoff: cutoffInfo(date), is_bake_day: isBakeDay(date), data, b2b, web, freezer });
   });
 }

@@ -13,6 +13,8 @@ import type { ImportPlan } from './csvImport';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { b2bDemands, planB2BDay, type PlannedClient } from './b2b.ts';
+import { freezerStatus, type AheadDemand, type FreezerMovement, type FreezerSettings, type FreezerStatus } from './freezer.ts';
+import { addDays, isBakeDay } from './bakeDays.ts';
 
 type DB = SupabaseClient;
 
@@ -134,6 +136,73 @@ export async function loadB2BDay(db: DB, date: string): Promise<B2BDay> {
   return { ...plan, overrides, clients, standing };
 }
 
+// ---------- step 2: freezer ----------
+
+export async function loadFreezerRaw(db: DB): Promise<{ settings: FreezerSettings[]; movements: FreezerMovement[] }> {
+  const [st, mv] = await Promise.all([
+    db.from('pr_freezer_settings').select('*'),
+    db.from('pr_freezer_movements').select('*').order('date').order('created_at'),
+  ]);
+  if (st.error) throw new Error(st.error.message);
+  if (mv.error) throw new Error(mv.error.message);
+  return {
+    settings: (st.data ?? []).map((x) => ({ pr_product_id: x.pr_product_id, batch_size: num(x.batch_size), min_level: num(x.min_level), max_age_days: x.max_age_days ?? null })),
+    movements: (mv.data ?? []).map((x) => ({ id: x.id, pr_product_id: x.pr_product_id, date: x.date, kind: x.kind, qty: num(x.qty), note: x.note })),
+  };
+}
+
+/** Pieces of each stock product delivered from the freezer on a date (web + B2B + manual, in pieces). */
+async function freezerUsageOn(db: DB, date: string, data: ProductionData): Promise<Map<string, { pieces: number; who: string[] }>> {
+  const b2b = await loadB2BDay(db, date);
+  const web = await loadWebDemand(db, date, data.products);
+  const out = new Map<string, { pieces: number; who: string[] }>();
+  for (const d of [...web, ...b2bDemands(b2b, data.products, b2b.clients)]) {
+    if (!d.pr_product_id) continue;
+    const p = data.products.find((x) => x.id === d.pr_product_id);
+    if (!p || p.production !== 'stock') continue;
+    const per = p.pieces_per_unit ? Number(p.pieces_per_unit) : 1;
+    const row = out.get(p.id) ?? { pieces: 0, who: [] };
+    row.pieces += d.qty * per;
+    row.who.push(d.source === 'web' ? `web ${d.qty}` : `${d.reason ?? d.source} ${d.qty}`);
+    out.set(p.id, row);
+  }
+  return out;
+}
+
+/**
+ * Freezer status of every stock product for a bake day, with the demand of the
+ * following two bake days (one week: until the same weekday comes round again,
+ * which is the next chance to bake the same dough).
+ */
+export async function loadFreezer(db: DB, date: string, data: ProductionData, extras: { pr_product_id: string; qty: number }[]): Promise<FreezerStatus[]> {
+  const stockProducts = data.products.filter((p) => p.production === 'stock');
+  if (stockProducts.length === 0) return [];
+  const { settings, movements } = await loadFreezerRaw(db);
+  const today = await freezerUsageOn(db, date, data);
+  const nextDays: string[] = [];
+  for (let d = addDays(date, 1); nextDays.length < 2; d = addDays(d, 1)) if (isBakeDay(d)) nextDays.push(d);
+  const aheadByDay = await Promise.all(nextDays.map(async (d) => [d, await freezerUsageOn(db, d, data)] as const));
+  return stockProducts.map((p) => {
+    const st = settings.find((s) => s.pr_product_id === p.id) ?? { pr_product_id: p.id, batch_size: 1, min_level: 0, max_age_days: null };
+    const mine = movements.filter((m) => m.pr_product_id === p.id);
+    const per = p.pieces_per_unit ? Number(p.pieces_per_unit) : 1;
+    const usage = today.get(p.id)?.pieces ?? 0;
+    const extra = extras.filter((e) => e.pr_product_id === p.id).reduce((n, e) => n + Number(e.qty) * per, 0);
+    const ahead: AheadDemand[] = aheadByDay.flatMap(([d, m]) => { const u = m.get(p.id); return u ? [{ date: d, pieces: u.pieces, who: u.who.join(', ') }] : []; });
+    return freezerStatus(p, st, mine, date, usage, extra, ahead);
+  });
+}
+
+/** Book today's freezer usage once (idempotent) — called when a bake day is frozen. */
+export async function bookFreezerUsage(db: DB, date: string, data: ProductionData): Promise<void> {
+  const usage = await freezerUsageOn(db, date, data);
+  for (const [pid, u] of usage) {
+    if (u.pieces <= 0) continue;
+    const { error } = await db.from('pr_freezer_movements').upsert({ pr_product_id: pid, date, kind: 'usage', qty: -u.pieces, note: u.who.join(', ') }, { onConflict: 'pr_product_id,date,kind' });
+    if (error && !error.message.includes('duplicate')) throw new Error(error.message);
+  }
+}
+
 export interface BakeDayRow {
   date: string;
   extra_quantities: { pr_product_id: string; qty: number; reason: string | null }[];
@@ -189,6 +258,7 @@ export async function getBakeSheet(db: DB, date: string, opts: { forceLive?: boo
   if (past && !opts.forceLive) {
     const { error } = await db.from('pr_bake_days').upsert({ date, snapshot: sheet, snapshot_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'date' });
     if (error) throw new Error(error.message);
+    await bookFreezerUsage(db, date, data);
     return { sheet, row: { ...row, snapshot: sheet }, frozen: true, data, b2b, web };
   }
   return { sheet, row, frozen: false, data, b2b, web };

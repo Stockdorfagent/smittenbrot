@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
-import { getBakeSheet } from '../src/lib/production/data.ts';
+import { getBakeSheet, loadFreezer } from '../src/lib/production/data.ts';
 import { g } from '../src/lib/production/engine.ts';
 import type { SubBlock } from '../src/lib/production/types.ts';
 
@@ -16,7 +16,7 @@ const root = join(process.cwd(), '..', '..');
 const env = Object.fromEntries(readFileSync(join(root, '.credentials', 'aoryok.env'), 'utf8').split('\n').filter((l) => l.includes('=')).map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }));
 const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-const { sheet } = await getBakeSheet(db, date, { forceLive: true });
+const { sheet, data, row } = await getBakeSheet(db, date, { forceLive: true });
 console.log(`BAKE SHEET ${sheet.date}`);
 for (const w of sheet.warnings) console.log('  WARNING:', w.text);
 console.log('PRODUCTS');
@@ -47,3 +47,5 @@ for (const s of sheet.starters) {
   console.log(`    seed from kept starter: ${g(s.seed_from_kept_g)} g`);
 }
 console.log(`TOTAL EGGS ${sheet.totals.eggs}`);
+console.log('FREEZER');
+for (const f of await loadFreezer(db, date, data, row.extra_quantities)) console.log(`  ${f.name.padEnd(24)} stock ${f.counter}  out today ${f.usage_today}  made today ${f.batch_today}  then ${f.after_today}  ahead ${f.ahead.map((a) => `${a.date}:-${a.pieces}`).join(' ') || '-'}  projected ${f.projected} (min ${f.settings.min_level})  → make ${f.suggestion}`);
