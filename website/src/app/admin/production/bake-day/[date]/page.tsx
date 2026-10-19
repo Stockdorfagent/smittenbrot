@@ -511,6 +511,7 @@ function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
             <div>
               <span className="font-medium">{m.type === 'b2b' ? (m.client_id ? clientName.get(m.client_id) ?? 'B2B' : m.label || 'B2B') : `${m.type}${m.label ? ` · ${m.label}` : ''}`}</span> <StatusPill tone="gray">one-off</StatusPill>
               <span className="block">{itemsText(m.items)}</span>
+              {m.notes && <span className="block text-xs text-smitten-text/50">{m.notes}</span>}
             </div>
             <button className="text-xs underline text-red-700 print:hidden" disabled={busy} onClick={() => { if (confirm('Delete this one-off order?')) act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.'); }}>delete</button>
           </li>

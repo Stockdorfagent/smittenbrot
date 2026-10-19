@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
 import { loadB2B } from '@/lib/production/data';
-import { isValidISODate } from '@/lib/production/bakeDays';
+import { isValidISODate, isBakeDay, formatDateEN } from '@/lib/production/bakeDays';
+import { rangeHasWeekday, WEEKDAYS } from '@/lib/production/b2b';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
  *   delete_standing { id }
  *   save_override   { override: { client_id, date, skip, items|null, note } }   one row per client+date
  *   delete_override { client_id, date }
- *   save_manual     { manual: { id?, date, type, client_id, label, items, notes } }
+ *   save_manual     { manual: { id?, date, type, client_id, label, items, notes } }   date must be a bake day; b2b needs client_id
  *   delete_manual   { id }
  */
 export async function GET(req: NextRequest) {
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
         if (typeof items === 'string') return bad(items);
         if (s.valid_from && !isValidISODate(s.valid_from)) return bad('valid_from must be YYYY-MM-DD.');
         if (s.valid_to && !isValidISODate(s.valid_to)) return bad('valid_to must be YYYY-MM-DD.');
+        if (!rangeHasWeekday(weekday, s.valid_from || null, s.valid_to || null)) return bad(`The validity window ${s.valid_from} – ${s.valid_to} contains no ${WEEKDAYS[weekday]}, so nothing would ever be planned. For one delivery use a single order on the bake day instead.`);
         const row = { client_id: s.client_id, weekday, items, valid_from: s.valid_from || null, valid_to: s.valid_to || null, active: s.active !== false, notes: (s.notes ?? '').trim() || null, updated_at: now };
         const { data, error } = await db.from('pr_standing_orders').upsert(row, { onConflict: 'client_id,weekday' }).select('id').single();
         if (error) throw new Error(error.message);
@@ -114,6 +116,8 @@ export async function POST(req: NextRequest) {
         const m = body.manual ?? {};
         if (!isValidISODate(m.date ?? '')) return bad('date must be YYYY-MM-DD.');
         if (!['b2b', 'market', 'test', 'own'].includes(m.type)) return bad('type must be b2b, market, test or own.');
+        if (!isBakeDay(m.date)) return bad(`${formatDateEN(m.date)} is not a bake day (Wednesday / Saturday). Put the order on the bake day it is baked and mention the delivery day in the notes.`);
+        if (m.type === 'b2b' && !m.client_id) return bad('Choose the client for a B2B single order.');
         const items = cleanItems(m.items);
         if (typeof items === 'string') return bad(items);
         if (items.length === 0) return bad('Add at least one product.');

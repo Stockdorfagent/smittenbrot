@@ -1,7 +1,7 @@
 /** Step 2: standing orders, overrides, one-offs — the Lumbono case from the owner (18.10.2026). */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planB2BDay, b2bDemands, weekdayOfISO } from './b2b.ts';
+import { planB2BDay, b2bDemands, weekdayOfISO, rangeHasWeekday } from './b2b.ts';
 import type { B2BClient, StandingOrder, DayOverride, ManualOrder, ProductLink } from './types.ts';
 
 const lumbono: B2BClient = { id: 'c1', name: 'Lumbono', notes: null, active: true };
@@ -68,4 +68,13 @@ test('demands carry the client name; one-offs by type; unknown products are not 
     ['Focaccia Lumbono', 1, 'manual', 'market: Stockdorf market'], ['unknown product', 2, 'b2b', 'Lumbono'],
   ]);
   assert.equal(d[3].pr_product_id, null);
+});
+
+test('rangeHasWeekday: a one-day window on the wrong weekday never matches (netzeffekt 29.10.2026 = Thursday)', () => {
+  assert.equal(rangeHasWeekday(3, '2026-10-29', '2026-10-29'), false);
+  assert.equal(rangeHasWeekday(3, '2026-10-28', '2026-10-28'), true);
+  assert.equal(rangeHasWeekday(3, '2026-10-29', '2026-11-03'), false);
+  assert.equal(rangeHasWeekday(3, '2026-10-29', '2026-11-04'), true);
+  assert.equal(rangeHasWeekday(3, null, '2026-10-29'), true);
+  assert.equal(rangeHasWeekday(3, '2026-10-30', '2026-10-29'), false);
 });
