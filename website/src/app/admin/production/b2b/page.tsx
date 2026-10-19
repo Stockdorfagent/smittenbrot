@@ -8,7 +8,7 @@ import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, btnDanger, smallInputCls, th, td } from '@/components/admin/production/ui';
 import { adminFetch, loadData } from '@/lib/production/client';
 import { WEEKDAYS, rangeHasWeekday } from '@/lib/production/b2b';
-import { BAKE_WEEKDAYS, formatDateEN, isBakeDay, upcomingBakeDays } from '@/lib/production/bakeDays';
+import { BAKE_WEEKDAYS, formatDateEN, isBakeDay, isValidISODate, upcomingBakeDays } from '@/lib/production/bakeDays';
 import type { B2BClient, ManualOrder, OrderItem, ProductionData, StandingOrder } from '@/lib/production/types';
 
 interface B2BResponse {
@@ -86,7 +86,7 @@ export default function B2BPage() {
     <div>
       <PageHeader
         title="B2B clients"
-        subtitle="Standing orders per weekday are planned automatically on every matching bake day. A single order is for one bake day only (a new client's one-time order, or extras for a regular client). Changes to a standing order on one day (more, less, closed) are made on that day's bake sheet."
+        subtitle="B2B orders are delivered, not picked up, so they can fall on any weekday — each date with B2B work gets its own bake sheet. Standing orders repeat every week on their weekday; a single order is for one date only (a new client's one-time order, or extras for a regular client). Changes to a standing order on one day (more, less, closed) are made on that day's bake sheet."
         actions={<button className={btnPrimary} onClick={() => setClientForm({ name: '', notes: '', active: true })}>New client</button>}
       />
       <SubNav current="/admin/production/b2b" />
@@ -120,7 +120,7 @@ export default function B2BPage() {
               <tbody>
                 {mine.map((s) => (
                   <tr key={s.id} className="border-t border-smitten-cream">
-                    <td className={td}>{WEEKDAYS[s.weekday]} {!BAKE_WEEKDAYS.some((b) => b.weekday === s.weekday) && <StatusPill tone="amber">not a bake day</StatusPill>} {!s.active && <StatusPill tone="gray">paused</StatusPill>}</td>
+                    <td className={td}>{WEEKDAYS[s.weekday]} {!BAKE_WEEKDAYS.some((b) => b.weekday === s.weekday) && <StatusPill tone="blue">B2B-only day</StatusPill>} {!s.active && <StatusPill tone="gray">paused</StatusPill>}</td>
                     <td className={td}>{itemsText(s.items) || <span className="text-smitten-text/40">nothing</span>}{s.notes && <span className="block text-xs text-smitten-text/50">{s.notes}</span>}</td>
                     <td className={`${td} text-xs text-smitten-text/60`}>{s.valid_from || s.valid_to ? `${s.valid_from ?? '…'} – ${s.valid_to ?? '…'}` : 'always'}</td>
                     <td className={`${td} whitespace-nowrap text-right`}>
@@ -142,14 +142,14 @@ export default function B2BPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Weekday</span>
                     <select className={`${smallInputCls} w-full`} value={standingForm.weekday} onChange={(e) => setStandingForm({ ...standingForm, weekday: Number(e.target.value) })}>
-                      {WEEKDAYS.map((w, i) => <option key={i} value={i}>{w}{BAKE_WEEKDAYS.some((b) => b.weekday === i) ? ' (bake day)' : ''}</option>)}
+                      {WEEKDAYS.map((w, i) => <option key={i} value={i}>{w}{BAKE_WEEKDAYS.some((b) => b.weekday === i) ? ' (shop day)' : ''}</option>)}
                     </select></label>
                   <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Valid from (optional)</span><input type="date" className={`${smallInputCls} w-full`} value={standingForm.valid_from} onChange={(e) => setStandingForm({ ...standingForm, valid_from: e.target.value })} /></label>
                   <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Valid to (optional)</span><input type="date" className={`${smallInputCls} w-full`} value={standingForm.valid_to} onChange={(e) => setStandingForm({ ...standingForm, valid_to: e.target.value })} /></label>
                   <label className="flex items-end gap-2 text-sm pb-2"><input type="checkbox" checked={standingForm.active} onChange={(e) => setStandingForm({ ...standingForm, active: e.target.checked })} /> active</label>
                 </div>
                 {standingForm.valid_from && standingForm.valid_to && !rangeHasWeekday(standingForm.weekday, standingForm.valid_from, standingForm.valid_to) && (
-                  <div className="mt-3"><Notice tone="error">This window contains no {WEEKDAYS[standingForm.weekday]}, so nothing would ever be planned. For one delivery use “+ single order” below instead.</Notice></div>
+                  <div className="mt-3"><Notice tone="error">This window contains no {WEEKDAYS[standingForm.weekday]}, so nothing would ever be planned. For one delivery use “+ single order” below instead (any date).</Notice></div>
                 )}
                 <div className="mt-3"><ItemsEditor rows={standingForm.items} set={(items) => setStandingForm({ ...standingForm, items })} products={data.products} /></div>
                 <label className="block mt-3"><span className="block text-[11px] text-smitten-text/60 mb-1">Notes</span><input className={`${smallInputCls} w-full md:w-1/2`} value={standingForm.notes} onChange={(e) => setStandingForm({ ...standingForm, notes: e.target.value })} /></label>
@@ -164,7 +164,7 @@ export default function B2BPage() {
               const mine = singles.filter((m) => m.client_id === c.id);
               return (
                 <div className="mt-5 pt-4 border-t border-smitten-cream">
-                  <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Single orders (one bake day only)</p>
+                  <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Single orders (one date only)</p>
                   {mine.length === 0 && <p className="text-sm text-smitten-text/50">No upcoming single orders.</p>}
                   <ul className="text-sm divide-y divide-smitten-cream">
                     {mine.map((m) => (
@@ -184,20 +184,15 @@ export default function B2BPage() {
                     <div className="mt-4 rounded-lg border border-smitten-cream p-4">
                       <p className="text-sm font-medium mb-2">{singleForm.id ? 'Edit single order' : 'Single order'} · {c.name}</p>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Bake day</span>
-                          <select className={`${smallInputCls} w-full`} value={bakeDayOptions.includes(singleForm.date) ? singleForm.date : 'other'} onChange={(e) => setSingleForm({ ...singleForm, date: e.target.value === 'other' ? '' : e.target.value })}>
-                            {bakeDayOptions.map((d) => <option key={d} value={d}>{formatDateEN(d)}</option>)}
-                            <option value="other">later date…</option>
-                          </select></label>
-                        {!bakeDayOptions.includes(singleForm.date) && (
-                          <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Date (Wednesday or Saturday)</span><input type="date" className={`${smallInputCls} w-full`} value={singleForm.date} onChange={(e) => setSingleForm({ ...singleForm, date: e.target.value })} /></label>
-                        )}
-                        <label className="block md:col-span-1"><span className="block text-[11px] text-smitten-text/60 mb-1">Notes (delivery day, occasion …)</span><input className={`${smallInputCls} w-full`} value={singleForm.notes} onChange={(e) => setSingleForm({ ...singleForm, notes: e.target.value })} /></label>
+                        <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Bake day (any weekday)</span>
+                          <input type="date" className={`${smallInputCls} w-full`} value={singleForm.date} onChange={(e) => setSingleForm({ ...singleForm, date: e.target.value })} />
+                          <span className="block text-[11px] text-smitten-text/50 mt-1">{singleForm.date && isValidISODate(singleForm.date) ? (isBakeDay(singleForm.date) ? `${formatDateEN(singleForm.date)} — joins the shop bake` : `${formatDateEN(singleForm.date)} — B2B-only bake day, gets its own sheet`) : 'Next shop days: ' + bakeDayOptions.slice(0, 2).map(formatDateEN).join(', ')}</span>
+                        </label>
+                        <label className="block md:col-span-2"><span className="block text-[11px] text-smitten-text/60 mb-1">Notes (delivery, occasion, prep …)</span><input className={`${smallInputCls} w-full`} value={singleForm.notes} onChange={(e) => setSingleForm({ ...singleForm, notes: e.target.value })} /></label>
                       </div>
-                      {singleForm.date && !isBakeDay(singleForm.date) && <div className="mt-3"><Notice tone="error">{formatDateEN(singleForm.date)} is not a bake day. Choose the Wednesday or Saturday you bake it and put the delivery day in the notes.</Notice></div>}
                       <div className="mt-3"><ItemsEditor rows={singleForm.items} set={(items) => setSingleForm({ ...singleForm, items })} products={data.products} /></div>
                       <div className="mt-3 flex gap-2">
-                        <button className={btnPrimary} disabled={busy || !singleForm.date || !isBakeDay(singleForm.date) || toItems(singleForm.items).length === 0} onClick={() => saveSingle(singleForm)}>Save</button>
+                        <button className={btnPrimary} disabled={busy || !isValidISODate(singleForm.date) || toItems(singleForm.items).length === 0} onClick={() => saveSingle(singleForm)}>Save</button>
                         <button className={btnSecondary} onClick={() => setSingleForm(null)}>Cancel</button>
                       </div>
                     </div>

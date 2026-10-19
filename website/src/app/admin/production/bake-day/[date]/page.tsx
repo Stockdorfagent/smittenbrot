@@ -136,8 +136,9 @@ export default function BakeDayPage() {
       <PageHeader
         title={`Bake sheet · ${formatDateEN(date)}`}
         subtitle={<>
-          {res.is_bake_day ? null : <span className="text-amber-700">Not a regular bake day. </span>}
-          Cut-off {res.cutoff.label} Berlin — {res.cutoff.passed ? 'passed, orders are final' : 'not yet passed, orders can still come in'}.
+          {res.is_bake_day
+            ? <>Cut-off {res.cutoff.label} Berlin — {res.cutoff.passed ? 'passed, orders are final' : 'not yet passed, orders can still come in'}.</>
+            : <span className="text-amber-700">Not a shop day (Wednesday / Saturday): no website orders, B2B and one-off orders only.</span>}
           {res.frozen && res.row.snapshot_at ? ` Frozen snapshot from ${new Date(res.row.snapshot_at).toLocaleString('en-GB')}.` : ' Live.'}
         </>}
         actions={<>
@@ -189,7 +190,7 @@ export default function BakeDayPage() {
                   </tr>
                 );
               })}
-              {sheet.products.length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">No orders for this day{res.cutoff.passed ? '' : ' yet'}.</span></td></tr>}
+              {sheet.products.length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">No orders for this day{res.is_bake_day && !res.cutoff.passed ? ' yet' : ''}.</span></td></tr>}
             </tbody>
           </table>
 

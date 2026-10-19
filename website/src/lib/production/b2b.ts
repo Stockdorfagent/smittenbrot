@@ -33,6 +33,24 @@ export function standingApplies(so: StandingOrder, dateISO: string): boolean {
   return true;
 }
 
+/**
+ * Dates in [from, to] on which B2B work exists (a standing order that applies and
+ * is not skipped, or a one-off order). B2B bake days may be ANY weekday (owner,
+ * 19.10.2026): they are delivered directly, not picked up, so the shop's
+ * Wednesday/Saturday rule does not apply to them.
+ */
+export function b2bDays(fromISO: string, toISO: string, clients: B2BClient[], standing: StandingOrder[], overrides: DayOverride[], manual: ManualOrder[]): string[] {
+  const out: string[] = [];
+  const [y, m, d] = fromISO.split('-').map(Number);
+  for (let t = Date.UTC(y, m - 1, d); ; t += 86_400_000) {
+    const iso = new Date(t).toISOString().slice(0, 10);
+    if (iso > toISO) break;
+    const plan = planB2BDay(iso, clients, standing, overrides, manual);
+    if (plan.planned.some((p) => !p.skipped && p.items.length > 0) || plan.manual.some((mo) => mo.items.length > 0)) out.push(iso);
+  }
+  return out;
+}
+
 /** Does the (optional) validity window of a standing order contain its weekday at least once? */
 export function rangeHasWeekday(weekday: number, from: string | null, to: string | null): boolean {
   if (!from || !to) return true;

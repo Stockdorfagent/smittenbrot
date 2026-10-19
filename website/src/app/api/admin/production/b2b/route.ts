@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
 import { loadB2B } from '@/lib/production/data';
-import { isValidISODate, isBakeDay, formatDateEN } from '@/lib/production/bakeDays';
+import { isValidISODate } from '@/lib/production/bakeDays';
 import { rangeHasWeekday, WEEKDAYS } from '@/lib/production/b2b';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET  /api/admin/production/b2b                 → { clients, standing, upcoming_manual, upcoming_overrides }
+ * GET  /api/admin/production/b2b[?since=YYYY-MM-DD]   → { clients, standing, upcoming_manual, upcoming_overrides }  (from today, or from `since`)
  * POST /api/admin/production/b2b  { action, ... }
  *   save_client     { client: { id?, name, notes, active } }
  *   delete_client   { id }                       (cascades standing orders, overrides; one-offs keep their label)
@@ -16,16 +16,18 @@ export const dynamic = 'force-dynamic';
  *   delete_standing { id }
  *   save_override   { override: { client_id, date, skip, items|null, note } }   one row per client+date
  *   delete_override { client_id, date }
- *   save_manual     { manual: { id?, date, type, client_id, label, items, notes } }   date must be a bake day; b2b needs client_id
+ *   save_manual     { manual: { id?, date, type, client_id, label, items, notes } }   any date (B2B days need not be shop days); b2b needs client_id
  *   delete_manual   { id }
  */
 export async function GET(req: NextRequest) {
   return withAdmin(req, async (db) => {
     const { clients, standing } = await loadB2B(db);
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+    const sinceParam = req.nextUrl.searchParams.get('since') ?? '';
+    const since = isValidISODate(sinceParam) && sinceParam < today ? sinceParam : today;
     const [m, o] = await Promise.all([
-      db.from('pr_manual_orders').select('*').gte('date', today).order('date'),
-      db.from('pr_b2b_day_overrides').select('*').gte('date', today).order('date'),
+      db.from('pr_manual_orders').select('*').gte('date', since).order('date'),
+      db.from('pr_b2b_day_overrides').select('*').gte('date', since).order('date'),
     ]);
     return NextResponse.json({ clients, standing, upcoming_manual: m.data ?? [], upcoming_overrides: o.data ?? [] });
   });
@@ -116,7 +118,6 @@ export async function POST(req: NextRequest) {
         const m = body.manual ?? {};
         if (!isValidISODate(m.date ?? '')) return bad('date must be YYYY-MM-DD.');
         if (!['b2b', 'market', 'test', 'own'].includes(m.type)) return bad('type must be b2b, market, test or own.');
-        if (!isBakeDay(m.date)) return bad(`${formatDateEN(m.date)} is not a bake day (Wednesday / Saturday). Put the order on the bake day it is baked and mention the delivery day in the notes.`);
         if (m.type === 'b2b' && !m.client_id) return bad('Choose the client for a B2B single order.');
         const items = cleanItems(m.items);
         if (typeof items === 'string') return bad(items);

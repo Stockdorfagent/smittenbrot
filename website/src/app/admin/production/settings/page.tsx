@@ -63,8 +63,8 @@ export default function ProductionSettingsPage() {
       <SubNav current="/admin/production/settings" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Bake days and cut-offs">
-          <p className="text-sm text-smitten-text/70 mb-2">Derived from the shop&apos;s pickup rule, not set here: a bake day is a pickup day, its cut-off is {CUTOFF_DAYS_BEFORE} days before at {String(CUTOFF_HOUR).padStart(2, '0')}:00 Berlin.</p>
+        <Card title="Shop bake days and cut-offs">
+          <p className="text-sm text-smitten-text/70 mb-2">Shop days are derived from the shop&apos;s pickup rule, not set here: a shop bake day is a pickup day, its cut-off is {CUTOFF_DAYS_BEFORE} days before at {String(CUTOFF_HOUR).padStart(2, '0')}:00 Berlin. B2B orders are delivered and can fall on any weekday — every date with B2B work gets its own bake sheet.</p>
           <ul className="text-sm">
             {BAKE_WEEKDAYS.map((b) => <li key={b.weekday} className="py-1">{b.label}</li>)}
           </ul>

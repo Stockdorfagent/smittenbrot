@@ -6,6 +6,10 @@
  * before at 22:00 Europe/Berlin, exactly as src/lib/pickup.ts assigns orders.
  * When "Saturday becomes Sunday" that is a shop-wide change, made in the
  * shop's pickup logic first; this file only has to follow it.
+ *
+ * These are the SHOP bake days. B2B deliveries (step 2) may fall on any
+ * weekday (owner, 19.10.2026) — a date with B2B demand is a bake day too; see
+ * b2bDays() in b2b.ts. The sheet works for any date.
  */
 
 export const BAKE_WEEKDAYS: { weekday: number; label: string }[] = [

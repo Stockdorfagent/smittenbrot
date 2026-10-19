@@ -1,7 +1,7 @@
 /** Step 2: standing orders, overrides, one-offs — the Lumbono case from the owner (18.10.2026). */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planB2BDay, b2bDemands, weekdayOfISO, rangeHasWeekday } from './b2b.ts';
+import { planB2BDay, b2bDemands, weekdayOfISO, rangeHasWeekday, b2bDays } from './b2b.ts';
 import type { B2BClient, StandingOrder, DayOverride, ManualOrder, ProductLink } from './types.ts';
 
 const lumbono: B2BClient = { id: 'c1', name: 'Lumbono', notes: null, active: true };
@@ -77,4 +77,13 @@ test('rangeHasWeekday: a one-day window on the wrong weekday never matches (netz
   assert.equal(rangeHasWeekday(3, '2026-10-29', '2026-11-04'), true);
   assert.equal(rangeHasWeekday(3, null, '2026-10-29'), true);
   assert.equal(rangeHasWeekday(3, '2026-10-30', '2026-10-29'), false);
+});
+
+test('b2bDays: standing Wednesdays + a Thursday single order, skipped day excluded (B2B days may be any weekday)', () => {
+  const clients: B2BClient[] = [{ id: 'c1', name: 'netzeffekt', notes: null, active: true }];
+  const standing: StandingOrder[] = [{ id: 's1', client_id: 'c1', weekday: 3, items: [{ pr_product_id: 'p', qty: 1 }], valid_from: null, valid_to: null, active: true, notes: null }];
+  const overrides: DayOverride[] = [{ id: 'o1', client_id: 'c1', date: '2026-10-28', skip: true, items: null, note: 'closed' }];
+  const manual: ManualOrder[] = [{ id: 'm1', date: '2026-10-29', type: 'b2b', client_id: 'c1', label: null, items: [{ pr_product_id: 'p', qty: 2 }], notes: null }];
+  assert.deepEqual(b2bDays('2026-10-19', '2026-11-04', clients, standing, overrides, manual), ['2026-10-21', '2026-10-29', '2026-11-04']);
+  assert.deepEqual(b2bDays('2026-10-29', '2026-10-28', clients, standing, overrides, manual), []);
 });

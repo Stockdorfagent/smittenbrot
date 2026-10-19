@@ -12,7 +12,7 @@ import type { Adjustment, B2BClient, BakeSheet, DayOverride, Demand, Ingredient,
 import type { ImportPlan } from './csvImport';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
-import { b2bDemands, planB2BDay, type PlannedClient } from './b2b.ts';
+import { b2bDemands, b2bDays, planB2BDay, type PlannedClient } from './b2b.ts';
 import { freezerStatus, type AheadDemand, type FreezerMovement, type FreezerSettings, type FreezerStatus } from './freezer.ts';
 import { addDays, isBakeDay } from './bakeDays.ts';
 
@@ -136,6 +136,20 @@ export async function loadB2BDay(db: DB, date: string): Promise<B2BDay> {
   return { ...plan, overrides, clients, standing };
 }
 
+/** B2B days (standing or one-off, not skipped) in [from, to]. */
+export async function loadB2BDaysBetween(db: DB, from: string, to: string): Promise<string[]> {
+  const [{ clients, standing }, o, m] = await Promise.all([
+    loadB2B(db),
+    db.from('pr_b2b_day_overrides').select('*').gte('date', from).lte('date', to),
+    db.from('pr_manual_orders').select('*').gte('date', from).lte('date', to),
+  ]);
+  if (o.error) throw new Error(o.error.message);
+  if (m.error) throw new Error(m.error.message);
+  const overrides: DayOverride[] = (o.data ?? []).map((x) => ({ id: x.id, client_id: x.client_id, date: x.date, skip: !!x.skip, items: x.items === null ? null : items(x.items), note: x.note }));
+  const manual: ManualOrder[] = (m.data ?? []).map((x) => ({ id: x.id, date: x.date, type: x.type, client_id: x.client_id, label: x.label, items: items(x.items), notes: x.notes }));
+  return b2bDays(from, to, clients, standing, overrides, manual);
+}
+
 // ---------- step 2: freezer ----------
 
 export async function loadFreezerRaw(db: DB): Promise<{ settings: FreezerSettings[]; movements: FreezerMovement[] }> {
@@ -179,8 +193,11 @@ export async function loadFreezer(db: DB, date: string, data: ProductionData, ex
   if (stockProducts.length === 0) return [];
   const { settings, movements } = await loadFreezerRaw(db);
   const today = await freezerUsageOn(db, date, data);
-  const nextDays: string[] = [];
-  for (let d = addDays(date, 1); nextDays.length < 2; d = addDays(d, 1)) if (isBakeDay(d)) nextDays.push(d);
+  // the next two shop bake days, plus any B2B-only days in between (B2B deliveries can fall on any weekday)
+  const shopDays: string[] = [];
+  for (let d = addDays(date, 1); shopDays.length < 2; d = addDays(d, 1)) if (isBakeDay(d)) shopDays.push(d);
+  const extraDays = await loadB2BDaysBetween(db, addDays(date, 1), shopDays[1]);
+  const nextDays = [...new Set([...shopDays, ...extraDays])].sort();
   const aheadByDay = await Promise.all(nextDays.map(async (d) => [d, await freezerUsageOn(db, d, data)] as const));
   return stockProducts.map((p) => {
     const st = settings.find((s) => s.pr_product_id === p.id) ?? { pr_product_id: p.id, batch_size: 1, min_level: 0, max_age_days: null };
