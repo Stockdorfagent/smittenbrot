@@ -76,13 +76,13 @@ export default function IngredientListsPage() {
                   {r.generated ? (
                     <>
                       <p><Bold text={r.generated.text} /></p>
-                      <p className="mt-1 text-xs text-smitten-text/60">Allergene: {r.generated.allergens_text || '–'}{r.allergens_changed && <span className="text-amber-700"> (changed)</span>}</p>
+                      <p className="mt-1 text-xs text-smitten-text/60">Allergene: {r.generated.allergens_text || '–'}{r.allergens_changed && <span className="text-amber-700 dark:text-amber-300"> (changed)</span>}</p>
                       <p className="mt-1 text-[11px] text-smitten-text/40">App (legacy column): {r.generated.legacy}</p>
-                      {r.generated.blocked.length > 0 && <p className="mt-1 text-xs text-red-700">{r.generated.blocked.join(' ')}</p>}
+                      {r.generated.blocked.length > 0 && <p className="mt-1 text-xs text-red-700 dark:text-red-400">{r.generated.blocked.join(' ')}</p>}
                       {r.diff && !r.diff.same && (
                         <div className="mt-2 text-xs">
-                          {r.diff.removed.length > 0 && <p className="text-red-700">− {r.diff.removed.join(', ')}</p>}
-                          {r.diff.added.length > 0 && <p className="text-green-700">+ {r.diff.added.join(', ')}</p>}
+                          {r.diff.removed.length > 0 && <p className="text-red-700 dark:text-red-400">− {r.diff.removed.join(', ')}</p>}
+                          {r.diff.added.length > 0 && <p className="text-green-700 dark:text-green-400">+ {r.diff.added.join(', ')}</p>}
                         </div>
                       )}
                       <details className="mt-2 text-xs text-smitten-text/60">

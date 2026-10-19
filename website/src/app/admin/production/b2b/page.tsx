@@ -36,7 +36,7 @@ function ItemsEditor({ rows, set, products }: { rows: ItemRow[]; set: (r: ItemRo
             <option value="">product…</option>
             {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.channel === 'intern' ? ' (internal)' : ''}{p.production === 'stock' ? ' · from freezer' : ''}</option>)}
           </select>
-          <button className="text-xs text-red-700" onClick={() => set(rows.filter((_, j) => j !== i))}>✕</button>
+          <button className="text-xs text-red-700 dark:text-red-400" onClick={() => set(rows.filter((_, j) => j !== i))}>✕</button>
         </div>
       ))}
       <button className={btnSecondary} onClick={() => set([...rows, { pr_product_id: '', qty: '' }])}>+ item</button>
@@ -210,13 +210,13 @@ export default function B2BPage() {
             {b2b.upcoming_overrides.map((o) => (
               <li key={o.id} className="py-1.5 flex flex-wrap justify-between gap-2">
                 <span><Link href={`/admin/production/bake-day/${o.date}`} className="underline">{formatDateEN(o.date)}</Link> · {clientName.get(o.client_id) ?? '?'}: {o.skip ? <StatusPill tone="red">closed / nothing</StatusPill> : itemsText(o.items)}{o.note ? ` (${o.note})` : ''}</span>
-                <button className="text-xs text-red-700" onClick={() => act({ action: 'delete_override', client_id: o.client_id, date: o.date }, 'Back to the standing order.')}>remove change</button>
+                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => act({ action: 'delete_override', client_id: o.client_id, date: o.date }, 'Back to the standing order.')}>remove change</button>
               </li>
             ))}
             {otherManual.map((m) => (
               <li key={m.id} className="py-1.5 flex flex-wrap justify-between gap-2">
                 <span><Link href={`/admin/production/bake-day/${m.date}`} className="underline">{formatDateEN(m.date)}</Link> · one-off {m.type}{m.label ? ` "${m.label}"` : ''}: {itemsText(m.items)}{m.notes ? ` (${m.notes})` : ''}</span>
-                <button className="text-xs text-red-700" onClick={() => act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.')}>delete</button>
+                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.')}>delete</button>
               </li>
             ))}
           </ul>

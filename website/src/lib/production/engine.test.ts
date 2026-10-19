@@ -305,6 +305,10 @@ test('One-off adjustment: water 75 → 72 % only for this day; the piece weight 
   const w = adj.lines.find((l) => l.item_id === waterItem.id)!;
   assert.equal(w.adjusted, true); assert.equal(w.original_pct, 75);
   close(adj.total_dough_g, base.total_dough_g, 1e-9);
+  // A stored adjustment equal to the recipe value (recipe changed to the same value afterwards) no longer counts as adjusted.
+  const same = computeBakeSheet('2026-10-14', [demand('Stockdorf Sourdough', 2)], DATA, [{ recipe_id: STOCKDORF.id, item_id: waterItem.id, pct: 75 }]).recipes[0];
+  assert.equal(same.adjustments_applied, 0);
+  assert.equal(same.lines.find((l) => l.item_id === waterItem.id)!.adjusted, false);
 });
 
 test('Make-batch calculator: 40 g egg white → 260 g dough → 26 balls', () => {

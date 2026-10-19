@@ -57,8 +57,8 @@ export default function FreezerPage() {
               {s.ahead.length === 0 ? <p className="text-smitten-text/60">No deliveries planned on the next two bake days.</p> : (
                 <ul>{s.ahead.map((a) => <li key={a.date}>{a.date}: −{a.pieces} <span className="text-smitten-text/50">({a.who})</span></li>)}</ul>
               )}
-              <p className="mt-1">Projected: <span className={`font-medium ${s.projected < s.settings.min_level ? 'text-red-700' : ''}`}>{s.projected}</span> (minimum {s.settings.min_level})</p>
-              {s.suggestion > 0 && <p className="text-red-700 font-medium">Make {s.suggestion} pieces at the next opportunity.</p>}
+              <p className="mt-1">Projected: <span className={`font-medium ${s.projected < s.settings.min_level ? 'text-red-700 dark:text-red-400' : ''}`}>{s.projected}</span> (minimum {s.settings.min_level})</p>
+              {s.suggestion > 0 && <p className="text-red-700 dark:text-red-400 font-medium">Make {s.suggestion} pieces at the next opportunity.</p>}
               {s.oldest_batch_date && <p className="text-xs text-smitten-text/50 mt-1">Oldest batch in stock: {s.oldest_batch_date} ({s.oldest_batch_age_days} days)</p>}
             </div>
             <div>
@@ -98,9 +98,9 @@ export default function FreezerPage() {
               {[...res.movements].reverse().map((m) => (
                 <tr key={m.id} className="border-t border-smitten-cream">
                   <td className={td}>{m.date}</td><td className={td}>{name.get(m.pr_product_id) ?? '?'}</td><td className={td}>{m.kind}</td>
-                  <td className={`${tdNum} ${m.qty < 0 ? 'text-red-700' : 'text-green-700'}`}>{m.qty > 0 ? `+${m.qty}` : m.qty}</td>
+                  <td className={`${tdNum} ${m.qty < 0 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>{m.qty > 0 ? `+${m.qty}` : m.qty}</td>
                   <td className={`${td} text-xs text-smitten-text/60`}>{m.note}</td>
-                  <td className={`${td} text-right`}>{(m.kind === 'count' || m.kind === 'manual') && <button className="text-xs text-red-700" disabled={busy} onClick={() => { if (confirm('Delete this booking?')) act({ action: 'delete_movement', id: m.id }, 'Deleted.'); }}>delete</button>}</td>
+                  <td className={`${td} text-right`}>{(m.kind === 'count' || m.kind === 'manual') && <button className="text-xs text-red-700 dark:text-red-400" disabled={busy} onClick={() => { if (confirm('Delete this booking?')) act({ action: 'delete_movement', id: m.id }, 'Deleted.'); }}>delete</button>}</td>
                 </tr>
               ))}
             </tbody>

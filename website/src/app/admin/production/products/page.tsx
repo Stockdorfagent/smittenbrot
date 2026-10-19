@@ -130,7 +130,7 @@ export default function ProductsPage() {
                   <option value="">choose…</option>{data.ingredients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select>
                 <input className={`${smallInputCls} w-24`} type="number" step="any" min="0" value={e.grams} onChange={(ev) => setEditing({ ...editing, extras: editing.extras.map((x, j) => j === i ? { ...x, grams: ev.target.value } : x) })} /> <span className="text-xs text-smitten-text/50">g</span>
-                <button className="text-xs text-red-700" onClick={() => setEditing({ ...editing, extras: editing.extras.filter((_, j) => j !== i) })}>✕</button>
+                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => setEditing({ ...editing, extras: editing.extras.filter((_, j) => j !== i) })}>✕</button>
               </div>
             ))}
             <button className={btnSecondary} onClick={() => setEditing({ ...editing, extras: [...editing.extras, { ingredient_id: '', grams: '' }] })}>+ extra</button>

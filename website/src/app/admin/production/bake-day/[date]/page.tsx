@@ -138,7 +138,7 @@ export default function BakeDayPage() {
         subtitle={<>
           {res.is_bake_day
             ? <>Cut-off {res.cutoff.label} Berlin — {res.cutoff.passed ? 'passed, orders are final' : 'not yet passed, orders can still come in'}.</>
-            : <span className="text-amber-700">Not a shop day (Wednesday / Saturday): no website orders, B2B and one-off orders only.</span>}
+            : <span className="text-amber-700 dark:text-amber-300">Not a shop day (Wednesday / Saturday): no website orders, B2B and one-off orders only.</span>}
           {res.frozen && res.row.snapshot_at ? ` Frozen snapshot from ${new Date(res.row.snapshot_at).toLocaleString('en-GB')}.` : ' Live.'}
         </>}
         actions={<>
@@ -217,7 +217,7 @@ export default function BakeDayPage() {
                 {extras.map((e, i) => (
                   <li key={i} className="flex items-center gap-2">
                     <span>{e.qty} × {products.find((p) => p.id === e.pr_product_id)?.name ?? '?'}{e.reason ? ` (${e.reason})` : ''}</span>
-                    <button className="text-xs text-red-700 hover:underline" onClick={() => { setExtras((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}>remove</button>
+                    <button className="text-xs text-red-700 dark:text-red-400 hover:underline" onClick={() => { setExtras((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}>remove</button>
                   </li>
                 ))}
               </ul>
@@ -337,7 +337,7 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
           <p>{r.products.map((p) => `${p.qty}× ${p.name}`).join(' · ')}</p>
           <p className="text-smitten-text/60 text-xs">
             dough {fmtG(r.total_dough_g)} g · Σ {fmtPct(r.sum_pct)} % · margin {r.dough_margin_factor} (+{fmtG(r.margin_g_per_batch)} g/batch) · factor {r.factor.toFixed(4)}
-            {r.batches > 1 && <span className="text-amber-700 font-medium"> · {r.batches} batches of {fmtG(r.per_batch_dough_g)} g — figures below are PER BATCH</span>}
+            {r.batches > 1 && <span className="text-amber-700 dark:text-amber-300 font-medium"> · {r.batches} batches of {fmtG(r.per_batch_dough_g)} g — figures below are PER BATCH</span>}
           </p>
         </div>
       }
@@ -386,7 +386,7 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
 
 function Line({ l, recipeId, frozen, onAdjust }: { l: GramLine; recipeId: string; frozen: boolean; onAdjust: (recipeId: string, itemId: string, pct: string, original: number) => void }) {
   return (
-    <tr className={`border-t border-smitten-cream ${l.adjusted ? 'bg-amber-50' : ''}`}>
+    <tr className={`border-t border-smitten-cream ${l.adjusted ? 'bg-amber-50 dark:bg-amber-900/30' : ''}`}>
       <td className={td}>{l.label}</td>
       <td className={tdNum}>
         {frozen ? fmtPct(l.pct) : (
@@ -398,7 +398,7 @@ function Line({ l, recipeId, frozen, onAdjust }: { l: GramLine; recipeId: string
           />
         )}
         <span className="hidden print:inline">{fmtPct(l.pct)}</span>
-        {l.adjusted && <span className="block text-[11px] text-amber-700">was {fmtPct(l.original_pct)}</span>}
+        {l.adjusted && <span className="block text-[11px] text-amber-700 dark:text-amber-300">was {fmtPct(l.original_pct)}</span>}
       </td>
       <td className={`${tdNum} font-medium`}>{fmtG(l.grams)}</td>
       <td className={`${td} text-xs text-smitten-text/60`}>
@@ -468,7 +468,7 @@ function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
             <option value="">product…</option>
             {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.production === 'stock' ? ' · from freezer' : ''}</option>)}
           </select>
-          <button className="text-xs text-red-700" onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>
+          <button className="text-xs text-red-700 dark:text-red-400" onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>
         </div>
       ))}
       <button className="text-xs underline text-smitten-text/60" onClick={() => set([...list, { pr_product_id: '', qty: '' }])}>+ item</button>
@@ -491,7 +491,7 @@ function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
               </div>
               <div className="flex gap-2 print:hidden">
                 {editClient !== p.client.id && !p.skipped && <button className="text-xs underline" disabled={busy} onClick={() => { setEditClient(p.client.id); setItems(p.items.map((i) => ({ pr_product_id: i.pr_product_id, qty: String(i.qty) }))); setNote(p.override?.note ?? ''); }}>change today</button>}
-                {!p.skipped && <button className="text-xs underline text-red-700" disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: true, note: 'closed' } }, `${p.client.name}: nothing today.`)}>closed today</button>}
+                {!p.skipped && <button className="text-xs underline text-red-700 dark:text-red-400" disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: true, note: 'closed' } }, `${p.client.name}: nothing today.`)}>closed today</button>}
                 {p.override && <button className="text-xs underline" disabled={busy} onClick={() => act({ action: 'delete_override', client_id: p.client.id, date }, 'Back to the standing order.')}>back to standing order</button>}
               </div>
             </div>
@@ -514,7 +514,7 @@ function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
               <span className="block">{itemsText(m.items)}</span>
               {m.notes && <span className="block text-xs text-smitten-text/50">{m.notes}</span>}
             </div>
-            <button className="text-xs underline text-red-700 print:hidden" disabled={busy} onClick={() => { if (confirm('Delete this one-off order?')) act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.'); }}>delete</button>
+            <button className="text-xs underline text-red-700 dark:text-red-400 print:hidden" disabled={busy} onClick={() => { if (confirm('Delete this one-off order?')) act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.'); }}>delete</button>
           </li>
         ))}
       </ul>
@@ -565,23 +565,23 @@ function FreezerCard({ date, freezer, busy, setBusy, onChanged, onAddExtra, plan
             const unconfirmed = planned > 0 && f.batch_today !== planned;
             return (
               <tr key={f.pr_product_id} className="border-t border-smitten-cream">
-                <td className={td}>{f.name}{f.too_old && <span className="block text-xs text-red-700">oldest batch {f.oldest_batch_age_days} days</span>}</td>
+                <td className={td}>{f.name}{f.too_old && <span className="block text-xs text-red-700 dark:text-red-400">oldest batch {f.oldest_batch_age_days} days</span>}</td>
                 <td className={tdNum}>{f.counter}</td>
                 <td className={tdNum}>{f.usage_today ? `−${f.usage_today}` : ''}</td>
                 <td className={tdNum}>
-                  {f.batch_today ? <span className="text-green-700">+{f.batch_today}</span> : planned ? <span className="text-amber-700">{planned} planned</span> : ''}
+                  {f.batch_today ? <span className="text-green-700 dark:text-green-400">+{f.batch_today}</span> : planned ? <span className="text-amber-700 dark:text-amber-300">{planned} planned</span> : ''}
                 </td>
                 <td className={`${tdNum} font-medium`}>{f.after_today}</td>
                 <td className={`${td} text-xs`}>
                   {f.ahead.map((a) => <span key={a.date} className="block">{a.date.slice(8, 10)}.{a.date.slice(5, 7)}. −{a.pieces} <span className="text-smitten-text/50">{a.who}</span></span>)}
-                  <span className={`block ${f.projected < f.settings.min_level ? 'text-red-700 font-medium' : 'text-smitten-text/60'}`}>→ {f.projected} left (min {f.settings.min_level})</span>
+                  <span className={`block ${f.projected < f.settings.min_level ? 'text-red-700 dark:text-red-400 font-medium' : 'text-smitten-text/60'}`}>→ {f.projected} left (min {f.settings.min_level})</span>
                   {f.suggestion > 0 && (bakedToday(f.recipe_id)
-                    ? <span className="block text-red-700 font-medium">Make {f.suggestion} today</span>
-                    : <span className="block text-amber-700 font-medium">Make {f.suggestion} at the next bake of this dough</span>)}
+                    ? <span className="block text-red-700 dark:text-red-400 font-medium">Make {f.suggestion} today</span>
+                    : <span className="block text-amber-700 dark:text-amber-300 font-medium">Make {f.suggestion} at the next bake of this dough</span>)}
                 </td>
                 <td className={`${td} text-right whitespace-nowrap print:hidden`}>
                   {f.suggestion > 0 && planned === 0 && bakedToday(f.recipe_id) && <button className="text-xs underline mr-2" onClick={() => onAddExtra(f.pr_product_id, Math.ceil(f.suggestion / f.pieces_per_unit))}>add {Math.ceil(f.suggestion / f.pieces_per_unit)} extra</button>}
-                  {planned > 0 && unconfirmed && <button className="text-xs underline mr-2 text-green-700" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
+                  {planned > 0 && unconfirmed && <button className="text-xs underline mr-2 text-green-700 dark:text-green-400" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
                   {f.batch_today > 0 && <button className="text-xs underline text-smitten-text/60" disabled={busy} onClick={() => act({ action: 'unbook_batch', pr_product_id: f.pr_product_id, date }, 'Batch booking removed.')}>undo</button>}
                 </td>
               </tr>

@@ -133,7 +133,7 @@ export default function ProductionSettingsPage() {
                   <td className={td}><input className={`${smallInputCls} w-16`} type="number" step="any" value={st.water_parts} onChange={(e) => setStarter({ ...starter, stages: starter.stages.map((x, j) => j === i ? { ...x, water_parts: Number(e.target.value) } : x) })} /></td>
                   <td className={td}><input className={`${smallInputCls} w-16`} type="number" step="any" value={st.seed_parts} onChange={(e) => setStarter({ ...starter, stages: starter.stages.map((x, j) => j === i ? { ...x, seed_parts: Number(e.target.value) } : x) })} /></td>
                   <td className={td}><input type="checkbox" checked={st.flour_from_recipe} onChange={(e) => setStarter({ ...starter, stages: starter.stages.map((x, j) => j === i ? { ...x, flour_from_recipe: e.target.checked } : x) })} /></td>
-                  <td className={td}><button className="text-xs text-red-700" onClick={() => setStarter({ ...starter, stages: starter.stages.filter((_, j) => j !== i) })}>✕</button></td>
+                  <td className={td}><button className="text-xs text-red-700 dark:text-red-400" onClick={() => setStarter({ ...starter, stages: starter.stages.filter((_, j) => j !== i) })}>✕</button></td>
                 </tr>
               ))}
             </tbody>

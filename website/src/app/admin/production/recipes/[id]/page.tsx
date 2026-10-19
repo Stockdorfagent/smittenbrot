@@ -203,7 +203,7 @@ export default function RecipeEditorPage() {
                     <td className={`${td} whitespace-nowrap text-right`}>
                       <button className="text-xs px-1 text-smitten-text/60 hover:text-smitten-text" onClick={() => move(it.key, -1)} title="up">↑</button>
                       <button className="text-xs px-1 text-smitten-text/60 hover:text-smitten-text" onClick={() => move(it.key, 1)} title="down">↓</button>
-                      <button className="text-xs px-1 text-red-700" onClick={() => setDraft((d) => d ? { ...d, items: d.items.filter((x) => x.key !== it.key) } : d)} title="remove">✕</button>
+                      <button className="text-xs px-1 text-red-700 dark:text-red-400" onClick={() => setDraft((d) => d ? { ...d, items: d.items.filter((x) => x.key !== it.key) } : d)} title="remove">✕</button>
                     </td>
                   </tr>
                 ))}
@@ -225,7 +225,7 @@ export default function RecipeEditorPage() {
                 </select>
                 <input className={`${smallInputCls} w-24`} type="number" step="any" min="0" value={p.amount} onChange={(e) => update({ per_batch_items: draft.per_batch_items.map((x, j) => j === i ? { ...x, amount: Number(e.target.value) } : x) })} />
                 <span className="text-xs text-smitten-text/50">{ingredients.find((x) => x.id === p.ingredient_id)?.unit ?? ''}</span>
-                <button className="text-xs text-red-700" onClick={() => update({ per_batch_items: draft.per_batch_items.filter((_, j) => j !== i) })}>✕</button>
+                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => update({ per_batch_items: draft.per_batch_items.filter((_, j) => j !== i) })}>✕</button>
               </div>
             ))}
             <button className={btnSecondary} onClick={() => update({ per_batch_items: [...draft.per_batch_items, { ingredient_id: '', amount: 1 }] })}>+ per-batch item</button>
@@ -275,7 +275,7 @@ export default function RecipeEditorPage() {
               <div className="text-sm">
                 <p className="text-xs text-smitten-text/60 mb-2">
                   {previewPieces} × {preview.product.dough_per_unit_g} g = {fmtG(preview.result.block.total_dough_g)} g dough · factor {preview.result.block.factor.toFixed(4)} · margin +{fmtG(preview.result.block.margin_g_per_batch)} g
-                  {preview.result.block.batches > 1 && <span className="text-amber-700"> · {preview.result.block.batches} batches, per batch below</span>}
+                  {preview.result.block.batches > 1 && <span className="text-amber-700 dark:text-amber-300"> · {preview.result.block.batches} batches, per batch below</span>}
                 </p>
                 <table className="w-full">
                   <tbody>

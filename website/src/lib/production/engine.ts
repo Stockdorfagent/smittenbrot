@@ -122,7 +122,8 @@ function makeCtx(data: ProductionData, adjustments: Adjustment[] = []): Ctx {
 function effectivePct(ctx: Ctx, recipe: Recipe, it: RecipeItem): { pct: number; adjusted: boolean; original: number } {
   const key = `${recipe.id}:${it.id}`;
   const original = Number(it.pct);
-  if (ctx.adjustments.has(key)) return { pct: ctx.adjustments.get(key)!, adjusted: true, original };
+  // A stored adjustment that equals the recipe (e.g. the recipe was changed to the same value afterwards) is no adjustment.
+  if (ctx.adjustments.has(key) && ctx.adjustments.get(key)! !== original) return { pct: ctx.adjustments.get(key)!, adjusted: true, original };
   return { pct: original, adjusted: false, original };
 }
 

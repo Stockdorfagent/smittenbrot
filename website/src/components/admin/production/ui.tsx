@@ -8,7 +8,7 @@ export const inputCls = 'px-3 py-2 rounded-lg border border-smitten-cream text-s
 export const smallInputCls = 'px-2 py-1 rounded-md border border-smitten-cream text-sm bg-smitten-surface text-smitten-text focus:outline-none focus:ring-2 focus:ring-smitten-accent';
 export const btnPrimary = 'px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50';
 export const btnSecondary = 'px-4 py-2 border border-smitten-cream text-smitten-text text-sm rounded-lg hover:bg-smitten-cream transition-colors disabled:opacity-50';
-export const btnDanger = 'px-3 py-1.5 text-sm rounded-lg text-red-700 hover:bg-red-50 transition-colors';
+export const btnDanger = 'px-3 py-1.5 text-sm rounded-lg text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors';
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
@@ -48,10 +48,10 @@ export function Field({ label, children, hint, className }: { label: string; chi
 
 export function Notice({ tone, children }: { tone: 'error' | 'warning' | 'info' | 'success'; children: ReactNode }) {
   const cls = {
-    error: 'bg-red-50 border-red-200 text-red-800',
-    warning: 'bg-amber-50 border-amber-200 text-amber-900',
-    info: 'bg-blue-50 border-blue-200 text-blue-900',
-    success: 'bg-green-50 border-green-200 text-green-900',
+    error: 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900 dark:text-red-200',
+    warning: 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200',
+    info: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950/40 dark:border-blue-900 dark:text-blue-200',
+    success: 'bg-green-50 border-green-200 text-green-900 dark:bg-green-950/40 dark:border-green-900 dark:text-green-200',
   }[tone];
   return <div className={`rounded-lg border px-4 py-3 text-sm ${cls}`}>{children}</div>;
 }

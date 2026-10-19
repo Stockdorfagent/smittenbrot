@@ -60,7 +60,7 @@ export default function ImportPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {FILES.map((k) => (
             <label key={k} className="block">
-              <span className="block text-xs text-smitten-text/60 mb-1">{k}.csv {texts[k] ? <span className="text-green-700">✓ loaded</span> : ''}</span>
+              <span className="block text-xs text-smitten-text/60 mb-1">{k}.csv {texts[k] ? <span className="text-green-700 dark:text-green-400">✓ loaded</span> : ''}</span>
               <input type="file" accept=".csv,text/csv" onChange={(e) => onFile(k, e.target.files?.[0])} className="text-sm" />
             </label>
           ))}

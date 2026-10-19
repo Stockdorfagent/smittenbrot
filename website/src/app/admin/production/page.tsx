@@ -90,7 +90,7 @@ export default function ProductionOverviewPage() {
             <input type="date" value={custom} onChange={(e) => setCustom(e.target.value)} className={inputCls} />
           </label>
           <button type="submit" className={btnSecondary} disabled={!isValidISODate(custom)}>Open</button>
-          {isValidISODate(custom) && !isBakeDay(custom) && <span className="text-xs text-amber-700">Not a shop day (Wednesday / Saturday) — only B2B and one-off orders.</span>}
+          {isValidISODate(custom) && !isBakeDay(custom) && <span className="text-xs text-amber-700 dark:text-amber-300">Not a shop day (Wednesday / Saturday) — only B2B and one-off orders.</span>}
         </form>
       </Card>
 
