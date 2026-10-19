@@ -9,7 +9,7 @@ import { TRACE_NOTICE, hasProductInfo } from '@/lib/productInfo';
 /** `**Weizen**mehl` → <strong>Weizen</strong>mehl (LMIV Art. 21: allergen emphasised). */
 function Emphasised({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
-  return <>{parts.map((p, i) => p.startsWith('**') && p.endsWith('**') ? <strong key={i} className="font-semibold text-smitten-text">{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>)}</>;
+  return <>{parts.map((p, i) => p.startsWith('**') && p.endsWith('**') ? <strong key={i} className="font-semibold">{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>)}</>;
 }
 
 export default function ProductInfo({ product }: { product: Product }) {
