@@ -164,13 +164,13 @@ export default function RecipeEditorPage() {
 
           <Card title={<span>Lines <span className="text-xs font-normal text-smitten-text/50">Σ {fmtPct(sumPct(asRecipe!))} %</span></span>}>
             <table className="w-full">
-              <thead><tr><th className={th}>#</th><th className={th}>Type</th><th className={th}>Item</th><th className={`${th} text-right`}>%</th><th className={th}>Label / final flour</th><th className={th}></th></tr></thead>
+              <thead><tr><th className={th}>#</th><th className={th}>Type</th><th className={`${th} w-full`}>Item</th><th className={`${th} text-right`}>%</th><th className={th}>Label / final flour</th><th className={th}></th></tr></thead>
               <tbody>
                 {draft.items.map((it, i) => (
                   <tr key={it.key} className="border-t border-smitten-cream">
                     <td className={`${td} text-smitten-text/50`}>{i + 1}</td>
-                    <td className={td}>
-                      <select className={smallInputCls} value={it.type} onChange={(e) => updateItem(it.key, { type: e.target.value as RecipeItem['type'], ingredient_id: null, sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null })}>
+                    <td className={`${td} whitespace-nowrap`}>
+                      <select className={`${smallInputCls} w-24`} value={it.type} onChange={(e) => updateItem(it.key, { type: e.target.value as RecipeItem['type'], ingredient_id: null, sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null })}>
                         <option value="ingredient">ingredient</option><option value="sub">sub-recipe</option><option value="starter">starter</option>
                       </select>
                     </td>
@@ -191,11 +191,11 @@ export default function RecipeEditorPage() {
                         </select>
                       )}
                     </td>
-                    <td className={tdNum}><input className={`${smallInputCls} w-24 text-right`} type="number" step="any" min="0" value={it.pct} onChange={(e) => updateItem(it.key, { pct: e.target.value as unknown as number })} /></td>
-                    <td className={td}>
-                      <input className={`${smallInputCls} w-32`} placeholder="label (optional)" value={it.label ?? ''} onChange={(e) => updateItem(it.key, { label: e.target.value || null })} />
+                    <td className={`${tdNum} whitespace-nowrap`}><input className={`${smallInputCls} w-20 text-right`} type="number" step="any" min="0" value={it.pct} onChange={(e) => updateItem(it.key, { pct: e.target.value as unknown as number })} /></td>
+                    <td className={`${td} whitespace-nowrap`}>
+                      <input className={`${smallInputCls} w-28`} placeholder="label (optional)" value={it.label ?? ''} onChange={(e) => updateItem(it.key, { label: e.target.value || null })} />
                       {it.type === 'starter' && (
-                        <select className={`${smallInputCls} ml-1 w-44`} value={it.final_flour_ingredient_id ?? ''} onChange={(e) => updateItem(it.key, { final_flour_ingredient_id: e.target.value || null })} title="Flour for the last refresh (when the starter takes it from the recipe)">
+                        <select className={`${smallInputCls} block mt-1 w-28`} value={it.final_flour_ingredient_id ?? ''} onChange={(e) => updateItem(it.key, { final_flour_ingredient_id: e.target.value || null })} title="Flour for the last refresh (when the starter takes it from the recipe)">
                           <option value="">final flour: starter default</option>{ingredients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                         </select>
                       )}
