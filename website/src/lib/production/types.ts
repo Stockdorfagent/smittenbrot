@@ -167,6 +167,8 @@ export interface SubBlock {
   recipe_id: string;
   name: string;
   version: number;
+  item_id: string | null;       // the parent's line this pre-dough sits on
+  pct: number;                  // the parent's line percentage (so the parent's rows add up to its total)
   needed_g: number;             // what the parent needs (before margin)
   build_margin_pct: number;
   total_g: number;              // needed × (1 + margin)

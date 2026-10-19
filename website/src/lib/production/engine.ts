@@ -187,13 +187,13 @@ function starterNeed(ctx: Ctx, recipe: Recipe, it: RecipeItem, factor: number): 
   };
 }
 
-function expandSub(ctx: Ctx, sub: Recipe, neededG: number, trail: string[]): SubBlock {
+function expandSub(ctx: Ctx, sub: Recipe, parentItem: { item_id: string | null; pct: number }, neededG: number, trail: string[]): SubBlock {
   const margin = recipeBuildMargin(sub, ctx.data.settings);
   const total = neededG * (1 + margin / 100);
   const sum = effectiveSum(ctx, sub);
   const factor = sum > 0 ? total / sum : 0;
   const block: SubBlock = {
-    recipe_id: sub.id, name: sub.name, version: sub.current_version, needed_g: neededG, build_margin_pct: margin,
+    recipe_id: sub.id, name: sub.name, version: sub.current_version, item_id: parentItem.item_id, pct: parentItem.pct, needed_g: neededG, build_margin_pct: margin,
     total_g: total, sum_pct: sum, factor, lines: [], subs: [], starters: [],
   };
   for (const it of [...sub.items].sort((a, b) => a.position - b.position)) {
@@ -205,7 +205,8 @@ function expandSub(ctx: Ctx, sub: Recipe, neededG: number, trail: string[]): Sub
         ctx.warnings.push({ type: 'circular', text: `${sub.name}: sub-recipe missing or circular.`, recipe_id: sub.id });
         continue;
       }
-      block.subs.push(expandSub(ctx, child, effectivePct(ctx, sub, it).pct * factor, [...trail, child.id]));
+      const subPct = effectivePct(ctx, sub, it).pct;
+      block.subs.push(expandSub(ctx, child, { item_id: it.id, pct: subPct }, subPct * factor, [...trail, child.id]));
     }
   }
   return block;
@@ -259,7 +260,8 @@ export function expandDough(ctx: Ctx, recipe: Recipe, totalDoughG: number): Omit
         ctx.warnings.push({ type: 'circular', text: `${recipe.name}: circular sub-recipes, skipped.`, recipe_id: recipe.id });
         continue;
       }
-      const sub = expandSub(ctx, child, effectivePct(ctx, recipe, it).pct * factor, [recipe.id, child.id]);
+      const subPct = effectivePct(ctx, recipe, it).pct;
+      const sub = expandSub(ctx, child, { item_id: it.id, pct: subPct }, subPct * factor, [recipe.id, child.id]);
       block.subs.push(sub);
       collectStarters(sub, block.starters);
     }

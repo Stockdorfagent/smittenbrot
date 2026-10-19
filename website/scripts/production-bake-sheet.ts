@@ -31,6 +31,7 @@ const sub = (b: SubBlock, indent: string) => {
 for (const r of sheet.recipes) {
   console.log(`RECIPE ${r.name} (v${r.version}): dough ${g(r.total_dough_g)} g, Σpct ${r.sum_pct}, margin ${r.dough_margin_factor} (+${g(r.margin_g_per_batch)} g/batch), batches ${r.batches}, factor ${r.factor.toFixed(4)}, batch total ${g(r.batch_total_g)} g`);
   for (const l of r.lines) console.log(`  ${l.label.padEnd(34)} ${String(l.pct).padStart(7)} %  ${String(g(l.grams)).padStart(6)} g${l.source_units_rounded ? `  = ${l.source_units_rounded} ${l.source_name}${l.byproduct ? ` → ${g(l.byproduct.grams)} g ${l.byproduct.ingredient_name}` : ''}` : ''}`);
+  for (const b of r.subs) console.log(`  ${(b.name + ' (pre-dough)').padEnd(34)} ${String(b.pct).padStart(7)} %  ${String(g(b.needed_g)).padStart(6)} g  → build ${g(b.total_g)} g, see SUB below`);
   for (const s of r.starters) console.log(`  ${s.label.padEnd(34)} in dough ${g(s.in_dough_g)} g → final build ${g(s.final_build_g)} g (${g(s.flour_g)} ${s.flour_ingredient_name} / ${g(s.water_g)} water / ${g(s.seed_g)} seed)`);
   for (const b of r.subs) sub(b, '  ');
   for (const p of r.per_batch_items) console.log(`  per batch: ${p.amount} ${p.unit} ${p.ingredient_name}`);

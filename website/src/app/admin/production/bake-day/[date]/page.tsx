@@ -347,6 +347,7 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
         <tbody>
           {r.lines.map((l) => <Line key={l.item_id} l={l} recipeId={r.recipe_id} frozen={frozen} onAdjust={onAdjust} />)}
           {directStarters.map((s) => <StarterLine key={s.item_id} s={s} />)}
+          {r.subs.map((b) => <SubLine key={b.recipe_id} b={b} />)}
           <tr className="border-t-2 border-smitten-cream font-medium"><td className={td}>Dough total (incl. margin)</td><td className={tdNum}>{fmtPct(r.sum_pct)}</td><td className={tdNum}>{fmtG(r.batch_total_g)}</td><td></td></tr>
         </tbody>
       </table>
@@ -419,6 +420,18 @@ function StarterLine({ s }: { s: StarterNeed }) {
   );
 }
 
+/** A pre-dough (poolish, soaker, filling) is a line of the dough like any other: its grams count towards the dough total; how to BUILD it is shown in its own block below. */
+function SubLine({ b }: { b: SubBlock }) {
+  return (
+    <tr className="border-t border-smitten-cream">
+      <td className={td}>{b.name} <span className="text-xs text-smitten-text/60">· pre-dough, built separately (see below)</span></td>
+      <td className={tdNum}>{fmtPct(b.pct)}</td>
+      <td className={`${tdNum} font-medium`}>{fmtG(b.needed_g)}</td>
+      <td className={`${td} text-xs text-smitten-text/60`}>build {fmtG(b.total_g)} g (+{b.build_margin_pct} % build margin)</td>
+    </tr>
+  );
+}
+
 function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
   return (
     <div className={`mt-3 rounded-lg border border-smitten-cream p-3 ${depth > 0 ? 'ml-4' : ''} print:break-inside-avoid`}>
@@ -432,6 +445,7 @@ function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
             </tr>
           ))}
           {b.starters.map((s) => <StarterLine key={s.item_id} s={s} />)}
+          {b.subs.map((c) => <SubLine key={c.recipe_id} b={c} />)}
         </tbody>
       </table>
       {b.subs.map((c) => <SubCard key={c.recipe_id} b={c} depth={depth + 1} />)}

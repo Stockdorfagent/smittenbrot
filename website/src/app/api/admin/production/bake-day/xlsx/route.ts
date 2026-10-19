@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       ws.addRow([`${ind}${b.name}`, `needed ${r1(b.needed_g)} g + ${b.build_margin_pct} %`, r1(b.total_g)]).font = { bold: true };
       for (const l of b.lines) ws.addRow([`${ind}  ${l.label}`, l.pct, r1(l.grams)]);
       for (const s of b.starters) ws.addRow([`${ind}  ${s.label}`, null, r1(s.in_dough_g), `final build ${r1(s.final_build_g)} g: ${r1(s.flour_g)} ${s.flour_ingredient_name} / ${r1(s.water_g)} water / ${r1(s.seed_g)} seed`]);
+      for (const c of b.subs) ws.addRow([`${ind}  ${c.name} (pre-dough, see below)`, c.pct, r1(c.needed_g), `build ${r1(c.total_g)} g (+${c.build_margin_pct} %)`]);
       for (const c of b.subs) writeSub(ws, c, depth + 1);
     };
     for (const r of sheet.recipes) {
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
       for (const l of r.lines) ws.addRow([l.label, l.pct, r1(l.grams), l.source_units_rounded ? `${l.source_units_rounded} ${l.source_name}${l.byproduct ? ` → ${r1(l.byproduct.grams)} g ${l.byproduct.ingredient_name}` : ''}` : (l.adjusted ? `adjusted from ${l.original_pct} %` : '')]);
       const direct = r.starters.filter((s) => r.subs.every((b) => !collect(b).some((x) => x.item_id === s.item_id)));
       for (const s of direct) ws.addRow([s.label, null, r1(s.in_dough_g), `final build ${r1(s.final_build_g)} g: ${r1(s.flour_g)} ${s.flour_ingredient_name} / ${r1(s.water_g)} water / ${r1(s.seed_g)} seed`]);
+      for (const b of r.subs) ws.addRow([`${b.name} (pre-dough, see below)`, b.pct, r1(b.needed_g), `build ${r1(b.total_g)} g (+${b.build_margin_pct} %)`]);
       ws.addRow(['Batch total (g)', null, r1(r.batch_total_g)]).font = { bold: true };
       if (r.subs.length) { ws.addRow([]); for (const b of r.subs) writeSub(ws, b, 0); }
       if (r.per_batch_items.length) { ws.addRow([]); for (const p of r.per_batch_items) ws.addRow([`per batch: ${p.ingredient_name}`, null, p.amount, p.unit]); }
