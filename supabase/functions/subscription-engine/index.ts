@@ -419,6 +419,7 @@ async function dispatchNotification(
         body: JSON.stringify({
           message: (data?.message as string) ?? "Smittenbrot: Systemhinweis.",
           category: (data?.category as string) ?? "other",
+          ...(data?.order_id ? { order_id: data.order_id as string } : {}),
         }),
       });
     } else {
@@ -1188,6 +1189,21 @@ async function placeAndChargeSubscriptionOrder(
 
   // Exactly what a single order gets: the Bestellbestätigung by e-mail.
   await sendOrderReceipt(orderId, customer);
+
+  // …and the owner's ka-ching. The stripe-webhook rings it for checkout orders
+  // (alertAdminNewOrder) but skips this PaymentIntent as "already paid", so an
+  // Abo order stayed silent on a closed phone (owner, 19.10.2026). Best-effort.
+  const { data: numbered } = await supabase
+    .from("orders")
+    .select("order_number")
+    .eq("id", orderId)
+    .maybeSingle();
+  await dispatchNotification(null, "admin_alert", "both", {
+    category: "new_order",
+    order_id: orderId,
+    message:
+      `Neue Abo-Bestellung ${(numbered?.order_number as string | null) ?? orderId}: ${eur(draft.totalCents)} von ${customer.name || "Kunde"}, Abholung ${fulfillmentDate}.`,
+  });
 
   await logAudit("subscription_order_placed", "order", orderId, null, {
     subscription_id: sub.id,
