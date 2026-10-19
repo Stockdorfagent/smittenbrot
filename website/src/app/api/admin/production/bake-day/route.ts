@@ -44,16 +44,17 @@ export async function POST(req: NextRequest) {
           if (!(Number(e.qty) > 0)) return bad('Extra quantity must be > 0.');
         }
       }
-      if (adjustments) {
-        for (const a of adjustments) {
-          const r = data.recipes.find((x) => x.id === a.recipe_id);
-          if (!r || !r.items.some((it) => it.id === a.item_id)) return bad('Adjustment names an unknown recipe line.');
+      // A recipe saved as a new version gets new line ids; an override of the
+      // old line is then obsolete and is dropped here (never blocks the save).
+      const liveAdjustments = adjustments?.filter((a: { recipe_id: string; item_id: string }) => data.recipes.find((x) => x.id === a.recipe_id)?.items.some((it) => it.id === a.item_id));
+      if (liveAdjustments) {
+        for (const a of liveAdjustments) {
           if (!(Number(a.pct) >= 0)) return bad('Adjusted percentage must be ≥ 0.');
         }
       }
       const patch: Record<string, unknown> = { date, updated_at: now, snapshot: null, snapshot_at: null };
       if (extras) patch.extra_quantities = extras.map((e: { pr_product_id: string; qty: number; reason?: string | null }) => ({ pr_product_id: e.pr_product_id, qty: Number(e.qty), reason: e.reason || null }));
-      if (adjustments) patch.adjustments = adjustments.map((a: { recipe_id: string; item_id: string; pct: number }) => ({ recipe_id: a.recipe_id, item_id: a.item_id, pct: Number(a.pct) }));
+      if (liveAdjustments) patch.adjustments = liveAdjustments.map((a: { recipe_id: string; item_id: string; pct: number }) => ({ recipe_id: a.recipe_id, item_id: a.item_id, pct: Number(a.pct) }));
       if (typeof body.notes === 'string') patch.notes = body.notes || null;
       const { error } = await db.from('pr_bake_days').upsert(patch, { onConflict: 'date' });
       if (error) throw new Error(error.message);

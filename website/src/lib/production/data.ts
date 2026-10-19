@@ -265,7 +265,9 @@ export async function autoLinkPending(db: DB): Promise<string[]> {
  */
 export async function getBakeSheet(db: DB, date: string, opts: { forceLive?: boolean } = {}): Promise<{ sheet: BakeSheet; row: BakeDayRow; frozen: boolean; data: ProductionData; b2b: B2BDay; web: Demand[] }> {
   await autoLinkPending(db);
-  const [data, row, b2b] = await Promise.all([loadProductionData(db), loadBakeDayRow(db, date), loadB2BDay(db, date)]);
+  const [data, rawRow, b2b] = await Promise.all([loadProductionData(db), loadBakeDayRow(db, date), loadB2BDay(db, date)]);
+  // Overrides of recipe lines that no longer exist (the recipe was saved as a new version since) are ignored.
+  const row: BakeDayRow = { ...rawRow, adjustments: rawRow.adjustments.filter((a) => data.recipes.find((r) => r.id === a.recipe_id)?.items.some((it) => it.id === a.item_id)) };
   const past = date < berlinTodayISO();
   const web = await loadWebDemand(db, date, data.products);
   if (row.snapshot && !opts.forceLive) return { sheet: row.snapshot, row, frozen: true, data, b2b, web };
