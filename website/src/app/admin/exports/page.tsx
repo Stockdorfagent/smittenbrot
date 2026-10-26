@@ -361,19 +361,26 @@ export default function AdminExportsPage() {
     }
   }
 
-  async function exportPayoutCsv(payoutId: string) {
+  async function exportPayout(payoutId: string, format: 'csv' | 'pdf') {
     setPayoutMsg(null);
-    setPayoutBusy(payoutId);
+    setPayoutBusy(`${payoutId}:${format}`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/export-stripe-payouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
-        body: JSON.stringify({ payout_id: payoutId }),
+        body: JSON.stringify({ payout_id: payoutId, format }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setPayoutMsg({ id: payoutId, text: data.error || 'Export fehlgeschlagen', ok: false }); return; }
-      downloadCsv(data.filename, data.csv);
+      if (format === 'pdf') {
+        const bytes = Uint8Array.from(atob(data.pdf_base64), (c) => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        downloadCsv(data.filename, data.csv);
+      }
       const s = data.summary;
       const text = `${data.filename}: ${s.transactions} Transaktionen · Brutto ${formatPrice(s.gross_cents)} (7 %: ${formatPrice(s.gross_7_cents)} · 19 %: ${formatPrice(s.gross_19_cents)}) · Stripe-Gebühren ${formatPrice(s.stripe_fee_cents)} · PayPal-Gebühren ${formatPrice(s.paypal_fee_cents)} · Netto ${formatPrice(s.net_cents)} · Auszahlung ${formatPrice(s.amount_cents)}`
         + (s.ok ? ' · Kontrolle OK' : ` · KONTROLLE NICHT OK: ${s.warnings.join(' / ')}`);
@@ -670,7 +677,7 @@ export default function AdminExportsPage() {
         <p className="text-sm text-smitten-text/60 mt-2">
           Pro Auszahlung an die Bank eine CSV mit genau den Zahlungen, Erstattungen und Korrekturen, die Stripe darin
           ausgezahlt hat (Bestell-, Rechnungs- und Gutschriftnummer, Kunde, Zahlungsart, Brutto 7 % / 19 %, Stripe- und
-          PayPal-Gebühr, Netto) plus Summenblock – zum Anhängen an die Bankbuchung in Papierkram. Kontrolle: Summe Netto
+          PayPal-Gebühr, Netto) plus Summenblock, als CSV oder PDF (A4 quer) – zum Anhängen an die Bankbuchung in Papierkram. Kontrolle: Summe Netto
           muss dem Auszahlungsbetrag entsprechen.
         </p>
         {payoutsError && <p className="mt-3 text-sm text-red-500">{payoutsError}</p>}
@@ -706,10 +713,14 @@ export default function AdminExportsPage() {
                         : <span className="text-red-500 font-medium">Nicht OK{p.warnings.length > 0 ? ` – ${p.warnings.join('; ')}` : ''}</span>}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-smitten-text/50">{p.payout_id}</td>
-                    <td className="px-3 py-2 text-right">
-                      <button onClick={() => exportPayoutCsv(p.payout_id)} disabled={payoutBusy !== null}
-                        className="px-3 py-1.5 bg-smitten-primary text-white text-xs rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap">
-                        {payoutBusy === p.payout_id ? 'Erstelle …' : 'CSV herunterladen'}
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button onClick={() => exportPayout(p.payout_id, 'csv')} disabled={payoutBusy !== null}
+                        className="px-3 py-1.5 bg-smitten-primary text-white text-xs rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+                        {payoutBusy === `${p.payout_id}:csv` ? 'Erstelle …' : 'CSV'}
+                      </button>
+                      <button onClick={() => exportPayout(p.payout_id, 'pdf')} disabled={payoutBusy !== null}
+                        className="ml-2 px-3 py-1.5 border border-smitten-primary text-smitten-primary text-xs rounded-lg hover:bg-smitten-primary hover:text-white transition-colors disabled:opacity-50">
+                        {payoutBusy === `${p.payout_id}:pdf` ? 'Erstelle …' : 'PDF'}
                       </button>
                     </td>
                   </tr>
