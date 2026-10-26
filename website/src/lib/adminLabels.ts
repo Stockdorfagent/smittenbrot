@@ -45,7 +45,7 @@ export const paymentStatusLabels: Record<string, string> = {
 };
 
 // Shop sections on /products (migration 031); same words as the customer sees.
-export { displayGroupLabels } from './productGroups';
+export { displayGroupLabels } from './productGroups.ts';
 
 export const cycleLabels: Record<string, string> = {
   permanent: 'Immer',

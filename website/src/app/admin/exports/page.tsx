@@ -44,6 +44,18 @@ export default function AdminExportsPage() {
   } | null>(null);
   const [stripeFeeError, setStripeFeeError] = useState('');
 
+  // Export "pro Auszahlung" (owner, 26.10.2026): one CSV per Stripe payout for
+  // Papierkram; list + check come from /api/export-stripe-payouts.
+  type PayoutItem = {
+    payout_id: string; arrival_date: string; created: string; status: string; automatic: boolean;
+    amount_cents: number; transactions: number; net_cents: number; difference_cents: number; ok: boolean; warnings: string[];
+  };
+  const [payouts, setPayouts] = useState<PayoutItem[] | null>(null);
+  const [payoutsLoading, setPayoutsLoading] = useState(false);
+  const [payoutsError, setPayoutsError] = useState('');
+  const [payoutBusy, setPayoutBusy] = useState<string | null>(null);
+  const [payoutMsg, setPayoutMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+
   // Belege (PDF): Rechnungen + Storno-Rechnungen as one ZIP (owner, 27.09.2026)
   const [docFrom, setDocFrom] = useState('');
   const [docTo, setDocTo] = useState('');
@@ -330,6 +342,49 @@ export default function AdminExportsPage() {
     }
   }
 
+  async function loadPayouts() {
+    setPayoutsError('');
+    setPayoutMsg(null);
+    setPayoutsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/export-stripe-payouts?limit=60', {
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setPayoutsError(data.error || 'Laden fehlgeschlagen'); return; }
+      setPayouts(data.payouts);
+    } catch (err: any) {
+      setPayoutsError(err.message || 'Laden fehlgeschlagen');
+    } finally {
+      setPayoutsLoading(false);
+    }
+  }
+
+  async function exportPayoutCsv(payoutId: string) {
+    setPayoutMsg(null);
+    setPayoutBusy(payoutId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/export-stripe-payouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ payout_id: payoutId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setPayoutMsg({ id: payoutId, text: data.error || 'Export fehlgeschlagen', ok: false }); return; }
+      downloadCsv(data.filename, data.csv);
+      const s = data.summary;
+      const text = `${data.filename}: ${s.transactions} Transaktionen · Brutto ${formatPrice(s.gross_cents)} (7 %: ${formatPrice(s.gross_7_cents)} · 19 %: ${formatPrice(s.gross_19_cents)}) · Stripe-Gebühren ${formatPrice(s.stripe_fee_cents)} · PayPal-Gebühren ${formatPrice(s.paypal_fee_cents)} · Netto ${formatPrice(s.net_cents)} · Auszahlung ${formatPrice(s.amount_cents)}`
+        + (s.ok ? ' · Kontrolle OK' : ` · KONTROLLE NICHT OK: ${s.warnings.join(' / ')}`);
+      setPayoutMsg({ id: payoutId, text, ok: s.ok });
+    } catch (err: any) {
+      setPayoutMsg({ id: payoutId, text: err.message || 'Export fehlgeschlagen', ok: false });
+    } finally {
+      setPayoutBusy(null);
+    }
+  }
+
   async function exportDatevCsv() {
     setExportMsg('');
     if (!receiptDateFrom) {
@@ -599,6 +654,73 @@ export default function AdminExportsPage() {
             <p className="mt-3 text-sm text-red-500">{stripeFeeError}</p>
           )}
         </div>
+      </div>
+
+      {/* EXPORT PRO AUSZAHLUNG (Stripe payouts → Papierkram) */}
+      <div className="mt-6 bg-smitten-surface rounded-xl border border-smitten-cream p-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-display font-bold text-smitten-text text-lg">
+            Stripe-Auszahlungen (Export pro Auszahlung)
+          </h2>
+          <button onClick={loadPayouts} disabled={payoutsLoading}
+            className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
+            {payoutsLoading ? 'Lade …' : payouts ? 'Neu laden' : 'Auszahlungen laden'}
+          </button>
+        </div>
+        <p className="text-sm text-smitten-text/60 mt-2">
+          Pro Auszahlung an die Bank eine CSV mit genau den Zahlungen, Erstattungen und Korrekturen, die Stripe darin
+          ausgezahlt hat (Bestell-, Rechnungs- und Gutschriftnummer, Kunde, Zahlungsart, Brutto 7 % / 19 %, Stripe- und
+          PayPal-Gebühr, Netto) plus Summenblock – zum Anhängen an die Bankbuchung in Papierkram. Kontrolle: Summe Netto
+          muss dem Auszahlungsbetrag entsprechen.
+        </p>
+        {payoutsError && <p className="mt-3 text-sm text-red-500">{payoutsError}</p>}
+        {payouts && payouts.length === 0 && (
+          <p className="mt-3 text-sm text-smitten-text/40 italic">Noch keine Auszahlungen bei Stripe.</p>
+        )}
+        {payouts && payouts.length > 0 && (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-smitten-cream text-left text-xs text-smitten-text/60">
+                  <th className="px-3 py-2">Auszahlungsdatum</th>
+                  <th className="px-3 py-2 text-right">Betrag</th>
+                  <th className="px-3 py-2">Stripe-Status</th>
+                  <th className="px-3 py-2 text-right">Transaktionen</th>
+                  <th className="px-3 py-2">Kontrolle</th>
+                  <th className="px-3 py-2">Payout-ID</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {payouts.map((p) => (
+                  <tr key={p.payout_id} className="border-b border-smitten-cream last:border-0">
+                    <td className="px-3 py-2 text-smitten-text whitespace-nowrap">{p.arrival_date.split('-').reverse().join('.')}</td>
+                    <td className="px-3 py-2 text-right font-medium text-smitten-text whitespace-nowrap">{formatPrice(p.amount_cents)}</td>
+                    <td className="px-3 py-2 text-smitten-text/70 whitespace-nowrap">
+                      {{ paid: 'Ausgezahlt', pending: 'Ausstehend', in_transit: 'Unterwegs', canceled: 'Storniert', failed: 'Fehlgeschlagen' }[p.status] ?? p.status}
+                    </td>
+                    <td className="px-3 py-2 text-right text-smitten-text/70">{p.transactions}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {p.ok
+                        ? <span className="text-smitten-text">OK</span>
+                        : <span className="text-red-500 font-medium">Nicht OK{p.warnings.length > 0 ? ` – ${p.warnings.join('; ')}` : ''}</span>}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-smitten-text/50">{p.payout_id}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button onClick={() => exportPayoutCsv(p.payout_id)} disabled={payoutBusy !== null}
+                        className="px-3 py-1.5 bg-smitten-primary text-white text-xs rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap">
+                        {payoutBusy === p.payout_id ? 'Erstelle …' : 'CSV herunterladen'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {payoutMsg && (
+          <p className={`mt-3 text-sm ${payoutMsg.ok ? 'text-smitten-text/70' : 'text-red-500 font-medium'}`}>{payoutMsg.text}</p>
+        )}
       </div>
 
       {/* CREDIT NOTES / STORNO-RECHNUNGEN */}
