@@ -80,13 +80,13 @@ export default function ProductionOverviewPage() {
         </Card>
       </div>
 
-      <Card title="Any date" className="mt-6">
+      <Card title="Open another bake day" className="mt-6">
         <form
           className="flex flex-wrap items-end gap-3"
           onSubmit={(e) => { e.preventDefault(); if (isValidISODate(custom)) window.location.href = `/admin/production/bake-day/${custom}`; }}
         >
           <label className="block">
-            <span className="block text-xs text-smitten-text/60 mb-1">Bake day</span>
+            <span className="block text-xs text-smitten-text/60 mb-1">Date (older bake days, or a day further ahead)</span>
             <input type="date" value={custom} onChange={(e) => setCustom(e.target.value)} className={inputCls} />
           </label>
           <button type="submit" className={btnSecondary} disabled={!isValidISODate(custom)}>Open</button>

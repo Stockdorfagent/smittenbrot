@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -19,6 +20,7 @@ const PROMO: { text: string; code: string } | null = {
 };
 
 export default function PromoBanner() {
+  const pathname = usePathname();
   const [show, setShow] = useState(false);
   useEffect(() => {
     if (!PROMO) return;
@@ -36,6 +38,8 @@ export default function PromoBanner() {
     });
     return () => { alive = false; sub.subscription.unsubscribe(); };
   }, []);
+  // Shop banners stay out of the admin area (owner, 27.10.2026).
+  if (pathname?.startsWith('/admin')) return null;
   if (!PROMO || !show) return null;
   return (
     <div className="bg-smitten-strip text-white text-center px-4 py-2 text-xs sm:text-sm">

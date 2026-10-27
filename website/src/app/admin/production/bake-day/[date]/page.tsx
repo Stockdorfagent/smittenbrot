@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { AdminLoading } from '@/components/admin/AdminLoading';
-import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, adminDownload, fmtG, fmtPct } from '@/lib/production/client';
@@ -12,8 +11,17 @@ import { computeBakeSheet } from '@/lib/production/engine';
 import { b2bDemands } from '@/lib/production/b2b';
 import type { PlannedClient } from '@/lib/production/b2b';
 import type { FreezerStatus } from '@/lib/production/freezer';
+import { dayIngredientTotals, fmtAmount } from '@/lib/production/dayIngredients';
 import { formatDateEN, isValidISODate } from '@/lib/production/bakeDays';
 import type { Adjustment, BakeSheet, Demand, GramLine, ManualOrder, ProductionData, RecipeBlock, StarterNeed, SubBlock, B2BClient, DayOverride, StandingOrder } from '@/lib/production/types';
+
+/**
+ * One column, top to bottom (owner, 27.10.2026: "clean and lean, not a forest
+ * of cards"): Quantities → Freezer → Starter feeding → Recipes → Ingredients.
+ * B2B and one-off orders are entered on the B2B page; here they only show up
+ * as quantities. Stock products (Amaretti …) are rows of the quantities table
+ * counted in PIECES, not in bags ordered.
+ */
 
 interface DayResponse {
   sheet: BakeSheet;
@@ -60,13 +68,17 @@ export default function BakeDayPage() {
   }, []);
 
   /** Live recalculation in the browser while the owner edits extras or percentages (frozen days show the snapshot). */
+  const demands = useMemo<Demand[]>(() => {
+    if (!res) return [];
+    const byId = new Map(res.data.products.map((p) => [p.id, p]));
+    const extraDemands: Demand[] = extras.map((e) => ({ pr_product_id: e.pr_product_id, product_name: byId.get(e.pr_product_id)?.name ?? '?', qty: e.qty, source: 'extra' as const, reason: e.reason }));
+    return [...res.web, ...b2bDemands(res.b2b, res.data.products, res.b2b.clients), ...extraDemands];
+  }, [res, extras]);
   const sheet = useMemo<BakeSheet | null>(() => {
     if (!res) return null;
     if (res.frozen && !dirty) return res.sheet;
-    const byId = new Map(res.data.products.map((p) => [p.id, p]));
-    const extraDemands: Demand[] = extras.map((e) => ({ pr_product_id: e.pr_product_id, product_name: byId.get(e.pr_product_id)?.name ?? '?', qty: e.qty, source: 'extra' as const, reason: e.reason }));
-    return computeBakeSheet(date, [...res.web, ...b2bDemands(res.b2b, res.data.products, res.b2b.clients), ...extraDemands], res.data, adjustments);
-  }, [res, extras, adjustments, dirty, date]);
+    return computeBakeSheet(date, demands, res.data, adjustments);
+  }, [res, demands, adjustments, dirty, date]);
 
   async function save() {
     setBusy(true);
@@ -130,6 +142,7 @@ export default function BakeDayPage() {
 
   const products = res.data.products;
   const starterInSub = new Set(sheet.recipes.flatMap((r) => r.subs.flatMap(collectStarterItemIds)));
+  const ingredientTotals = dayIngredientTotals(sheet);
 
   return (
     <div className="print:text-black">
@@ -168,107 +181,106 @@ export default function BakeDayPage() {
       )}
       {dirty && <div className="mb-4 print:hidden"><Notice tone="info">Unsaved changes — the figures below already reflect them. Click “Save day” to keep them for this bake day.</Notice></div>}
 
-      {/* Quantities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 print:block">
-        <Card title="Quantities" className="print:border-0 print:p-0 print:mb-4">
-          <table className="w-full">
-            <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>Web</th><th className={`${th} text-right`}>B2B</th><th className={`${th} text-right`}>Other</th><th className={`${th} text-right`}>Extra</th><th className={`${th} text-right`}>Total</th><th className={`${th} text-right`}>Dough</th></tr></thead>
-            <tbody>
-              {sheet.products.map((p) => {
-                const sum = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).reduce((n, s) => n + s.qty, 0);
-                const who = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).map((s) => s.reason).filter(Boolean).join(', ');
-                const cell = (src: Demand['source']) => { const n = sum(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
-                return (
-                  <tr key={p.pr_product_id} className="border-t border-smitten-cream">
-                    <td className={td}>{p.name}</td>
-                    <td className={tdNum}>{sum('web') || ''}</td>
-                    <td className={tdNum}>{cell('b2b')}</td>
-                    <td className={tdNum}>{cell('manual')}</td>
-                    <td className={tdNum}>{cell('extra')}</td>
-                    <td className={`${tdNum} font-medium`}>{p.qty}</td>
-                    <td className={tdNum}>{fmtG(p.dough_g)} g</td>
-                  </tr>
-                );
-              })}
-              {sheet.products.length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">No orders for this day{res.is_bake_day && !res.cutoff.passed ? ' yet' : ''}.</span></td></tr>}
-            </tbody>
-          </table>
+      {/* Quantities — one card, full width */}
+      <Card title="Quantities" className="mb-6 print:border-0 print:p-0 print:mb-4">
+        <table className="w-full">
+          <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>Web</th><th className={`${th} text-right`}>B2B</th><th className={`${th} text-right`}>Other</th><th className={`${th} text-right`}>Extra</th><th className={`${th} text-right`}>Total</th><th className={`${th} text-right`}>Dough</th></tr></thead>
+          <tbody>
+            {sheet.products.filter((p) => products.find((x) => x.id === p.pr_product_id)?.production !== 'stock').map((p) => {
+              const sum = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).reduce((n, s) => n + s.qty, 0);
+              const who = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).map((s) => s.reason).filter(Boolean).join(', ');
+              const cell = (src: Demand['source']) => { const n = sum(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
+              return (
+                <tr key={p.pr_product_id} className="border-t border-smitten-cream">
+                  <td className={td}>{p.name}</td>
+                  <td className={tdNum}>{sum('web') || ''}</td>
+                  <td className={tdNum}>{cell('b2b')}</td>
+                  <td className={tdNum}>{cell('manual')}</td>
+                  <td className={tdNum}>{cell('extra')}</td>
+                  <td className={`${tdNum} font-medium`}>{p.qty}</td>
+                  <td className={tdNum}>{fmtG(p.dough_g)} g</td>
+                </tr>
+              );
+            })}
+            {/* Stock products: one row each, counted in pieces (bags × pieces per bag). Web/B2B/Other come out of the freezer, Extra goes into it. */}
+            {products.filter((p) => p.production === 'stock').map((p) => {
+              const per = p.pieces_per_unit ? Number(p.pieces_per_unit) : 1;
+              const mine = demands.filter((d) => d.pr_product_id === p.id);
+              const pieces = (src: Demand['source']) => mine.filter((d) => d.source === src).reduce((n, d) => n + d.qty * per, 0);
+              const who = (src: Demand['source']) => mine.filter((d) => d.source === src).map((d) => d.reason).filter(Boolean).join(', ');
+              const out = pieces('web') + pieces('b2b') + pieces('manual');
+              const made = pieces('extra');
+              if (out === 0 && made === 0) return null;
+              const cell = (src: Demand['source']) => { const n = pieces(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
+              const batch = sheet.products.find((x) => x.pr_product_id === p.id);
+              return (
+                <tr key={p.id} className="border-t border-smitten-cream">
+                  <td className={td}>{p.name} <span className="text-[11px] text-smitten-text/50">pieces · {per} per bag · from the freezer</span></td>
+                  <td className={tdNum}>{pieces('web') || ''}</td>
+                  <td className={tdNum}>{cell('b2b')}</td>
+                  <td className={tdNum}>{cell('manual')}</td>
+                  <td className={tdNum}>{made ? <span>{made}<span className="block text-[11px] text-smitten-text/50">made today</span></span> : ''}</td>
+                  <td className={`${tdNum} font-medium`}>{out || ''}</td>
+                  <td className={tdNum}>{batch ? `${fmtG(batch.dough_g)} g` : ''}</td>
+                </tr>
+              );
+            })}
+            {sheet.products.length === 0 && sheet.stock_products.length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">No orders for this day{res.is_bake_day && !res.cutoff.passed ? ' yet' : ''}.</span></td></tr>}
+          </tbody>
+        </table>
 
-          {sheet.stock_products.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-1">From the freezer</p>
-              <ul className="text-sm space-y-1">
-                {sheet.stock_products.map((s) => (
-                  <li key={s.pr_product_id}>
-                    <span className="font-medium">{s.qty} × {s.name}</span>{s.pieces ? ` = ${s.pieces} pieces` : ''}
-                    {s.extras && <span className="text-smitten-text/70"> · {s.extras.lines.map((l) => `${l.ingredient_name} ${fmtG(l.total)} g`).join(', ')}</span>}
-                    {s.recipe_id && <Link href={`/admin/production/recipes/${s.recipe_id}?batch=1`} className="ml-2 text-xs underline text-smitten-text/60 print:hidden">make batch</Link>}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        {/* extra quantities editor */}
+        <div className="mt-4 print:hidden border-t border-smitten-cream pt-3">
+          <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Extra quantities (freezer stock, test bake, own use)</p>
+          {extras.length > 0 && (
+            <ul className="text-sm space-y-1 mb-2">
+              {extras.map((e, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span>{e.qty} × {products.find((p) => p.id === e.pr_product_id)?.name ?? '?'}{e.reason ? ` (${e.reason})` : ''}</span>
+                  <button className="text-xs text-red-700 dark:text-red-400 hover:underline" onClick={() => { setExtras((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}>remove</button>
+                </li>
+              ))}
+            </ul>
           )}
-
-          {/* extra quantities editor */}
-          <div className="mt-4 print:hidden border-t border-smitten-cream pt-3">
-            <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Extra quantities (freezer stock, B2B, own use)</p>
-            {extras.length > 0 && (
-              <ul className="text-sm space-y-1 mb-2">
-                {extras.map((e, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span>{e.qty} × {products.find((p) => p.id === e.pr_product_id)?.name ?? '?'}{e.reason ? ` (${e.reason})` : ''}</span>
-                    <button className="text-xs text-red-700 dark:text-red-400 hover:underline" onClick={() => { setExtras((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}>remove</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <select className={smallInputCls} value={newExtra.pr_product_id} onChange={(e) => setNewExtra({ ...newExtra, pr_product_id: e.target.value })}>
-                <option value="">product…</option>
-                {products.filter((p) => p.recipe_id).map((p) => <option key={p.id} value={p.id}>{p.name}{p.channel === 'intern' ? ' (internal)' : ''}</option>)}
-              </select>
-              <input className={`${smallInputCls} w-20`} type="number" min="1" step="1" placeholder="qty" value={newExtra.qty} onChange={(e) => setNewExtra({ ...newExtra, qty: e.target.value })} />
-              <input className={`${smallInputCls} w-40`} placeholder="reason" value={newExtra.reason} onChange={(e) => setNewExtra({ ...newExtra, reason: e.target.value })} />
-              <button
-                className={btnSecondary}
-                disabled={!newExtra.pr_product_id || !(Number(newExtra.qty) > 0)}
-                onClick={() => { setExtras((prev) => [...prev, { pr_product_id: newExtra.pr_product_id, qty: Number(newExtra.qty), reason: newExtra.reason || null }]); setNewExtra({ pr_product_id: '', qty: '', reason: 'Freezer stock' }); setDirty(true); }}
-              >Add</button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select className={smallInputCls} value={newExtra.pr_product_id} onChange={(e) => setNewExtra({ ...newExtra, pr_product_id: e.target.value })}>
+              <option value="">product…</option>
+              {products.filter((p) => p.recipe_id).map((p) => <option key={p.id} value={p.id}>{p.name}{p.channel === 'intern' ? ' (internal)' : ''}</option>)}
+            </select>
+            <input className={`${smallInputCls} w-20`} type="number" min="1" step="1" placeholder="qty" value={newExtra.qty} onChange={(e) => setNewExtra({ ...newExtra, qty: e.target.value })} />
+            <input className={`${smallInputCls} w-40`} placeholder="reason" value={newExtra.reason} onChange={(e) => setNewExtra({ ...newExtra, reason: e.target.value })} />
+            <button
+              className={btnSecondary}
+              disabled={!newExtra.pr_product_id || !(Number(newExtra.qty) > 0)}
+              onClick={() => { setExtras((prev) => [...prev, { pr_product_id: newExtra.pr_product_id, qty: Number(newExtra.qty), reason: newExtra.reason || null }]); setNewExtra({ pr_product_id: '', qty: '', reason: 'Freezer stock' }); setDirty(true); }}
+            >Add</button>
           </div>
-        </Card>
+          <p className="text-[11px] text-smitten-text/50 mt-2">B2B and one-off orders are entered on the <Link href="/admin/production/b2b" className="underline">B2B page</Link>.</p>
+        </div>
+      </Card>
 
-        {/* B2B and one-off orders */}
-        <B2BCard date={date} b2b={res.b2b} products={products} onChanged={() => load()} busy={busy} setBusy={setBusy} />
+      {/* Freezer */}
+      {res.freezer.length > 0 && (
+        <FreezerCard date={date} freezer={res.freezer} busy={busy} setBusy={setBusy} onChanged={() => load()} plannedExtra={(pid) => extras.filter((e) => e.pr_product_id === pid).reduce((n, e) => n + e.qty, 0)} />
+      )}
 
-        {/* Freezer */}
-        {res.freezer.length > 0 && (
-          <FreezerCard
-            date={date} freezer={res.freezer} busy={busy} setBusy={setBusy} onChanged={() => load()}
-            bakedToday={(recipeId) => !!recipeId && sheet.recipes.some((r) => r.recipe_id === recipeId)}
-            onAddExtra={(pid, qty) => { setExtras((prev) => [...prev, { pr_product_id: pid, qty, reason: 'Freezer stock' }]); setDirty(true); }}
-            plannedExtra={(pid) => extras.filter((e) => e.pr_product_id === pid).reduce((n, e) => n + e.qty, 0)}
-          />
-        )}
-
-        {/* Starter feeding schedule */}
-        <Card title="Starter feeding schedule" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid">
-          {sheet.starters.length === 0 && <p className="text-sm text-smitten-text/50">No starter needed.</p>}
-          {sheet.starters.map((s) => (
-            <div key={s.starter_id} className="mb-4 last:mb-0">
-              <p className="font-medium text-sm mb-1">{s.name} <span className="text-xs text-smitten-text/50">· seed from kept starter {fmtG(s.seed_from_kept_g)} g</span></p>
-              <table className="w-full">
-                <thead><tr><th className={th}>Stage</th><th className={th}>Day</th><th className={`${th} text-right`}>Flour</th><th className={th}>Flour type</th><th className={`${th} text-right`}>Water</th><th className={`${th} text-right`}>Seed</th><th className={`${th} text-right`}>Total</th></tr></thead>
-                <tbody>
-                  {[...s.stages].reverse().map((st) => (
-                    <StageRows key={st.stage_no} st={st} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </Card>
-      </div>
+      {/* Starter feeding schedule */}
+      <Card title="Starter feeding schedule" className="mb-6 print:border-0 print:p-0 print:mb-4 print:break-inside-avoid">
+        {sheet.starters.length === 0 && <p className="text-sm text-smitten-text/50">No starter needed.</p>}
+        {sheet.starters.map((s) => (
+          <div key={s.starter_id} className="mb-4 last:mb-0">
+            <p className="font-medium text-sm mb-1">{s.name} <span className="text-xs text-smitten-text/50">· seed from kept starter {fmtG(s.seed_from_kept_g)} g</span></p>
+            <table className="w-full">
+              <thead><tr><th className={th}>Stage</th><th className={th}>Day</th><th className={`${th} text-right`}>Flour</th><th className={th}>Flour type</th><th className={`${th} text-right`}>Water</th><th className={`${th} text-right`}>Seed</th><th className={`${th} text-right`}>Total</th></tr></thead>
+              <tbody>
+                {[...s.stages].reverse().map((st) => (
+                  <StageRows key={st.stage_no} st={st} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </Card>
 
       {/* Recipes */}
       <div className="space-y-6">
@@ -287,7 +299,19 @@ export default function BakeDayPage() {
         ))}
       </div>
 
-      {sheet.totals.eggs > 0 && <p className="mt-6 text-sm text-smitten-text/70">Whole eggs needed today: <span className="font-medium">{sheet.totals.eggs}</span></p>}
+      {/* Ingredients for the day — everything the recipes above need, summed up */}
+      {ingredientTotals.length > 0 && (
+        <Card title="Ingredients for this bake day" className="mt-6 print:border-0 print:p-0 print:mt-4 print:break-inside-avoid">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-1 text-sm">
+            {ingredientTotals.map((t) => (
+              <li key={t.key} className="flex justify-between gap-3 border-b border-smitten-cream/70 py-1">
+                <span>{t.name}</span><span className="font-medium tabular-nums whitespace-nowrap">{fmtAmount(t)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-smitten-text/50 mt-2">Recipes, pre-doughs, per-piece extras and the flour and water of the final sourdough build. Starter feedings and freezer stock are not included; egg white and yolk are counted as whole eggs.</p>
+        </Card>
+      )}
     </div>
   );
 }
@@ -453,115 +477,8 @@ function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
   );
 }
 
-function B2BCard({ date, b2b, products, onChanged, busy, setBusy }: {
-  date: string; b2b: DayResponse['b2b']; products: ProductionData['products']; onChanged: () => void; busy: boolean; setBusy: (b: boolean) => void;
-}) {
-  const [editClient, setEditClient] = useState<string | null>(null);
-  const [items, setItems] = useState<{ pr_product_id: string; qty: string }[]>([]);
-  const [note, setNote] = useState('');
-  const [manual, setManual] = useState<{ type: ManualOrder['type']; client_id: string; label: string; items: { pr_product_id: string; qty: string }[] } | null>(null);
-  const productName = new Map(products.map((p) => [p.id, p.name]));
-  const clientName = new Map(b2b.clients.map((c) => [c.id, c.name]));
-
-  async function act(body: Record<string, unknown>, okText: string) {
-    setBusy(true);
-    try {
-      await adminFetch('/api/admin/production/b2b', { body });
-      showToast(okText, 'success');
-      setEditClient(null); setManual(null);
-      onChanged();
-    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
-  }
-  const itemsText = (list: { pr_product_id: string; qty: number }[]) => list.map((i) => `${i.qty} × ${productName.get(i.pr_product_id) ?? '?'}`).join(', ');
-  const itemEditor = (list: { pr_product_id: string; qty: string }[], set: (l: { pr_product_id: string; qty: string }[]) => void) => (
-    <div>
-      {list.map((it, i) => (
-        <div key={i} className="flex items-center gap-2 mb-1">
-          <input className={`${smallInputCls} w-20`} type="number" min="1" step="1" placeholder="qty" value={it.qty} onChange={(e) => set(list.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))} />
-          <select className={smallInputCls} value={it.pr_product_id} onChange={(e) => set(list.map((x, j) => j === i ? { ...x, pr_product_id: e.target.value } : x))}>
-            <option value="">product…</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.production === 'stock' ? ' · from freezer' : ''}</option>)}
-          </select>
-          <button className="text-xs text-red-700 dark:text-red-400" onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
-      <button className="text-xs underline text-smitten-text/60" onClick={() => set([...list, { pr_product_id: '', qty: '' }])}>+ item</button>
-    </div>
-  );
-
-  return (
-    <Card title="B2B and one-off orders" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid"
-      right={<Link href="/admin/production/b2b" className="text-xs underline text-smitten-text/60 print:hidden">clients &amp; standing orders</Link>}>
-      {b2b.planned.length === 0 && b2b.manual.length === 0 && <p className="text-sm text-smitten-text/50">No B2B or one-off orders on this day.</p>}
-      <ul className="text-sm divide-y divide-smitten-cream">
-        {b2b.planned.map((p) => (
-          <li key={p.client.id} className="py-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <span className="font-medium">{p.client.name}</span>{' '}
-                {p.skipped ? <StatusPill tone="red">closed – nothing today</StatusPill> : p.source === 'override' ? <StatusPill tone="amber">changed for this day</StatusPill> : <StatusPill tone="blue">standing order</StatusPill>}
-                {!p.skipped && <span className="block">{itemsText(p.items) || <span className="text-smitten-text/40">nothing</span>}</span>}
-                {p.override?.note && <span className="block text-xs text-smitten-text/50">{p.override.note}</span>}
-              </div>
-              <div className="flex gap-2 print:hidden">
-                {editClient !== p.client.id && !p.skipped && <button className="text-xs underline" disabled={busy} onClick={() => { setEditClient(p.client.id); setItems(p.items.map((i) => ({ pr_product_id: i.pr_product_id, qty: String(i.qty) }))); setNote(p.override?.note ?? ''); }}>change today</button>}
-                {!p.skipped && <button className="text-xs underline text-red-700 dark:text-red-400" disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: true, note: 'closed' } }, `${p.client.name}: nothing today.`)}>closed today</button>}
-                {p.override && <button className="text-xs underline" disabled={busy} onClick={() => act({ action: 'delete_override', client_id: p.client.id, date }, 'Back to the standing order.')}>back to standing order</button>}
-              </div>
-            </div>
-            {editClient === p.client.id && (
-              <div className="mt-2 rounded-lg border border-smitten-cream p-3 print:hidden">
-                {itemEditor(items, setItems)}
-                <input className={`${smallInputCls} w-full mt-2`} placeholder="note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-                <div className="mt-2 flex gap-2">
-                  <button className={btnPrimary} disabled={busy} onClick={() => act({ action: 'save_override', override: { client_id: p.client.id, date, skip: false, items: items.filter((i) => i.pr_product_id).map((i) => ({ pr_product_id: i.pr_product_id, qty: Number(i.qty) })), note } }, `${p.client.name} changed for ${date}.`)}>Save for this day</button>
-                  <button className={btnSecondary} onClick={() => setEditClient(null)}>Cancel</button>
-                </div>
-              </div>
-            )}
-          </li>
-        ))}
-        {b2b.manual.map((m) => (
-          <li key={m.id} className="py-2 flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <span className="font-medium">{m.type === 'b2b' ? (m.client_id ? clientName.get(m.client_id) ?? 'B2B' : m.label || 'B2B') : `${m.type}${m.label ? ` · ${m.label}` : ''}`}</span> <StatusPill tone="gray">one-off</StatusPill>
-              <span className="block">{itemsText(m.items)}</span>
-              {m.notes && <span className="block text-xs text-smitten-text/50">{m.notes}</span>}
-            </div>
-            <button className="text-xs underline text-red-700 dark:text-red-400 print:hidden" disabled={busy} onClick={() => { if (confirm('Delete this one-off order?')) act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.'); }}>delete</button>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3 print:hidden">
-        {!manual && <button className={btnSecondary} onClick={() => setManual({ type: 'b2b', client_id: b2b.clients[0]?.id ?? '', label: '', items: [{ pr_product_id: '', qty: '' }] })}>+ one-off order</button>}
-        {manual && (
-          <div className="rounded-lg border border-smitten-cream p-3">
-            <div className="flex flex-wrap gap-2 mb-2">
-              <select className={smallInputCls} value={manual.type} onChange={(e) => setManual({ ...manual, type: e.target.value as ManualOrder['type'] })}>
-                <option value="b2b">B2B</option><option value="market">market</option><option value="test">test bake</option><option value="own">own use</option>
-              </select>
-              {manual.type === 'b2b' && (
-                <select className={smallInputCls} value={manual.client_id} onChange={(e) => setManual({ ...manual, client_id: e.target.value })}>
-                  <option value="">client…</option>{b2b.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              )}
-              <input className={`${smallInputCls} w-48`} placeholder="label (optional)" value={manual.label} onChange={(e) => setManual({ ...manual, label: e.target.value })} />
-            </div>
-            {itemEditor(manual.items, (l) => setManual({ ...manual, items: l }))}
-            <div className="mt-2 flex gap-2">
-              <button className={btnPrimary} disabled={busy} onClick={() => act({ action: 'save_manual', manual: { date, type: manual.type, client_id: manual.client_id || null, label: manual.label, items: manual.items.filter((i) => i.pr_product_id).map((i) => ({ pr_product_id: i.pr_product_id, qty: Number(i.qty) })) } }, 'One-off order saved.')}>Save</button>
-              <button className={btnSecondary} onClick={() => setManual(null)}>Cancel</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function FreezerCard({ date, freezer, busy, setBusy, onChanged, onAddExtra, plannedExtra, bakedToday }: {
-  date: string; freezer: FreezerStatus[]; busy: boolean; setBusy: (b: boolean) => void; onChanged: () => void;
-  onAddExtra: (pid: string, qty: number) => void; plannedExtra: (pid: string) => number; bakedToday: (recipeId: string | null) => boolean;
+function FreezerCard({ date, freezer, busy, setBusy, onChanged, plannedExtra }: {
+  date: string; freezer: FreezerStatus[]; busy: boolean; setBusy: (b: boolean) => void; onChanged: () => void; plannedExtra: (pid: string) => number;
 }) {
   async function act(body: Record<string, unknown>, okText: string) {
     setBusy(true);
@@ -569,33 +486,31 @@ function FreezerCard({ date, freezer, busy, setBusy, onChanged, onAddExtra, plan
     catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
   return (
-    <Card title="Freezer" className="print:border-0 print:p-0 print:mb-4 print:break-inside-avoid"
+    <Card title="Freezer" className="mb-6 print:border-0 print:p-0 print:mb-4 print:break-inside-avoid"
       right={<Link href="/admin/production/freezer" className="text-xs underline text-smitten-text/60 print:hidden">stock &amp; ledger</Link>}>
       <table className="w-full">
-        <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>In stock</th><th className={`${th} text-right`}>Out today</th><th className={`${th} text-right`}>Made today</th><th className={`${th} text-right`}>Then</th><th className={th}>Coming up</th><th className={th}></th></tr></thead>
+        <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>In stock</th><th className={`${th} text-right`}>Out today</th><th className={`${th} text-right`}>Made today</th><th className={`${th} text-right`}>Then</th><th className={th}>Coming up</th><th className={`${th} text-right`}>After that</th><th className={th}></th></tr></thead>
         <tbody>
           {freezer.map((f) => {
             const planned = plannedExtra(f.pr_product_id) * f.pieces_per_unit;
             const unconfirmed = planned > 0 && f.batch_today !== planned;
+            const low = f.projected < f.settings.min_level;
             return (
               <tr key={f.pr_product_id} className="border-t border-smitten-cream">
                 <td className={td}>{f.name}{f.too_old && <span className="block text-xs text-red-700 dark:text-red-400">oldest batch {f.oldest_batch_age_days} days</span>}</td>
                 <td className={tdNum}>{f.counter}</td>
                 <td className={tdNum}>{f.usage_today ? `−${f.usage_today}` : ''}</td>
                 <td className={tdNum}>
-                  {f.batch_today ? <span className="text-green-700 dark:text-green-400">+{f.batch_today}</span> : planned ? <span className="text-amber-700 dark:text-amber-300">{planned} planned</span> : ''}
+                  {f.batch_today ? <span>+{f.batch_today}</span> : planned ? <span className="text-smitten-text/60">{planned} planned</span> : ''}
                 </td>
                 <td className={`${tdNum} font-medium`}>{f.after_today}</td>
                 <td className={`${td} text-xs`}>
+                  {f.ahead.length === 0 && <span className="text-smitten-text/40">—</span>}
                   {f.ahead.map((a) => <span key={a.date} className="block">{a.date.slice(8, 10)}.{a.date.slice(5, 7)}. −{a.pieces} <span className="text-smitten-text/50">{a.who}</span></span>)}
-                  <span className={`block ${f.projected < f.settings.min_level ? 'text-red-700 dark:text-red-400 font-medium' : 'text-smitten-text/60'}`}>→ {f.projected} left (min {f.settings.min_level})</span>
-                  {f.suggestion > 0 && (bakedToday(f.recipe_id)
-                    ? <span className="block text-red-700 dark:text-red-400 font-medium">Make {f.suggestion} today</span>
-                    : <span className="block text-amber-700 dark:text-amber-300 font-medium">Make {f.suggestion} at the next bake of this dough</span>)}
                 </td>
+                <td className={`${tdNum} font-medium ${low ? 'text-red-700 dark:text-red-400' : ''}`}>{f.projected}{low && <span className="block text-[11px] font-normal">min {f.settings.min_level}</span>}</td>
                 <td className={`${td} text-right whitespace-nowrap print:hidden`}>
-                  {f.suggestion > 0 && planned === 0 && bakedToday(f.recipe_id) && <button className="text-xs underline mr-2" onClick={() => onAddExtra(f.pr_product_id, Math.ceil(f.suggestion / f.pieces_per_unit))}>add {Math.ceil(f.suggestion / f.pieces_per_unit)} extra</button>}
-                  {planned > 0 && unconfirmed && <button className="text-xs underline mr-2 text-green-700 dark:text-green-400" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
+                  {planned > 0 && unconfirmed && <button className="text-xs underline mr-2" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
                   {f.batch_today > 0 && <button className="text-xs underline text-smitten-text/60" disabled={busy} onClick={() => act({ action: 'unbook_batch', pr_product_id: f.pr_product_id, date }, 'Batch booking removed.')}>undo</button>}
                 </td>
               </tr>
@@ -603,7 +518,7 @@ function FreezerCard({ date, freezer, busy, setBusy, onChanged, onAddExtra, plan
           })}
         </tbody>
       </table>
-      <p className="text-[11px] text-smitten-text/50 mt-2 print:hidden">Usage is booked automatically once the bake day is over. “Confirm made” books the batch you actually put in the freezer; unsaved extra quantities must be saved with “Save day”.</p>
+      <p className="text-[11px] text-smitten-text/50 mt-2 print:hidden">Pieces. Usage is booked automatically once the bake day is over; “confirm made” books a batch put in the freezer (extra quantities above, saved with “Save day”).</p>
     </Card>
   );
 }

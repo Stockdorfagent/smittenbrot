@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@supabase/supabase-js';
 import { useCart } from '@/context/CartContext';
 
@@ -16,6 +16,7 @@ const navLinks = [
 
 export default function NavBar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const { itemCount } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -39,6 +40,10 @@ export default function NavBar() {
     await supabase.auth.signOut();
     router.push('/');
   };
+
+  // The admin area has its own sidebar + header (owner, 27.10.2026): the shop
+  // navigation on top of it was a second, useless menu row.
+  if (pathname?.startsWith('/admin')) return null;
 
   return (
     <nav className="border-b border-smitten-cream bg-smitten-surface/80 backdrop-blur-sm sticky top-0 z-50">

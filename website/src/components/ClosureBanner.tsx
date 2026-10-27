@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface ActiveClosure {
@@ -10,6 +11,7 @@ interface ActiveClosure {
 }
 
 export default function ClosureBanner() {
+  const pathname = usePathname();
   const [closure, setClosure] = useState<ActiveClosure | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,6 +29,8 @@ export default function ClosureBanner() {
       .catch(() => setLoading(false));
   }, []);
 
+  // Shop banners stay out of the admin area (owner, 27.10.2026).
+  if (pathname?.startsWith('/admin')) return null;
   if (loading || !closure) return null;
 
   return (

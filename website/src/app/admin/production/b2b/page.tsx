@@ -21,6 +21,8 @@ interface B2BResponse {
 type ItemRow = { pr_product_id: string; qty: string };
 type StandingForm = { client_id: string; weekday: number; items: ItemRow[]; valid_from: string; valid_to: string; active: boolean; notes: string };
 type SingleForm = { id?: string; client_id: string; date: string; items: ItemRow[]; notes: string };
+type OverrideForm = { client_id: string; date: string; skip: boolean; items: ItemRow[]; note: string };
+type OtherForm = { id?: string; date: string; type: 'market' | 'test' | 'own'; label: string; items: ItemRow[]; notes: string };
 
 const toItems = (rows: ItemRow[]): OrderItem[] => rows.filter((i) => i.pr_product_id).map((i) => ({ pr_product_id: i.pr_product_id, qty: Number(i.qty) }));
 const fromItems = (items: OrderItem[]): ItemRow[] => items.map((i) => ({ pr_product_id: i.pr_product_id, qty: String(i.qty) }));
@@ -52,6 +54,8 @@ export default function B2BPage() {
   const [clientForm, setClientForm] = useState<{ id?: string; name: string; notes: string; active: boolean } | null>(null);
   const [standingForm, setStandingForm] = useState<StandingForm | null>(null);
   const [singleForm, setSingleForm] = useState<SingleForm | null>(null);
+  const [overrideForm, setOverrideForm] = useState<OverrideForm | null>(null);
+  const [otherForm, setOtherForm] = useState<OtherForm | null>(null);
 
   const load = async () => {
     try {
@@ -66,7 +70,7 @@ export default function B2BPage() {
     try {
       await adminFetch('/api/admin/production/b2b', { body });
       showToast(okText, 'success');
-      setClientForm(null); setStandingForm(null); setSingleForm(null);
+      setClientForm(null); setStandingForm(null); setSingleForm(null); setOverrideForm(null); setOtherForm(null);
       await load();
     } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
@@ -86,7 +90,7 @@ export default function B2BPage() {
     <div>
       <PageHeader
         title="B2B clients"
-        subtitle="B2B orders are delivered, not picked up, so they can fall on any weekday — each date with B2B work gets its own bake sheet. Standing orders repeat every week on their weekday; a single order is for one date only (a new client's one-time order, or extras for a regular client). Changes to a standing order on one day (more, less, closed) are made on that day's bake sheet."
+        subtitle="B2B orders are delivered, not picked up, so they can fall on any weekday — each date with B2B work gets its own bake sheet. Standing orders repeat every week on their weekday; a single order is for one date only; a change for one day (more, less, closed) adjusts the standing order on that date. Market, test and own-use bakes are at the bottom. The bake sheet only shows the resulting quantities."
         actions={<button className={btnPrimary} onClick={() => setClientForm({ name: '', notes: '', active: true })}>New client</button>}
       />
       <SubNav current="/admin/production/b2b" />
@@ -197,6 +201,55 @@ export default function B2BPage() {
                       </div>
                     </div>
                   )}
+
+                  {(() => {
+                    const changes = b2b.upcoming_overrides.filter((o) => o.client_id === c.id);
+                    const hasStanding = b2b.standing.some((so) => so.client_id === c.id && so.active);
+                    if (!hasStanding && changes.length === 0) return null;
+                    return (
+                      <div className="mt-5 pt-4 border-t border-smitten-cream">
+                        <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Changes to the standing order for one day</p>
+                        {changes.length === 0 && <p className="text-sm text-smitten-text/50">No upcoming changes.</p>}
+                        <ul className="text-sm divide-y divide-smitten-cream">
+                          {changes.map((o) => (
+                            <li key={o.id} className="py-1.5 flex flex-wrap justify-between gap-2">
+                              <span><Link href={`/admin/production/bake-day/${o.date}`} className="underline">{formatDateEN(o.date)}</Link>: {o.skip ? <StatusPill tone="red">closed – nothing that day</StatusPill> : itemsText(o.items)}{o.note && <span className="block text-xs text-smitten-text/50">{o.note}</span>}</span>
+                              <span className="whitespace-nowrap">
+                                <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => setOverrideForm({ client_id: c.id, date: o.date, skip: o.skip, items: fromItems(o.items ?? []), note: o.note ?? '' })}>edit</button>
+                                <button className={btnDanger} onClick={() => act({ action: 'delete_override', client_id: c.id, date: o.date }, 'Back to the standing order.')}>remove</button>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-2">
+                          <button className={btnSecondary} onClick={() => setOverrideForm({ client_id: c.id, date: bakeDayOptions[0], skip: false, items: [{ pr_product_id: '', qty: '' }], note: '' })}>+ change for a day</button>
+                        </div>
+                        {overrideForm && overrideForm.client_id === c.id && (
+                          <div className="mt-4 rounded-lg border border-smitten-cream p-4">
+                            <p className="text-sm font-medium mb-2">Change for one day · {c.name}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Date</span>
+                                <input type="date" className={`${smallInputCls} w-full`} value={overrideForm.date} onChange={(e) => setOverrideForm({ ...overrideForm, date: e.target.value })} />
+                              </label>
+                              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">What</span>
+                                <select className={`${smallInputCls} w-full`} value={overrideForm.skip ? 'closed' : 'items'} onChange={(e) => setOverrideForm({ ...overrideForm, skip: e.target.value === 'closed' })}>
+                                  <option value="items">different quantities that day</option>
+                                  <option value="closed">closed – nothing that day</option>
+                                </select>
+                              </label>
+                              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Note (optional)</span><input className={`${smallInputCls} w-full`} value={overrideForm.note} onChange={(e) => setOverrideForm({ ...overrideForm, note: e.target.value })} /></label>
+                            </div>
+                            {!overrideForm.skip && <div className="mt-3"><ItemsEditor rows={overrideForm.items} set={(items) => setOverrideForm({ ...overrideForm, items })} products={data.products} /></div>}
+                            <div className="mt-3 flex gap-2">
+                              <button className={btnPrimary} disabled={busy || !isValidISODate(overrideForm.date) || (!overrideForm.skip && toItems(overrideForm.items).length === 0)}
+                                onClick={() => act({ action: 'save_override', override: { client_id: c.id, date: overrideForm.date, skip: overrideForm.skip, items: overrideForm.skip ? null : toItems(overrideForm.items), note: overrideForm.note } }, `${c.name}: ${formatDateEN(overrideForm.date)} changed.`)}>Save</button>
+                              <button className={btnSecondary} onClick={() => setOverrideForm(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
@@ -204,24 +257,47 @@ export default function B2BPage() {
         );
       })}
 
-      {(b2b.upcoming_overrides.length > 0 || otherManual.length > 0) && (
-        <Card title="Upcoming changes to standing orders and other one-off bakes">
-          <ul className="text-sm divide-y divide-smitten-cream">
-            {b2b.upcoming_overrides.map((o) => (
-              <li key={o.id} className="py-1.5 flex flex-wrap justify-between gap-2">
-                <span><Link href={`/admin/production/bake-day/${o.date}`} className="underline">{formatDateEN(o.date)}</Link> · {clientName.get(o.client_id) ?? '?'}: {o.skip ? <StatusPill tone="red">closed / nothing</StatusPill> : itemsText(o.items)}{o.note ? ` (${o.note})` : ''}</span>
-                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => act({ action: 'delete_override', client_id: o.client_id, date: o.date }, 'Back to the standing order.')}>remove change</button>
-              </li>
-            ))}
-            {otherManual.map((m) => (
-              <li key={m.id} className="py-1.5 flex flex-wrap justify-between gap-2">
-                <span><Link href={`/admin/production/bake-day/${m.date}`} className="underline">{formatDateEN(m.date)}</Link> · one-off {m.type}{m.label ? ` "${m.label}"` : ''}: {itemsText(m.items)}{m.notes ? ` (${m.notes})` : ''}</span>
-                <button className="text-xs text-red-700 dark:text-red-400" onClick={() => act({ action: 'delete_manual', id: m.id }, 'One-off order deleted.')}>delete</button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <Card title="Other one-off bakes (market, test, own use)" className="mb-6">
+        {otherManual.length === 0 && <p className="text-sm text-smitten-text/50">No upcoming one-off bakes.</p>}
+        <ul className="text-sm divide-y divide-smitten-cream">
+          {otherManual.map((m) => (
+            <li key={m.id} className="py-1.5 flex flex-wrap justify-between gap-2">
+              <span><Link href={`/admin/production/bake-day/${m.date}`} className="underline">{formatDateEN(m.date)}</Link> · {m.type === 'test' ? 'test bake' : m.type === 'own' ? 'own use' : m.type}{m.label ? ` "${m.label}"` : ''}: {itemsText(m.items)}{m.notes && <span className="block text-xs text-smitten-text/50">{m.notes}</span>}</span>
+              <span className="whitespace-nowrap">
+                <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => setOtherForm({ id: m.id, date: m.date, type: (m.type === 'b2b' ? 'market' : m.type), label: m.label ?? '', items: fromItems(m.items), notes: m.notes ?? '' })}>edit</button>
+                <button className={btnDanger} onClick={() => { if (confirm('Delete this one-off bake?')) act({ action: 'delete_manual', id: m.id }, 'One-off bake deleted.'); }}>delete</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2">
+          <button className={btnSecondary} onClick={() => setOtherForm({ date: bakeDayOptions[0], type: 'market', label: '', items: [{ pr_product_id: '', qty: '' }], notes: '' })}>+ one-off bake</button>
+        </div>
+        {otherForm && (
+          <div className="mt-4 rounded-lg border border-smitten-cream p-4">
+            <p className="text-sm font-medium mb-2">{otherForm.id ? 'Edit one-off bake' : 'One-off bake'}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Bake day (any weekday)</span>
+                <input type="date" className={`${smallInputCls} w-full`} value={otherForm.date} onChange={(e) => setOtherForm({ ...otherForm, date: e.target.value })} />
+                <span className="block text-[11px] text-smitten-text/50 mt-1">{otherForm.date && isValidISODate(otherForm.date) ? (isBakeDay(otherForm.date) ? `${formatDateEN(otherForm.date)} — joins the shop bake` : `${formatDateEN(otherForm.date)} — gets its own sheet`) : ''}</span>
+              </label>
+              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Type</span>
+                <select className={`${smallInputCls} w-full`} value={otherForm.type} onChange={(e) => setOtherForm({ ...otherForm, type: e.target.value as OtherForm['type'] })}>
+                  <option value="market">market</option><option value="test">test bake</option><option value="own">own use</option>
+                </select>
+              </label>
+              <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Label (optional, e.g. Christmas market)</span><input className={`${smallInputCls} w-full`} value={otherForm.label} onChange={(e) => setOtherForm({ ...otherForm, label: e.target.value })} /></label>
+            </div>
+            <div className="mt-3"><ItemsEditor rows={otherForm.items} set={(items) => setOtherForm({ ...otherForm, items })} products={data.products} /></div>
+            <label className="block mt-3"><span className="block text-[11px] text-smitten-text/60 mb-1">Notes (optional)</span><input className={`${smallInputCls} w-full`} value={otherForm.notes} onChange={(e) => setOtherForm({ ...otherForm, notes: e.target.value })} /></label>
+            <div className="mt-3 flex gap-2">
+              <button className={btnPrimary} disabled={busy || !isValidISODate(otherForm.date) || toItems(otherForm.items).length === 0}
+                onClick={() => act({ action: 'save_manual', manual: { id: otherForm.id, date: otherForm.date, type: otherForm.type, client_id: null, label: otherForm.label, items: toItems(otherForm.items), notes: otherForm.notes } }, 'One-off bake saved.')}>Save</button>
+              <button className={btnSecondary} onClick={() => setOtherForm(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -107,7 +107,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }`}
       >
         <div className="p-6 border-b border-smitten-cream">
-          <Link href="/admin" className="font-display text-xl font-bold text-smitten-text flex items-center gap-2">
+          <Link href="/" className="font-display text-xl font-bold text-smitten-text flex items-center gap-2" title="Zur Website">
             <img src="/small-logo.png" alt="Smittenbrot" className="h-6 w-auto dark:hidden" /><img src="/small-logo-dark.png" alt="" aria-hidden="true" className="h-6 w-auto hidden dark:block" />
             Smittenbrot
           </Link>
@@ -168,15 +168,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Working header, nothing else: the legal links belong to the shop
               footer, not to the owner's toolbar, and the second logout was a
               duplicate of the sidebar's. */}
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-smitten-text/60">Smittenbrot Admin</span>
-            <Link
-              href="/"
-              className="text-sm text-smitten-text/60 hover:text-smitten-primary transition-colors"
-            >
-              Zum Shop
-            </Link>
-          </div>
+          {/* The logo in the sidebar opens the website (owner, 27.10.2026), so no extra "Zum Shop" link. */}
+          <span className="text-sm text-smitten-text/60">Smittenbrot Admin</span>
         </header>
 
         <main className="flex-1 p-6 lg:p-8">
