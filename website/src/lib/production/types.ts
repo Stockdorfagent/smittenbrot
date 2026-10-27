@@ -88,6 +88,7 @@ export interface ProductLink {
   extras: ExtraItem[];
   production: 'orders' | 'stock';
   pieces_per_unit: number | null;
+  pieces_from_shop: boolean;    // pieces follow the shop's unit label ("10 Stück") until the owner overrides them
   link_status: 'linked' | 'pending' | 'internal';
 }
 
@@ -125,9 +126,10 @@ export interface ProductionData {
 // ---------- engine output ----------
 
 export interface Warning {
-  type: 'missing_recipe' | 'batch_split' | 'unknown_item' | 'circular' | 'pending_link' | 'zero_sum';
+  type: 'missing_recipe' | 'missing_weight' | 'batch_split' | 'unknown_item' | 'circular' | 'pending_link' | 'zero_sum';
   text: string;
   product_name?: string;
+  pr_product_id?: string;       // missing_recipe / missing_weight: deep link to the product's edit form
   qty?: number;
   recipe_id?: string;
 }

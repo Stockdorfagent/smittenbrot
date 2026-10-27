@@ -170,8 +170,8 @@ export default function BakeDayPage() {
       {sheet.warnings.length > 0 && (
         <div className="space-y-2 mb-6">
           {sheet.warnings.map((w, i) => (
-            <Notice key={i} tone={w.type === 'missing_recipe' ? 'error' : 'warning'}>
-              {w.text}{w.type === 'missing_recipe' && <> — <Link href="/admin/production/products" className="underline print:hidden">link a recipe</Link></>}
+            <Notice key={i} tone={w.type === 'missing_recipe' || w.type === 'missing_weight' ? 'error' : 'warning'}>
+              {w.text}{(w.type === 'missing_recipe' || w.type === 'missing_weight') && <> — <Link href={w.pr_product_id ? `/admin/production/products?edit=${w.pr_product_id}` : '/admin/production/products'} className="underline print:hidden">{w.type === 'missing_recipe' ? 'choose the recipe' : 'set the raw mass'}</Link></>}
             </Notice>
           ))}
         </div>

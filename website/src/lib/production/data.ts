@@ -59,7 +59,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
   const products: ProductLink[] = (prod.data ?? []).map((p) => ({
     id: p.id, product_id: p.product_id, name: p.name, channel: p.channel, recipe_id: p.recipe_id, dough_per_unit_g: num(p.dough_per_unit_g),
     bake_loss_pct: numOrNull(p.bake_loss_pct), extras: (p.extras ?? []).map((e: { ingredient_id: string; grams: unknown }) => ({ ingredient_id: e.ingredient_id, grams: num(e.grams) })),
-    production: p.production, pieces_per_unit: numOrNull(p.pieces_per_unit), link_status: p.link_status,
+    production: p.production, pieces_per_unit: numOrNull(p.pieces_per_unit), pieces_from_shop: !!p.pieces_from_shop, link_status: p.link_status,
   }));
   const s = settings.data;
   return {

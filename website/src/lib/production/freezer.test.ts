@@ -5,7 +5,7 @@ import { freezerStatus, suggestBatch, oldestRemainingBatch, counterOf } from './
 import type { FreezerMovement } from './freezer.ts';
 import type { ProductLink } from './types.ts';
 
-const baby: ProductLink = { id: 'baby', product_id: null, name: 'Baby-Brioche Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 50, bake_loss_pct: null, extras: [], production: 'stock', pieces_per_unit: null, link_status: 'internal' };
+const baby: ProductLink = { id: 'baby', product_id: null, name: 'Baby-Brioche Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 50, bake_loss_pct: null, extras: [], production: 'stock', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal' };
 const amaretti: ProductLink = { ...baby, id: 'am', name: 'Amaretti Classici', pieces_per_unit: 5 };
 const babySettings = { pr_product_id: 'baby', batch_size: 6, min_level: 2, max_age_days: null };
 const mv = (date: string, kind: FreezerMovement['kind'], qty: number): FreezerMovement => ({ id: `${date}-${kind}`, pr_product_id: 'baby', date, kind, qty, note: null });

@@ -375,7 +375,12 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
       continue;
     }
     if (!p.recipe_id && p.production === 'orders') {
-      ctx.warnings.push({ type: 'missing_recipe', text: `${d.qty}× ${d.product_name} – no recipe linked`, product_name: d.product_name, qty: d.qty });
+      ctx.warnings.push({ type: 'missing_recipe', text: `${d.qty}× ${d.product_name} – no recipe linked`, product_name: d.product_name, qty: d.qty, pr_product_id: p.id });
+      continue;
+    }
+    if (!(Number(p.dough_per_unit_g) > 0)) {
+      // auto-created from the shop (migration 041): the owner has not set the raw mass per unit yet
+      ctx.warnings.push({ type: 'missing_weight', text: `${d.qty}× ${d.product_name} – raw mass per unit not set`, product_name: d.product_name, qty: d.qty, pr_product_id: p.id });
       continue;
     }
     const row = qtyByProduct.get(p.id) ?? { pr_product_id: p.id, name: p.name, qty: 0, by_source: [], dough_per_unit_g: Number(p.dough_per_unit_g), dough_g: 0 };
@@ -411,7 +416,7 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
       batchRow = { ...row, qty: q, by_source: intoFreezer, dough_g: q * row.dough_per_unit_g };
     }
     if (!p.recipe_id) {
-      ctx.warnings.push({ type: 'missing_recipe', text: `${batchRow.qty}× ${p.name} – no recipe linked`, product_name: p.name, qty: batchRow.qty });
+      ctx.warnings.push({ type: 'missing_recipe', text: `${batchRow.qty}× ${p.name} – no recipe linked`, product_name: p.name, qty: batchRow.qty, pr_product_id: p.id });
       continue;
     }
     batchRows.push(batchRow);

@@ -17,7 +17,7 @@ const EMPTY: Form = { channel: 'web', product_id: '', name: '', recipe_id: '', d
 
 function toForm(p: ProductLink): Form {
   return {
-    id: p.id, channel: p.channel, product_id: p.product_id ?? '', name: p.name, recipe_id: p.recipe_id ?? '', dough_per_unit_g: String(p.dough_per_unit_g),
+    id: p.id, channel: p.channel, product_id: p.product_id ?? '', name: p.name, recipe_id: p.recipe_id ?? '', dough_per_unit_g: Number(p.dough_per_unit_g) > 0 ? String(p.dough_per_unit_g) : '',
     bake_loss_pct: p.bake_loss_pct?.toString() ?? '', production: p.production, pieces_per_unit: p.pieces_per_unit?.toString() ?? '',
     extras: p.extras.map((e) => ({ ingredient_id: e.ingredient_id, grams: String(e.grams) })),
   };
@@ -37,6 +37,13 @@ export default function ProductsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   useEffect(() => { load(); }, []);
+  // Deep link from the overview / bake sheet warnings: /admin/production/products?edit=<pr_product_id>
+  useEffect(() => {
+    if (!data || editing) return;
+    const id = new URLSearchParams(window.location.search).get('edit');
+    const p = id ? data.products.find((x) => x.id === id) : undefined;
+    if (p) { setEditing(toForm(p)); window.history.replaceState(null, '', window.location.pathname); }
+  }, [data, editing]);
 
   async function save() {
     if (!editing) return;
@@ -87,6 +94,13 @@ export default function ProductsPage() {
       {unlinkedShop.filter((s) => s.active).length > 0 && (
         <div className="mb-6"><Notice tone="warning">Active shop products without production data: {unlinkedShop.filter((s) => s.active).map((s) => s.name).join(', ')}. Orders for them appear as a warning on the bake sheet.</Notice></div>
       )}
+      {data.products.some((p) => p.channel === 'web' && (!p.recipe_id || !(Number(p.dough_per_unit_g) > 0))) && (
+        <div className="mb-6"><Notice tone="warning">
+          Not ready for the bake sheet: {data.products.filter((p) => p.channel === 'web' && (!p.recipe_id || !(Number(p.dough_per_unit_g) > 0))).map((p) => (
+            <span key={p.id}><button className="underline" onClick={() => setEditing(toForm(p))}>{p.name}</button>{!p.recipe_id ? ' (recipe)' : ''}{!(Number(p.dough_per_unit_g) > 0) ? ' (raw mass)' : ''} </span>
+          ))} — click a name to fill in what is missing.
+        </Notice></div>
+      )}
 
       {editing && (
         <Card title={editing.id ? `Edit ${editing.name}` : 'Add product'} className="mb-6">
@@ -112,7 +126,7 @@ export default function ProductsPage() {
                 <option value="">—</option>{doughs.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </L>
-            <L label="Dough per piece (g)"><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.dough_per_unit_g} onChange={(e) => setEditing({ ...editing, dough_per_unit_g: e.target.value })} /></L>
+            <L label="Raw mass per unit sold (g) — dough or batter for ONE unit, e.g. one loaf or one bag"><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.dough_per_unit_g} onChange={(e) => setEditing({ ...editing, dough_per_unit_g: e.target.value })} /></L>
             <L label="Bake loss % (optional)"><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.bake_loss_pct} onChange={(e) => setEditing({ ...editing, bake_loss_pct: e.target.value })} /></L>
             <L label="Production">
               <select className={`${smallInputCls} w-full`} value={editing.production} onChange={(e) => setEditing({ ...editing, production: e.target.value as Form['production'] })}>
@@ -120,7 +134,7 @@ export default function ProductsPage() {
                 <option value="stock">stock — made in batches, taken from the freezer</option>
               </select>
             </L>
-            <L label="Pieces per unit (e.g. 5 balls per bag)"><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.pieces_per_unit} onChange={(e) => setEditing({ ...editing, pieces_per_unit: e.target.value })} /></L>
+            <L label={`Pieces per unit${editing.channel === 'web' ? ' — taken from the shop\'s unit label (e.g. "10 Stück") unless you type another number' : ''}`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.pieces_per_unit} onChange={(e) => setEditing({ ...editing, pieces_per_unit: e.target.value })} /></L>
           </div>
           <div className="mt-3">
             <p className="text-[11px] text-smitten-text/60 mb-1">Extras per piece (grams, outside the dough: deco, topping, coating)</p>
@@ -155,7 +169,7 @@ export default function ProductsPage() {
                   {p.link_status === 'internal' && <StatusPill tone="gray">internal</StatusPill>}
                 </td>
                 <td className={td}>{p.recipe_id ? recipeName.get(p.recipe_id) : <StatusPill tone="red">no recipe</StatusPill>}</td>
-                <td className={tdNum}>{p.dough_per_unit_g}</td>
+                <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? p.dough_per_unit_g : <StatusPill tone="red">not set</StatusPill>}</td>
                 <td className={tdNum}>{p.bake_loss_pct ?? ''}</td>
                 <td className={td}>{p.production}{p.pieces_per_unit ? ` · ${p.pieces_per_unit} pcs/unit` : ''}</td>
                 <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${e.grams} g`).join(', ')}</td>

@@ -9,9 +9,16 @@ import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { cycleLabels, displayGroupLabels } from '@/lib/adminLabels';
 import { Bold } from '@/components/admin/production/ui';
+import Link from 'next/link';
+import { adminFetch, loadData } from '@/lib/production/client';
+import type { ProductLink } from '@/lib/production/types';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  // Production readiness per shop product (owner, 27.10.2026: one flow, no silent gaps):
+  // recipe + raw mass from Production → Products, Zutaten list status from the ingredient-lists API.
+  const [prodLinks, setProdLinks] = useState<Map<string, ProductLink>>(new Map());
+  const [listStatus, setListStatus] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
@@ -54,6 +61,15 @@ export default function AdminProductsPage() {
       .order('name', { ascending: true });
     if (data) setProducts(data);
     setLoading(false);
+    loadProductionStatus();
+  }
+
+  async function loadProductionStatus() {
+    try {
+      const [d, lists] = await Promise.all([loadData(), adminFetch<{ rows: { product_id: string; status: string }[] }>('/api/admin/production/ingredient-lists')]);
+      setProdLinks(new Map(d.products.filter((l) => l.product_id).map((l) => [l.product_id as string, l])));
+      setListStatus(new Map(lists.rows.map((r) => [r.product_id, r.status])));
+    } catch { /* production module unavailable → no status line */ }
   }
 
   function startEdit(product: Product) {
@@ -686,6 +702,7 @@ export default function AdminProductsPage() {
                       {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · Reihenfolge: {product.sort_order} · {cycleLabels[product.cycle] || product.cycle} · {displayGroupLabels[product.display_group] ?? product.display_group}
                       · {product.available_wed ? 'Mi' : ''} {product.available_sat ? 'Sa' : ''}
                     </p>
+                    <ProductionStatus link={prodLinks.get(product.id)} list={listStatus.get(product.id)} loaded={prodLinks.size > 0} />
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -710,5 +727,32 @@ export default function AdminProductsPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * One line per shop product: what Production still needs before the bake sheet
+ * can calculate it and the shop can show its ingredient list. Each missing part
+ * links straight to where it is filled in.
+ */
+function ProductionStatus({ link, list, loaded }: { link: ProductLink | undefined; list: string | undefined; loaded: boolean }) {
+  if (!loaded) return null;
+  const Missing = ({ children, href }: { children: React.ReactNode; href: string }) => <Link href={href} className="text-red-600 dark:text-red-400 underline">{children}</Link>;
+  const Ok = ({ children }: { children: React.ReactNode }) => <span>{children} ✓</span>;
+  const edit = link ? `/admin/production/products?edit=${link.id}` : '/admin/production/products';
+  const recipeOk = !!link?.recipe_id;
+  const massOk = !!link && Number(link.dough_per_unit_g) > 0;
+  const listOk = list === 'ok' || list === 'manual';
+  return (
+    <p className="text-xs text-smitten-text/60 mt-1">
+      Produktion:{' '}
+      {!link ? <Missing href={edit}>noch nicht in der Produktion angelegt</Missing> : <>
+        {recipeOk ? <Ok>Rezept</Ok> : <Missing href={edit}>Rezept fehlt</Missing>}
+        {' · '}
+        {massOk ? <Ok>Rohmasse</Ok> : <Missing href={edit}>Rohmasse fehlt</Missing>}
+        {' · '}
+        {listOk ? <Ok>Zutatenliste</Ok> : list === 'no_recipe' || list === undefined ? <span>Zutatenliste (nach dem Rezept)</span> : <Missing href="/admin/production/ingredient-lists">Zutatenliste {list === 'blocked' ? 'blockiert' : 'freigeben'}</Missing>}
+      </>}
+    </p>
   );
 }

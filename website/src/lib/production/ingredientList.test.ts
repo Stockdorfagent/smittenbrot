@@ -40,7 +40,7 @@ const CIABATTA = recipe('Ciabatta', 'dough', [line('ingredient', 'Wheat flour T5
 const AMARETTI = recipe('Amaretti Classici', 'dough', [line('ingredient', 'Egg white', 100), line('ingredient', 'Almond flour', 286), line('ingredient', 'Sugar', 257), line('ingredient', 'Almond extract', 7)]);
 
 function product(name: string, recipeId: string, dough: number, extras: { ingredient_id: string; grams: number }[] = []): ProductLink {
-  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras, production: 'orders', pieces_per_unit: null, link_status: 'linked' };
+  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras, production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'linked' };
 }
 const DATA: ProductionData = { ingredients: ING, starters: [LL_WHEAT], recipes: [STOCKDORF, BRIOCHE, CIABATTA, AMARETTI], products: [], settings: { dough_margin_factor: 0.1, build_margin_pct: 10, final_build_margin_pct: 10 } };
 

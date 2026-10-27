@@ -6,10 +6,10 @@ import type { B2BClient, StandingOrder, DayOverride, ManualOrder, ProductLink } 
 
 const lumbono: B2BClient = { id: 'c1', name: 'Lumbono', notes: null, active: true };
 const products: ProductLink[] = [
-  { id: 'pizza', product_id: null, name: 'Pizza dough', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 252, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, link_status: 'internal' },
-  { id: 'foc', product_id: null, name: 'Focaccia Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 900, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, link_status: 'internal' },
-  { id: 'baby', product_id: null, name: 'Baby-Brioche Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 50, bake_loss_pct: null, extras: [], production: 'stock', pieces_per_unit: null, link_status: 'internal' },
-  { id: 'sem', product_id: null, name: 'Frühstückssemmeln', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 110, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, link_status: 'internal' },
+  { id: 'pizza', product_id: null, name: 'Pizza dough', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 252, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal' },
+  { id: 'foc', product_id: null, name: 'Focaccia Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 900, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal' },
+  { id: 'baby', product_id: null, name: 'Baby-Brioche Lumbono', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 50, bake_loss_pct: null, extras: [], production: 'stock', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal' },
+  { id: 'sem', product_id: null, name: 'Frühstückssemmeln', channel: 'intern', recipe_id: 'r', dough_per_unit_g: 110, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal' },
 ];
 const standing: StandingOrder[] = [
   { id: 's1', client_id: 'c1', weekday: 3, items: [{ pr_product_id: 'pizza', qty: 10 }, { pr_product_id: 'foc', qty: 2 }], valid_from: null, valid_to: null, active: true, notes: null },

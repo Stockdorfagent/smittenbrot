@@ -35,17 +35,23 @@ export default function ProductionOverviewPage() {
   const recent = [...new Set([...shopRecent, ...extra.filter((d) => d < today)])].sort().reverse();
   const pending = data.products.filter((p) => p.link_status === 'pending');
   const unchecked = data.ingredients.filter((i) => i.allergens === null);
-  const unlinkedOrders = data.products.filter((p) => p.production === 'orders' && !p.recipe_id);
+  const notReady = data.products.filter((p) => (p.production === 'orders' && !p.recipe_id) || !(Number(p.dough_per_unit_g) > 0));
 
   return (
     <div>
       <PageHeader title="Production" subtitle="Recipes, bake sheets and starter feeding — calculated from the shop's orders and the B2B orders. Shop days are Wednesday and Saturday; B2B deliveries can fall on any day." />
       <SubNav current="/admin/production" />
 
-      {(pending.length > 0 || unchecked.length > 0 || unlinkedOrders.length > 0 || data.recipes.length === 0) && (
+      {(pending.length > 0 || unchecked.length > 0 || notReady.length > 0 || data.recipes.length === 0) && (
         <div className="space-y-2 mb-6">
           {data.recipes.length === 0 && <Notice tone="warning">No recipes yet. <Link href="/admin/production/import" className="underline">Import the CSV files</Link> or <Link href="/admin/production/recipes/new" className="underline">create a recipe</Link>.</Notice>}
-          {unlinkedOrders.length > 0 && <Notice tone="warning">Products without a recipe: {unlinkedOrders.map((p) => p.name).join(', ')} — <Link href="/admin/production/products" className="underline">link them</Link>.</Notice>}
+          {notReady.length > 0 && (
+            <Notice tone="warning">
+              Not ready for the bake sheet: {notReady.map((p, i) => (
+                <span key={p.id}>{i > 0 ? ', ' : ''}<Link href={`/admin/production/products?edit=${p.id}`} className="underline">{p.name}</Link>{!p.recipe_id ? ' (recipe missing)' : ''}{!(Number(p.dough_per_unit_g) > 0) ? ' (raw mass missing)' : ''}</span>
+              ))} — click a name to fill it in.
+            </Notice>
+          )}
           {pending.length > 0 && <Notice tone="info">Pending links (not in the shop yet, linked automatically once the product exists): {pending.map((p) => p.name).join(', ')}.</Notice>}
           {unchecked.length > 0 && <Notice tone="info">Allergens not yet checked for {unchecked.length} ingredient{unchecked.length > 1 ? 's' : ''} ({unchecked.map((i) => i.name).join(', ')}) — needed before customer ingredient lists can be generated.</Notice>}
         </div>
