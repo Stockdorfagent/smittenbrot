@@ -8,6 +8,7 @@ import { showToast } from '@/components/admin/toast';
 import { Bold, Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary } from '@/components/admin/production/ui';
 import { adminFetch } from '@/lib/production/client';
 import { TRACE_NOTICE } from '@/lib/productInfo';
+import { buildIngredientLabelPdf, type LabelProduct } from '@/lib/production/ingredientLabelPdf';
 import type { ProductListRow, ListStatus } from '@/lib/production/listStatus';
 
 const STATUS: Record<ListStatus, { label: string; tone: PillTone }> = {
@@ -34,6 +35,21 @@ export default function IngredientListsPage() {
     catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
 
+  /** Label PDF (logo, name, approved list with allergens in bold, notice; no weight) — built in the browser. */
+  async function labelPdf(items: ProductListRow[], filename: string) {
+    const products: LabelProduct[] = items.filter((r) => r.approved_text).map((r) => ({ name: r.name, ingredients: r.approved_text!, allergens: r.current_allergens }));
+    if (products.length === 0) { showToast('No approved list to print.'); return; }
+    setBusy(true);
+    try {
+      const logo = await fetch('/logo-with-www.png').then((x) => x.arrayBuffer()).catch(() => null);
+      const bytes = await buildIngredientLabelPdf(products, logo);
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  }
+  const slug = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
   if (error) return <Notice tone="error">{error}</Notice>;
   if (!rows) return <AdminLoading what="ingredient lists" />;
 
@@ -45,7 +61,10 @@ export default function IngredientListsPage() {
       <PageHeader
         title="Ingredient lists"
         subtitle="Generated from the recipes: one piece expanded, grouped by German name, sorted by weight at the time of use, allergens emphasised. Nothing reaches the shop until you approve it."
-        actions={pending.length > 0 ? <button className={btnPrimary} disabled={busy} onClick={() => { if (confirm(`Approve ${pending.length} list(s) and publish them to the shop?`)) act({ action: 'approve_all' }, 'Approved'); }}>Approve all pending ({pending.length})</button> : undefined}
+        actions={<div className="flex gap-2">
+          {pending.length > 0 && <button className={btnPrimary} disabled={busy} onClick={() => { if (confirm(`Approve ${pending.length} list(s) and publish them to the shop?`)) act({ action: 'approve_all' }, 'Approved'); }}>Approve all pending ({pending.length})</button>}
+          <button className={btnSecondary} disabled={busy} onClick={() => labelPdf(rows.filter((r) => r.active && r.approved_text), 'Zutaten_alle.pdf')} title="One page per product: logo, name, ingredients, allergens, notice">All lists as PDF</button>
+        </div>}
       />
       <SubNav current="/admin/production/ingredient-lists" />
 
@@ -61,6 +80,7 @@ export default function IngredientListsPage() {
             right={<div className="flex items-center gap-2">
               <StatusPill tone={st.tone}>{st.label}</StatusPill>
               {(r.status === 'new' || r.status === 'outdated') && <button className={btnPrimary} disabled={busy} onClick={() => act({ action: 'approve', product_id: r.product_id }, `${r.name} approved.`)}>Approve</button>}
+              {r.approved_text && <button className={btnSecondary} disabled={busy} onClick={() => labelPdf([r], `Zutaten_${slug(r.name)}.pdf`)} title="Label PDF: logo, name, ingredients, allergens, notice — no weight">PDF</button>}
               <button className="text-xs underline text-smitten-text/60" onClick={() => setOpen(isOpen ? null : r.product_id)}>{isOpen ? 'hide' : 'show'}</button>
             </div>}>
             {isOpen && (
