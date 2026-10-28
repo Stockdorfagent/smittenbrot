@@ -16,7 +16,7 @@ import type { ProductLink } from '@/lib/production/types';
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   // Production readiness per shop product (owner, 27.10.2026: one flow, no silent gaps):
-  // recipe + raw mass from Production → Products, Zutaten list status from the ingredient-lists API.
+  // recipe + raw mass from Production → Products, ingredient-list status from the ingredient-lists API.
   const [prodLinks, setProdLinks] = useState<Map<string, ProductLink>>(new Map());
   const [listStatus, setListStatus] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -596,7 +596,7 @@ export default function AdminProductsPage() {
                           onChange={(e) => setEditForm({ ...editForm, allergens: e.target.value })}
                           className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
                         />
-                        <p className="text-[11px] text-smitten-text/50 mt-1">Zutaten und Allergene werden aus den Rezepten generiert und unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Zutaten lists</a> freigegeben. Diese Felder gelten nur, solange keine Liste freigegeben ist oder &bdquo;manuell&ldquo; gesetzt wurde.</p>
+                        <p className="text-[11px] text-smitten-text/50 mt-1">Zutaten und Allergene werden aus den Rezepten generiert und unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Ingredient lists</a> freigegeben. Diese Felder gelten nur, solange keine Liste freigegeben ist oder &bdquo;manuell&ldquo; gesetzt wurde.</p>
                       </div>
                     </>
                   ) : (
@@ -605,7 +605,7 @@ export default function AdminProductsPage() {
                       <p><Bold text={editForm.ingredients_generated ?? ''} /></p>
                       <p className="text-xs text-smitten-text/60 mt-2 mb-1">Allergene</p>
                       <p>{editForm.allergens}</p>
-                      <p className="text-[11px] text-smitten-text/50 mt-2">Änderungen laufen über die Rezepte und die Freigabe unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Zutaten lists</a>. Dort lässt sich das Produkt auch auf &bdquo;manuell&ldquo; stellen.</p>
+                      <p className="text-[11px] text-smitten-text/50 mt-2">Änderungen laufen über die Rezepte und die Freigabe unter <a href="/admin/production/ingredient-lists" className="underline">Produktion › Ingredient lists</a>. Dort lässt sich das Produkt auch auf &bdquo;manuell&ldquo; stellen.</p>
                     </div>
                   )}
                 </div>

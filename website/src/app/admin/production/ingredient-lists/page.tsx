@@ -43,7 +43,7 @@ export default function IngredientListsPage() {
   return (
     <div>
       <PageHeader
-        title="Customer ingredient lists"
+        title="Ingredient lists"
         subtitle="Generated from the recipes: one piece expanded, grouped by German name, sorted by weight at the time of use, allergens emphasised. Nothing reaches the shop until you approve it."
         actions={pending.length > 0 ? <button className={btnPrimary} disabled={busy} onClick={() => { if (confirm(`Approve ${pending.length} list(s) and publish them to the shop?`)) act({ action: 'approve_all' }, 'Approved'); }}>Approve all pending ({pending.length})</button> : undefined}
       />
