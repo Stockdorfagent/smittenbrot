@@ -7,7 +7,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import type { ExtractedInvoice } from './invoiceMatch';
+import type { ExtractedInvoice } from './invoiceMatch.ts';
 
 const LineSchema = z.object({
   description: z.string().describe('The item wording exactly as printed'),
