@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { buildCsv, downloadCsv } from '@/lib/csv';
+import { downloadCsv } from '@/lib/csv';
+import { downloadXlsx, type XlsxCol } from '@/lib/xlsxClient';
 import { berlinTodayISO } from '@/lib/pickup';
 import { formatPrice } from '@/lib/types';
 import { paymentMethodLabel, orderStatusAdminLabels } from '@/lib/adminLabels';
@@ -173,13 +174,33 @@ export default function AdminExportsPage() {
         vat_rate: 0.07,
         discount_code: order.discount_code || '',
         discount_cents: order.discount_cents || 0,
-        payment_method: order.payment_method || '',
+        payment_method: order.payment_method ? paymentMethodLabel(order.payment_method) : '',
         payment_status: order.payment_status || '',
         items_count: items.length,
       };
     });
 
-    downloadCsv(`rechnungsdaten-${orderFrom || 'alle'}-${orderTo || 'heute'}.csv`, buildCsv(rows));
+    // Excel instead of CSV (owner, 29.10.2026): typed cells, € instead of cents, real dates.
+    const columns: XlsxCol[] = [
+      { header: 'Rechnungsnummer', key: 'invoice_number' },
+      { header: 'Bestellnummer', key: 'order_number' },
+      { header: 'Kunde', key: 'customer_name' },
+      { header: 'E-Mail', key: 'customer_email' },
+      { header: 'Bestelldatum', key: 'order_date', type: 'date', width: 13 },
+      { header: 'Abholtag', key: 'fulfillment_date', type: 'date', width: 13 },
+      { header: 'Brutto', key: 'total_gross_cents', type: 'euro', width: 12 },
+      { header: 'Netto', key: 'total_net_cents', type: 'euro', width: 12 },
+      { header: 'MwSt', key: 'total_vat_cents', type: 'euro', width: 12 },
+      { header: 'MwSt-Satz', key: 'vat_rate', type: 'pct', width: 10 },
+      { header: 'Rabattcode', key: 'discount_code' },
+      { header: 'Rabatt', key: 'discount_cents', type: 'euro', width: 12 },
+      { header: 'Zahlungsart', key: 'payment_method' },
+      { header: 'Zahlungsstatus', key: 'payment_status' },
+      { header: 'Positionen', key: 'items_count', type: 'int', width: 11 },
+    ];
+    try {
+      await downloadXlsx(`rechnungsdaten-${orderFrom || 'alle'}-${orderTo || 'heute'}.xlsx`, [{ name: 'Rechnungsdaten', columns, rows }]);
+    } catch (e) { setExportMsg(e instanceof Error ? e.message : 'Export fehlgeschlagen'); }
   }
 
   async function exportCsv() {
@@ -221,14 +242,33 @@ export default function AdminExportsPage() {
         Summe_Cent: order.total_cents,
         Rabattcode: order.discount_code || '',
         Rabatt_Cent: order.discount_cents || 0,
-        Zahlungsart: order.payment_method || '',
-        Status: order.status,
+        Zahlungsart: order.payment_method ? paymentMethodLabel(order.payment_method) : '',
+        Status: orderStatusAdminLabels[order.status] || order.status,
         Zahlung: order.payment_status,
         Abholort: (order.pickup_locations as { name?: string })?.name || '',
       };
     });
 
-    downloadCsv(`bestellungen-${orderFrom || 'alle'}-${orderTo || 'heute'}.csv`, buildCsv(rows));
+    const columns: XlsxCol[] = [
+      { header: 'ID', key: 'ID', width: 38 },
+      { header: 'Bestellnummer', key: 'Bestellnummer' },
+      { header: 'Rechnungsnummer', key: 'Rechnungsnummer' },
+      { header: 'Bestelldatum', key: 'Bestelldatum', type: 'date', width: 13 },
+      { header: 'Abholtag', key: 'Abholtag', type: 'date', width: 13 },
+      { header: 'Kunde', key: 'Kunde' },
+      { header: 'Typ', key: 'Typ' },
+      { header: 'Artikel', key: 'Artikel' },
+      { header: 'Summe', key: 'Summe_Cent', type: 'euro', width: 12 },
+      { header: 'Rabattcode', key: 'Rabattcode' },
+      { header: 'Rabatt', key: 'Rabatt_Cent', type: 'euro', width: 12 },
+      { header: 'Zahlungsart', key: 'Zahlungsart' },
+      { header: 'Status', key: 'Status' },
+      { header: 'Zahlung', key: 'Zahlung' },
+      { header: 'Abholort', key: 'Abholort' },
+    ];
+    try {
+      await downloadXlsx(`bestellungen-${orderFrom || 'alle'}-${orderTo || 'heute'}.xlsx`, [{ name: 'Bestellungen', columns, rows }]);
+    } catch (e) { setExportMsg(e instanceof Error ? e.message : 'Export fehlgeschlagen'); }
   }
 
   /**
@@ -280,7 +320,26 @@ export default function AdminExportsPage() {
         });
       }
     }
-    downloadCsv(`produktion-${prodFrom}${prodTo && prodTo !== prodFrom ? '-' + prodTo : ''}.csv`, buildCsv(rows));
+    const columns: XlsxCol[] = [
+      { header: 'Bestellnummer', key: 'Bestellnummer' },
+      { header: 'Bestelldatum', key: 'Bestelldatum', type: 'date', width: 13 },
+      { header: 'Abholtag', key: 'Abholtag', type: 'date', width: 13 },
+      { header: 'Typ', key: 'Typ' },
+      { header: 'Name', key: 'Name' },
+      { header: 'Produkt', key: 'Produkt' },
+      { header: 'Menge', key: 'Menge', type: 'int', width: 8 },
+      { header: 'Einzelpreis', key: 'Einzelpreis_Cent', type: 'euro', width: 12 },
+      { header: 'Gesamtpreis Bestellung', key: 'Gesamtpreis_Bestellung_Cent', type: 'euro', width: 14 },
+      { header: 'Rabattcode', key: 'Rabattcode' },
+      { header: 'Rabatt', key: 'Rabatt_Cent', type: 'euro', width: 12 },
+      { header: 'Zahlungsart', key: 'Zahlungsart' },
+      { header: 'Status', key: 'Status' },
+      { header: 'Zahlung', key: 'Zahlung' },
+      { header: 'Abholort', key: 'Abholort' },
+    ];
+    try {
+      await downloadXlsx(`produktion-${prodFrom}${prodTo && prodTo !== prodFrom ? '-' + prodTo : ''}.xlsx`, [{ name: 'Produktion', columns, rows }]);
+    } catch (e) { setProdMsg(e instanceof Error ? e.message : 'Export fehlgeschlagen'); return; }
     setProdMsg(`${rows.length} Zeilen aus ${orders.length} Bestellungen exportiert.`);
     setTimeout(() => setProdMsg(''), 6000);
   }
@@ -361,7 +420,7 @@ export default function AdminExportsPage() {
     }
   }
 
-  async function exportPayout(payoutId: string, format: 'csv' | 'pdf') {
+  async function exportPayout(payoutId: string, format: 'csv' | 'pdf' | 'xlsx') {
     setPayoutMsg(null);
     setPayoutBusy(`${payoutId}:${format}`);
     try {
@@ -373,9 +432,9 @@ export default function AdminExportsPage() {
       });
       const data = await res.json();
       if (!res.ok || data.error) { setPayoutMsg({ id: payoutId, text: data.error || 'Export fehlgeschlagen', ok: false }); return; }
-      if (format === 'pdf') {
-        const bytes = Uint8Array.from(atob(data.pdf_base64), (c) => c.charCodeAt(0));
-        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      if (format === 'pdf' || format === 'xlsx') {
+        const bytes = Uint8Array.from(atob(format === 'pdf' ? data.pdf_base64 : data.xlsx_base64), (c) => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
         const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
         URL.revokeObjectURL(url);
       } else {
@@ -491,7 +550,7 @@ export default function AdminExportsPage() {
             Datenexport
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Bestellungen und Rechnungsdaten als CSV (max. 10.000 Einträge). Ohne Datum: alles.
+            Bestellungen und Rechnungsdaten als Excel-Datei (max. 10.000 Einträge). Ohne Datum: alles.
             Bestellungen werden nach Abholtag gefiltert, Rechnungsdaten nach Bestell-/Rechnungsdatum.
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
@@ -511,13 +570,13 @@ export default function AdminExportsPage() {
               onClick={exportCsv}
               className="px-4 py-2 bg-smitten-primary text-white text-sm rounded-lg hover:bg-smitten-primary/90 transition-colors"
             >
-              Bestellungen exportieren (CSV)
+              Bestellungen exportieren (Excel)
             </button>
             <button
               onClick={exportInvoiceCsv}
               className="px-4 py-2 bg-smitten-accent text-smitten-on-accent text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors"
             >
-              Rechnungsdaten exportieren (CSV)
+              Rechnungsdaten exportieren (Excel)
             </button>
           </div>
           {exportMsg && (
@@ -552,7 +611,7 @@ export default function AdminExportsPage() {
             </button>
             <button onClick={exportProductionCsv}
               className="px-4 py-2 bg-smitten-accent text-smitten-on-accent text-sm rounded-lg hover:bg-smitten-accent/90 transition-colors">
-              Nur die Liste (CSV)
+              Nur die Liste (Excel)
             </button>
           </div>
           {prodMsg && <p className="mt-3 text-sm text-smitten-text/60">{prodMsg}</p>}
@@ -677,7 +736,7 @@ export default function AdminExportsPage() {
         <p className="text-sm text-smitten-text/60 mt-2">
           Pro Auszahlung an die Bank eine CSV mit genau den Zahlungen, Erstattungen und Korrekturen, die Stripe darin
           ausgezahlt hat (Bestell-, Rechnungs- und Gutschriftnummer, Kunde, Zahlungsart, Brutto 7 % / 19 %, Stripe- und
-          PayPal-Gebühr, Netto) plus Summenblock, als CSV oder PDF (A4 quer) – zum Anhängen an die Bankbuchung in Papierkram. Kontrolle: Summe Netto
+          PayPal-Gebühr, Netto) plus Summenblock, als CSV (für Papierkram), Excel oder PDF (A4 quer) – zum Anhängen an die Bankbuchung in Papierkram. Kontrolle: Summe Netto
           muss dem Auszahlungsbetrag entsprechen.
         </p>
         {payoutsError && <p className="mt-3 text-sm text-red-500">{payoutsError}</p>}
@@ -717,6 +776,10 @@ export default function AdminExportsPage() {
                       <button onClick={() => exportPayout(p.payout_id, 'csv')} disabled={payoutBusy !== null}
                         className="px-3 py-1.5 bg-smitten-primary text-white text-xs rounded-lg hover:bg-smitten-primary/90 transition-colors disabled:opacity-50">
                         {payoutBusy === `${p.payout_id}:csv` ? 'Erstelle …' : 'CSV'}
+                      </button>
+                      <button onClick={() => exportPayout(p.payout_id, 'xlsx')} disabled={payoutBusy !== null}
+                        className="ml-2 px-3 py-1.5 border border-smitten-primary text-smitten-primary text-xs rounded-lg hover:bg-smitten-primary hover:text-white transition-colors disabled:opacity-50">
+                        {payoutBusy === `${p.payout_id}:xlsx` ? 'Erstelle …' : 'Excel'}
                       </button>
                       <button onClick={() => exportPayout(p.payout_id, 'pdf')} disabled={payoutBusy !== null}
                         className="ml-2 px-3 py-1.5 border border-smitten-primary text-smitten-primary text-xs rounded-lg hover:bg-smitten-primary hover:text-white transition-colors disabled:opacity-50">
