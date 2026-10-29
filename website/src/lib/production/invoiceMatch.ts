@@ -97,7 +97,10 @@ export function matchInvoice(x: ExtractedInvoice, data: ProductionData, supplier
   if (!supName) notes.push('No supplier found on the invoice.');
 
   const candidates = data.ingredients.filter((i) => !i.derived_from);
+  // score = overlap with internal + German name; ties are broken by the internal name alone
+  // (German labels can be shared: Sesame black and Sesame white are both "Sesam (schwarz und weiß)")
   const ingTokens = new Map(candidates.map((i) => [i.id, [...tokens(i.name), ...tokens(i.name_de ?? '')]]));
+  const nameTokens = new Map(candidates.map((i) => [i.id, tokens(i.name)]));
   const mine = supplier ? items.filter((it) => it.supplier_id === supplier.id) : [];
   const itemTokens = mine.map((it) => ({ it, t: tokens(it.item_text ?? '') }));
 
@@ -117,7 +120,9 @@ export function matchInvoice(x: ExtractedInvoice, data: ProductionData, supplier
     if (!best) {
       bestScore = 0;
       for (const i of candidates) {
-        const s = overlap(lt, ingTokens.get(i.id) ?? []);
+        const full = overlap(lt, ingTokens.get(i.id) ?? []);
+        if (full === 0) continue;
+        const s = full * 100 + overlap(lt, nameTokens.get(i.id) ?? []) * 10 - Math.min(9, (nameTokens.get(i.id) ?? []).length);
         if (s > bestScore) { bestScore = s; best = { id: i.id, how: 'name', pack: null }; }
       }
     }

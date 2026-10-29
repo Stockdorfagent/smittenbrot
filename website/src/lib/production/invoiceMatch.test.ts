@@ -10,9 +10,9 @@ const data: ProductionData = {
     ing('t55', 'Wheat flour T55/550', '**Weizen**mehl', { track_bbf: true }),
     ing('t80', 'Wheat flour T80/1050', '**Weizen**mehl 1050', { track_bbf: true }),
     ing('spelt', 'Spelt flour T65/630', '**Dinkel**mehl 630', { track_bbf: true }),
-    ing('sesame', 'Sesame', 'Sesam', { track_bbf: true }),
-    ing('sesame_w', 'Sesame white', 'Sesam', { track_bbf: true }),
-    ing('sesame_b', 'Sesame black', 'Sesam', { track_bbf: true }),
+    ing('sesame', 'Sesame', '**Sesam**', { track_bbf: true }),
+    ing('sesame_b', 'Sesame black', '**Sesam** (schwarz und weiß)', { track_bbf: true }),   // shared German label, as in the real data
+    ing('sesame_w', 'Sesame white', '**Sesam** (schwarz und weiß)', { track_bbf: true }),
     ing('egg', 'Egg', 'Ei', { unit: 'pcs', track_stock: false }),
     ing('yolk', 'Egg yolk', 'Eigelb', { derived_from: 'egg', g_per_source_unit: 17 }),
     ing('butter', 'Butter', 'Butter'),
@@ -56,7 +56,7 @@ test('matches supplier, remembered wording, names by word overlap; fee kept apar
   assert.equal(m.invoice_no, 'R-2026-1234');
   assert.equal(m.delivery_fee_cents, 890);          // the deposit is not a delivery fee
   assert.equal(m.lines.length, 5);
-  assert.equal(m.lines[4].ingredient_id, 'sesame_w');   // the colour word decides between the three sesames
+  assert.equal(m.lines[4].ingredient_id, 'sesame_w');   // the colour word in the INTERNAL name decides between the three sesames
   assert.deepEqual(m.lines[0], { ingredient_id: 't55', item_text: 'Weizenmehl Type 550 25 kg Sack', qty: 2, pack_amount: 25000, price_cents: 4200, bbf: '2027-05-01', how: 'remembered' });
   assert.equal(m.lines[1].ingredient_id, 'spelt'); assert.equal(m.lines[1].pack_amount, 5000); assert.equal(m.lines[1].how, 'name');
   assert.equal(m.lines[2].ingredient_id, 'egg'); assert.equal(m.lines[2].pack_amount, 30); assert.equal(m.lines[2].bbf, null);   // "Eier" → egg; eggs: no bbf tracking
