@@ -12,7 +12,7 @@ import { TRACE_NOTICE } from '../productInfo.ts';
 const A4 = { w: 595.28, h: 841.89 };
 const M = 56;
 const INK = rgb(0.102, 0.102, 0.102);
-const GREY = rgb(0.42, 0.447, 0.502);
+const GREY = rgb(0.25, 0.25, 0.27);   // darker than on screen: the lighter grey did not survive the printer (owner, 29.10.2026)
 
 // Helvetica (WinAnsi) has no emoji or dashes beyond "-": strip them, tidy spaces.
 const glyphs = (s: string) => (s ?? '').replace(/[–—]/g, '-').replace(/[^\x20-\x7E\xA0-\xFF]/g, '').replace(/\s+/g, ' ');
