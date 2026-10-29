@@ -57,13 +57,15 @@ export default function CostsPage() {
           <thead><tr><th className={th}>Product</th><th className={`${th} text-right`}>Cost</th><th className={`${th} text-right`}>of which delivery</th><th className={`${th} text-right`}>Web net</th><th className={`${th} text-right`}>Margin</th><th className={`${th} text-right`}>B2B net</th><th className={`${th} text-right`}>Margin</th></tr></thead>
           <tbody>
             {res.products.map((p) => {
-              const mw = margin(p.total_cents, p.web_net_cents);
-              const mb = margin(p.total_cents, p.b2b_net_cents);
+              // a cost with missing prices is a lower bound → no margin until it is complete
+              const complete = !p.blocked && p.missing.length === 0;
+              const mw = complete ? margin(p.total_cents, p.web_net_cents) : null;
+              const mb = complete ? margin(p.total_cents, p.b2b_net_cents) : null;
               const isOpen = open === p.pr_product_id;
               return [
                 <tr key={p.pr_product_id} className="border-t border-smitten-cream">
                   <td className={td}><button className="text-left font-medium hover:text-smitten-primary" onClick={() => setOpen(isOpen ? null : p.pr_product_id)}>{p.name}</button>{p.blocked && <StatusPill tone="red">{p.blocked}</StatusPill>}{!p.blocked && p.missing.length > 0 && <span className={`ml-2 text-xs ${red}`}>incomplete</span>}</td>
-                  <td className={`${tdNum} font-medium`}>{p.blocked ? '' : eur(p.total_cents)}</td>
+                  <td className={`${tdNum} ${complete ? 'font-medium' : 'text-smitten-text/50'}`}>{p.blocked ? '' : eur(p.total_cents)}</td>
                   <td className={`${tdNum} text-smitten-text/60`}>{p.blocked || p.delivery_cents === 0 ? '' : eur(p.delivery_cents)}</td>
                   <td className={tdNum}>{p.web_net_cents !== null ? eur(p.web_net_cents) : ''}</td>
                   <td className={`${tdNum} ${mw && mw.cents < 0 ? red : ''}`}>{mw && !p.blocked ? <>{eur(mw.cents)} <span className="text-xs text-smitten-text/50">{pct(mw.pct)}</span></> : ''}</td>

@@ -510,9 +510,11 @@ export async function confirmDelivery(db: DB, id: string): Promise<void> {
   if (d.lines.length === 0) throw new Error('A delivery needs at least one line.');
   if (d.lines.some((l) => !l.ingredient_id)) throw new Error('Every line needs an ingredient.');
   const now = new Date().toISOString();
-  const { error } = await db.from('pr_stock_ledger').upsert(
+  // delete + insert instead of upsert: the purchase uniqueness is a partial index, which ON CONFLICT cannot infer
+  const { error: e0 } = await db.from('pr_stock_ledger').delete().eq('kind', 'purchase').in('ref_id', d.lines.map((l) => l.id!));
+  if (e0) throw new Error(e0.message);
+  const { error } = await db.from('pr_stock_ledger').insert(
     d.lines.map((l) => ({ ingredient_id: l.ingredient_id, date: d.date, kind: 'purchase', amount: l.amount, ref_type: 'delivery_line', ref_id: l.id, note: l.item_text })),
-    { onConflict: 'ref_id' },
   );
   if (error) throw new Error(error.message);
   if (d.supplier_id) {
