@@ -1,36 +1,22 @@
 /**
- * Phase 3 (owner, 29.10.2026): invoices forwarded by e-mail. Resend receives
- * mail for belege.smittenbrot.de and calls our webhook (event email.received,
- * metadata only); we verify the Svix signature, accept only the owner's sender
- * addresses, download the attachments, run the same reader + matcher as the
- * upload, save one DRAFT delivery per attachment, forward the attachments to
- * the Papierkram inbox, and reply with a short summary. Nothing is booked.
+ * Phase 3 (owner, 30.10.2026): invoices forwarded by e-mail to the IONOS mailbox
+ * belege@smittenbrot.de. A cron (Supabase pg_cron → /api/cron/inbound-invoices,
+ * every 5 minutes) polls the mailbox over IMAP: every unread mail is marked read,
+ * accepted only from the owner's sender addresses, its PDF/image attachments run
+ * through the same reader + matcher as the upload, one DRAFT delivery per
+ * attachment is saved, the attachments are forwarded to the Papierkram inbox,
+ * and a short summary goes back to the sender. Nothing is booked.
  *
- * Pure parts (signature, sender check, summary text) are here and tested;
- * processReceivedEmail does the I/O.
+ * Pure parts (sender check, summary text) are here and tested; the rest is I/O.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { ImapFlow } from 'imapflow';
+import { simpleParser } from 'mailparser';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadProductionData, loadStockRaw, saveDraftDelivery } from './data.ts';
 import { INVOICE_MIMES, readInvoice, type InvoiceMime } from './invoiceRead.ts';
 import { matchInvoice, type MatchedInvoice } from './invoiceMatch.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { sendMail, type MailAttachment } from '../brevo.ts';
-
-/** Svix signature check (Resend webhooks): v1,<base64 hmac-sha256(secret, "id.timestamp.body")>, 5-minute tolerance. */
-export function verifySvix(secret: string, headers: { id: string | null; timestamp: string | null; signature: string | null }, body: string, nowSec = Math.floor(Date.now() / 1000)): boolean {
-  if (!secret || !headers.id || !headers.timestamp || !headers.signature) return false;
-  const ts = Number(headers.timestamp);
-  if (!Number.isFinite(ts) || Math.abs(nowSec - ts) > 300) return false;
-  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
-  const expected = createHmac('sha256', key).update(`${headers.id}.${headers.timestamp}.${body}`).digest();
-  return headers.signature.split(' ').some((part) => {
-    const [version, sig] = part.split(',');
-    if (version !== 'v1' || !sig) return false;
-    const given = Buffer.from(sig, 'base64');
-    return given.length === expected.length && timingSafeEqual(given, expected);
-  });
-}
 
 export function senderAllowed(from: string, allowed: string): boolean {
   const addr = (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
@@ -49,36 +35,27 @@ export function summaryText(items: ProcessedAttachment[], subject: string, forwa
   return lines.join('\n');
 }
 
-interface ResendAttachment { id: string; filename: string; content_type: string; download_url: string }
+export interface InboundAttachment { filename: string; mime: InvoiceMime; bytes: Uint8Array }
+export interface InboundMail { id: string; from: string; subject: string; attachments: InboundAttachment[] }
 
-async function resend<T>(path: string): Promise<T> {
-  const res = await fetch(`https://api.resend.com${path}`, { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY ?? ''}` } });
-  if (!res.ok) throw new Error(`Resend ${res.status} on ${path}`);
-  return res.json() as Promise<T>;
-}
-
-/** The whole job for one received e-mail; returns what was done (for logs and the reply mail). */
-export async function processReceivedEmail(db: SupabaseClient, emailId: string, from: string, subject: string): Promise<ProcessedAttachment[]> {
-  const list = await resend<{ data: ResendAttachment[] }>(`/emails/receiving/${emailId}/attachments`);
+/** One forwarded mail: drafts for its attachments, forward to Papierkram, reply. */
+export async function processInboundMail(db: SupabaseClient, mail: InboundMail): Promise<ProcessedAttachment[]> {
   const today = berlinTodayISO();
   const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
   const results: ProcessedAttachment[] = [];
   const forward: MailAttachment[] = [];
-  const sender = (from.match(/<([^>]+)>/)?.[1] ?? from).trim();
-  for (const a of list.data ?? []) {
-    const mime = a.content_type.split(';')[0].trim() as InvoiceMime;
-    if (!INVOICE_MIMES.includes(mime)) continue;
+  const sender = (mail.from.match(/<([^>]+)>/)?.[1] ?? mail.from).trim();
+  for (const [i, a] of mail.attachments.entries()) {
     const item: ProcessedAttachment = { filename: a.filename, draft_id: null, supplier: null, lines: 0, to_check: [], error: null };
     results.push(item);
     try {
-      const bytes = new Uint8Array(await (await fetch(a.download_url)).arrayBuffer());
-      if (bytes.length > 15 * 1024 * 1024) throw new Error('larger than 15 MB');
-      forward.push({ name: a.filename, content: Buffer.from(bytes).toString('base64') });
-      const ext = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1];
-      const path = `${today.slice(0, 4)}/${today}_${emailId.slice(0, 8)}_${a.id.slice(0, 8)}.${ext}`;
-      const { error: upErr } = await db.storage.from('invoices').upload(path, bytes, { contentType: mime, upsert: true });
+      if (a.bytes.length > 15 * 1024 * 1024) throw new Error('larger than 15 MB');
+      forward.push({ name: a.filename, content: Buffer.from(a.bytes).toString('base64') });
+      const ext = a.mime === 'application/pdf' ? 'pdf' : a.mime.split('/')[1];
+      const path = `${today.slice(0, 4)}/${today}_${mail.id.replace(/[^\w]/g, '').slice(0, 12)}_${i + 1}.${ext}`;
+      const { error: upErr } = await db.storage.from('invoices').upload(path, a.bytes, { contentType: a.mime, upsert: true });
       if (upErr) throw new Error(upErr.message);
-      const draft: MatchedInvoice = matchInvoice(await readInvoice(bytes, mime), data, raw.suppliers, raw.supplier_items, today);
+      const draft: MatchedInvoice = matchInvoice(await readInvoice(a.bytes, a.mime), data, raw.suppliers, raw.supplier_items, today);
       let supplierId = draft.supplier_id;
       if (!supplierId && draft.supplier_name) {
         const { data: s, error } = await db.from('pr_suppliers').upsert({ name: draft.supplier_name }, { onConflict: 'name' }).select('id').single();
@@ -88,7 +65,7 @@ export async function processReceivedEmail(db: SupabaseClient, emailId: string, 
       const hints = draft.notes.filter((n) => !n.includes('is new'));
       item.draft_id = await saveDraftDelivery(db, {
         supplier_id: supplierId, date: draft.date, invoice_no: draft.invoice_no, delivery_fee_cents: draft.delivery_fee_cents,
-        notes: [`From e-mail: ${subject}`, ...hints].join(' · ').slice(0, 500), file_path: `invoices/${path}`, source: 'email',
+        notes: [`From e-mail: ${mail.subject}`, ...hints].join(' · ').slice(0, 500), file_path: `invoices/${path}`, source: 'email',
         lines: draft.lines.map((l) => ({ ingredient_id: l.ingredient_id, item_text: l.item_text, qty: l.qty, pack_amount: l.pack_amount ?? 1, price_cents: l.price_cents, bbf: l.bbf })),
       });
       item.supplier = draft.supplier_name ?? raw.suppliers.find((s) => s.id === supplierId)?.name ?? null;
@@ -101,11 +78,42 @@ export async function processReceivedEmail(db: SupabaseClient, emailId: string, 
   const papierkram = process.env.PAPIERKRAM_INBOX_EMAIL ?? '';
   let forwarded = false;
   if (papierkram && forward.length) {
-    try { await sendMail({ to: papierkram, subject: `Beleg: ${subject}`, text: `Weitergeleiteter Lieferantenbeleg (${forward.map((f) => f.name).join(', ')}).`, attachments: forward, replyTo: sender }); forwarded = true; }
+    try { await sendMail({ to: papierkram, subject: `Beleg: ${mail.subject}`, text: `Weitergeleiteter Lieferantenbeleg (${forward.map((f) => f.name).join(', ')}).`, attachments: forward, replyTo: sender }); forwarded = true; }
     catch (e) { console.error('Papierkram forward failed:', e); }
   }
   if (results.length === 0) results.push({ filename: '(kein Anhang)', draft_id: null, supplier: null, lines: 0, to_check: [], error: 'kein PDF oder Bild im Anhang' });
-  try { await sendMail({ to: sender, subject: `Re: ${subject}`, text: summaryText(results, subject, forwarded) }); }
+  try { await sendMail({ to: sender, subject: `Re: ${mail.subject}`, text: summaryText(results, mail.subject, forwarded) }); }
   catch (e) { console.error('Reply mail failed:', e); }
   return results;
+}
+
+export interface PollResult { seen: number; processed: { from: string; subject: string; results: ProcessedAttachment[] }[]; ignored: string[] }
+
+/** Poll the IONOS mailbox: unread mails are marked read first (so an overlapping run skips them), then handled. */
+export async function pollInbox(db: SupabaseClient, opts: { host?: string; user: string; password: string; allowedSenders: string; max?: number }): Promise<PollResult> {
+  const client = new ImapFlow({ host: opts.host ?? 'imap.ionos.de', port: 993, secure: true, auth: { user: opts.user, pass: opts.password }, logger: false });
+  const out: PollResult = { seen: 0, processed: [], ignored: [] };
+  await client.connect();
+  try {
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      const uids = (await client.search({ seen: false }, { uid: true })) || [];
+      for (const uid of uids.slice(0, opts.max ?? 10)) {
+        await client.messageFlagsAdd({ uid }, ['\\Seen'], { uid: true });
+        const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        if (!msg || !msg.source) continue;
+        out.seen += 1;
+        const parsed = await simpleParser(msg.source);
+        const from = parsed.from?.text ?? '';
+        const subject = parsed.subject ?? '(ohne Betreff)';
+        if (!senderAllowed(from, opts.allowedSenders)) { out.ignored.push(from.replace(/[^@.\w<>\s-]/g, '')); continue; }
+        const attachments: InboundAttachment[] = (parsed.attachments ?? [])
+          .filter((a) => INVOICE_MIMES.includes(a.contentType as InvoiceMime))
+          .map((a, i) => ({ filename: a.filename || `anhang-${i + 1}`, mime: a.contentType as InvoiceMime, bytes: new Uint8Array(a.content) }));
+        const results = await processInboundMail(db, { id: parsed.messageId ?? `uid-${uid}`, from, subject, attachments });
+        out.processed.push({ from, subject, results });
+      }
+    } finally { lock.release(); }
+  } finally { await client.logout().catch(() => undefined); }
+  return out;
 }
