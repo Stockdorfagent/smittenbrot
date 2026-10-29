@@ -46,11 +46,28 @@ export interface MatchedInvoice {
   notes: string[];                      // what the owner should look at
 }
 
-const STOP = new Set(['und', 'mit', 'der', 'die', 'das', 'von', 'the', 'and', 'bio', 'kg', 'g', 'stk', 'stück', 'sack', 'beutel', 'pack', 'karton', 'flour', 'mehl', 'type']);
+const STOP = new Set(['und', 'mit', 'der', 'die', 'das', 'von', 'the', 'and', 'bio', 'kg', 'g', 'stk', 'stück', 'sack', 'beutel', 'pack', 'karton', 'flour', 'mehl', 'type', 'geschält', 'gemahlen', 'ganz']);
+/** Invoices are German, the internal names English: a word on either side also counts as its translation. */
+const SYN: Record<string, string[]> = {
+  weiß: ['white'], weiss: ['white'], hell: ['white'], schwarz: ['black'], dunkel: ['dark'], braun: ['brown'],
+  weizen: ['wheat'], weizenmehl: ['wheat'], dinkel: ['spelt'], dinkelmehl: ['spelt'], roggen: ['rye'], roggenmehl: ['rye'], hartweizen: ['durum'], hartweizengrieß: ['durum'],
+  vollkorn: ['vollkorn', 'wholemeal'], mandel: ['almond'], mandeln: ['almond'], mandelmehl: ['almond', 'flour'], mandelblättchen: ['flaked', 'almond'],
+  sesam: ['sesame'], leinsamen: ['flaxseed'], mohn: ['poppy'], sonnenblumenkerne: ['sunflower'], kürbiskerne: ['pumpkin'],
+  zucker: ['sugar'], puderzucker: ['powdered', 'sugar'], hagelzucker: ['pearl', 'sugar'], hefe: ['yeast'], salz: ['salt'], butter: ['butter'],
+  eier: ['egg'], ei: ['egg'], milch: ['milk'], honig: ['honey'], oliven: ['olives'], olivenöl: ['olive', 'oil'], kakao: ['cocoa'], kakaopulver: ['cocoa'],
+  vanille: ['vanilla'], rosmarin: ['rosemary'], oregano: ['oregano'], maisstärke: ['corn', 'starch'], speisestärke: ['starch'], rum: ['rum'], zitrone: ['lemon'], zitronen: ['lemon'],
+  tomaten: ['tomatoes'], kirschtomaten: ['mini', 'tomatoes'], streusel: ['sprinkles'], acerola: ['acerola'],
+};
 export function tokens(s: string): string[] {
-  return s.toLowerCase().replace(/\*\*/g, '').replace(/[^a-z0-9äöüß]+/g, ' ').split(' ')
-    .map((t) => t.replace(/^t(\d+)$/, '$1'))                  // "t550" → "550"
-    .filter((t) => t.length >= 3 || /^\d+$/.test(t)).filter((t) => !STOP.has(t));
+  const base = s.toLowerCase().replace(/\*\*/g, '').replace(/[^a-z0-9äöüß]+/g, ' ').split(' ')
+    .map((t) => t.replace(/^t(\d+)$/, '$1'));                  // "t550" → "550"
+  const out: string[] = [];
+  for (const t of base) {
+    if (!t) continue;
+    if (SYN[t]) for (const e of SYN[t]) out.push(e);
+    if ((t.length >= 3 || /^\d+$/.test(t)) && !STOP.has(t)) out.push(t);
+  }
+  return [...new Set(out)];
 }
 function overlap(a: string[], b: string[]): number {
   const B = new Set(b);

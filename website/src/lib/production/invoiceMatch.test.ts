@@ -10,7 +10,9 @@ const data: ProductionData = {
     ing('t55', 'Wheat flour T55/550', '**Weizen**mehl', { track_bbf: true }),
     ing('t80', 'Wheat flour T80/1050', '**Weizen**mehl 1050', { track_bbf: true }),
     ing('spelt', 'Spelt flour T65/630', '**Dinkel**mehl 630', { track_bbf: true }),
-    ing('sesame', 'Sesame white', 'Sesam', { track_bbf: true }),
+    ing('sesame', 'Sesame', 'Sesam', { track_bbf: true }),
+    ing('sesame_w', 'Sesame white', 'Sesam', { track_bbf: true }),
+    ing('sesame_b', 'Sesame black', 'Sesam', { track_bbf: true }),
     ing('egg', 'Egg', 'Ei', { unit: 'pcs', track_stock: false }),
     ing('yolk', 'Egg yolk', 'Eigelb', { derived_from: 'egg', g_per_source_unit: 17 }),
     ing('butter', 'Butter', 'Butter'),
@@ -21,8 +23,9 @@ const suppliers = [{ id: 's1', name: 'Mühle Müller', notes: null }, { id: 's2'
 const items = [{ supplier_id: 's1', ingredient_id: 't55', item_text: 'Weizenmehl Type 550 25 kg Sack', pack_amount: 25000 }];
 
 test('tokens: lowercase, strips markers and type prefixes, keeps numbers', () => {
-  assert.deepEqual(tokens('**Weizen**mehl T550'), ['weizenmehl', '550']);
-  assert.deepEqual(tokens('Dinkelmehl 630 Bio 25 kg'), ['dinkelmehl', '630', '25']);
+  assert.deepEqual(tokens('**Weizen**mehl T550'), ['wheat', 'weizenmehl', '550']);
+  assert.deepEqual(tokens('Dinkelmehl 630 Bio 25 kg'), ['spelt', 'dinkelmehl', '630', '25']);
+  assert.deepEqual(tokens('Sesam weiß geschält'), ['sesame', 'sesam', 'white', 'weiß']);
 });
 
 test('toUnit converts to the ingredient unit', () => {
@@ -44,6 +47,7 @@ test('matches supplier, remembered wording, names by word overlap; fee kept apar
       { description: 'Lieferpauschale', quantity: 1, pack_size_value: null, pack_size_unit: null, line_net_cents: 890, best_before: null, is_fee_or_deposit: true },
       { description: 'Pfand Kiste', quantity: 1, pack_size_value: null, pack_size_unit: null, line_net_cents: 300, best_before: null, is_fee_or_deposit: true },
       { description: 'Kokosflocken 1 kg', quantity: 1, pack_size_value: 1, pack_size_unit: 'kg', line_net_cents: 700, best_before: null, is_fee_or_deposit: false },
+      { description: 'Sesam weiß geschält 1 kg', quantity: 1, pack_size_value: 1, pack_size_unit: 'kg', line_net_cents: 620, best_before: null, is_fee_or_deposit: false },
     ],
   };
   const m = matchInvoice(x, data, suppliers, items, '2026-10-29');
@@ -51,11 +55,11 @@ test('matches supplier, remembered wording, names by word overlap; fee kept apar
   assert.equal(m.date, '2026-10-28');
   assert.equal(m.invoice_no, 'R-2026-1234');
   assert.equal(m.delivery_fee_cents, 890);          // the deposit is not a delivery fee
-  assert.equal(m.lines.length, 4);
+  assert.equal(m.lines.length, 5);
+  assert.equal(m.lines[4].ingredient_id, 'sesame_w');   // the colour word decides between the three sesames
   assert.deepEqual(m.lines[0], { ingredient_id: 't55', item_text: 'Weizenmehl Type 550 25 kg Sack', qty: 2, pack_amount: 25000, price_cents: 4200, bbf: '2027-05-01', how: 'remembered' });
   assert.equal(m.lines[1].ingredient_id, 'spelt'); assert.equal(m.lines[1].pack_amount, 5000); assert.equal(m.lines[1].how, 'name');
-  // "Eier" shares no word with "Egg"/"Ei" → unmatched the first time; the remembered wording covers it from then on
-  assert.equal(m.lines[2].ingredient_id, null); assert.equal(m.lines[2].how, 'none');
+  assert.equal(m.lines[2].ingredient_id, 'egg'); assert.equal(m.lines[2].pack_amount, 30); assert.equal(m.lines[2].bbf, null);   // "Eier" → egg; eggs: no bbf tracking
   assert.equal(m.lines[3].ingredient_id, null); assert.equal(m.lines[3].how, 'none');
   assert.ok(m.notes.some((n) => n.includes('Kokosflocken')));
 });
