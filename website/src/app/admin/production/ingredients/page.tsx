@@ -125,7 +125,7 @@ export default function IngredientsPage() {
                 <td className={`${td} text-xs text-smitten-text/70`}><Bold text={i.components_de ?? ''} /></td>
                 <td className={`${td} text-xs text-smitten-text/70`}>{i.derived_from ? `${byId.get(i.derived_from)?.name ?? '?'} · ${i.g_per_source_unit} g/unit` : ''}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
-                  <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => setEditing(toForm(i))}>edit</button>
+                  <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => { setEditing(toForm(i)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>edit</button>
                   <button className={btnDanger} onClick={() => remove(i)}>delete</button>
                 </td>
               </tr>

@@ -174,7 +174,7 @@ export default function ProductsPage() {
                 <td className={td}>{p.production}{p.pieces_per_unit ? ` · ${p.pieces_per_unit} pcs/unit` : ''}</td>
                 <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${fmtG(Number(e.grams))} g`).join(', ')}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
-                  <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => setEditing(toForm(p))}>edit</button>
+                  <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => { setEditing(toForm(p)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>edit</button>
                   <button className={btnDanger} onClick={() => remove(p)}>remove</button>
                 </td>
               </tr>
