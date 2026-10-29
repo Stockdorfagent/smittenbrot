@@ -302,6 +302,7 @@ export interface Delivery {
   delivery_fee_cents: number;
   status: 'draft' | 'confirmed';
   source: 'manual' | 'upload' | 'email';
+  file_path: string | null;     // bucket/path of the uploaded invoice
   notes: string | null;
   confirmed_at: string | null;
   lines: DeliveryLine[];

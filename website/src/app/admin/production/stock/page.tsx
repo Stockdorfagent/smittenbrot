@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnDanger, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, fmtG, loadData } from '@/lib/production/client';
 import { parseEuro, type StockRow } from '@/lib/production/stock';
+import type { MatchedInvoice } from '@/lib/production/invoiceMatch';
+import { supabase } from '@/lib/supabase';
 import type { Delivery, Ingredient, LedgerRow, ProductionData, Supplier, SupplierItem } from '@/lib/production/types';
 
 interface StockResponse { today: string; rows: StockRow[]; suppliers: Supplier[]; deliveries: Delivery[]; supplier_items: SupplierItem[]; movements: LedgerRow[] }
 
 interface LineForm { ingredient_id: string; item_text: string; qty: string; pack_amount: string; price: string; bbf: string }
-interface DeliveryForm { id?: string; supplier_id: string; date: string; invoice_no: string; fee: string; notes: string; lines: LineForm[] }
+interface DeliveryForm { id?: string; supplier_id: string; date: string; invoice_no: string; fee: string; notes: string; lines: LineForm[]; file_path?: string | null; hints?: string[] }
 
 const eur = (cents: number) => `${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const de = (ymd: string) => ymd.split('-').reverse().join('.');
@@ -27,6 +29,8 @@ export default function StockPage() {
   const [form, setForm] = useState<DeliveryForm | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [showMoves, setShowMoves] = useState(false);
+  const [reading, setReading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     try {
@@ -50,7 +54,7 @@ export default function StockPage() {
   const drafts = res.deliveries.filter((d) => d.status === 'draft');
   const confirmed = res.deliveries.filter((d) => d.status === 'confirmed');
   const openForm = (d?: Delivery) => setForm(d
-    ? { id: d.id, supplier_id: d.supplier_id ?? '', date: d.date, invoice_no: d.invoice_no ?? '', fee: d.delivery_fee_cents ? (d.delivery_fee_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 }) : '', notes: d.notes ?? '',
+    ? { id: d.id, supplier_id: d.supplier_id ?? '', date: d.date, invoice_no: d.invoice_no ?? '', fee: d.delivery_fee_cents ? (d.delivery_fee_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 }) : '', notes: d.notes ?? '', file_path: d.file_path,
         lines: d.lines.map((l) => ({ ingredient_id: l.ingredient_id ?? '', item_text: l.item_text ?? '', qty: String(l.qty), pack_amount: String(l.pack_amount), price: (l.price_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 }), bbf: l.bbf ?? '' })) }
     : { supplier_id: res.suppliers[0]?.id ?? '', date: res.today, invoice_no: '', fee: '', notes: '', lines: [emptyLine()] });
 
@@ -67,7 +71,7 @@ export default function StockPage() {
       if (!(Number(l.qty) > 0) || !(Number(l.pack_amount) > 0)) return 'Every line needs packs and a pack size.';
       out.push({ ingredient_id: l.ingredient_id || null, item_text: l.item_text, qty: Number(l.qty), pack_amount: Number(l.pack_amount), price_cents: price, bbf: l.bbf || null });
     }
-    return { id: f.id, supplier_id: f.supplier_id || null, date: f.date, invoice_no: f.invoice_no, delivery_fee_cents: fee, notes: f.notes, lines: out };
+    return { id: f.id, supplier_id: f.supplier_id || null, date: f.date, invoice_no: f.invoice_no, delivery_fee_cents: fee, notes: f.notes, lines: out, file_path: f.file_path ?? null };
   };
 
   async function saveForm(confirm: boolean) {
@@ -82,6 +86,35 @@ export default function StockPage() {
       showToast(confirm ? 'Delivery booked.' : 'Draft saved.', 'success');
       setForm(null); await load();
     } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  }
+
+  /** Phase 2: the invoice is read on the server and comes back as a prefilled form; nothing is saved until the owner does. */
+  async function uploadInvoice(file: File) {
+    setReading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const fd = new FormData(); fd.append('file', file);
+      const r = await fetch('/api/admin/production/stock/read-invoice', { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token ?? ''}` }, body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || r.statusText);
+      const d = j.draft as MatchedInvoice;
+      let supplierId = d.supplier_id ?? '';
+      if (!supplierId && d.supplier_name) {
+        const { id } = await adminFetch<{ id: string }>('/api/admin/production/stock', { body: { action: 'save_supplier', name: d.supplier_name } });
+        supplierId = id; await load();
+      }
+      setForm({
+        supplier_id: supplierId, date: d.date, invoice_no: d.invoice_no ?? '', fee: d.delivery_fee_cents ? (d.delivery_fee_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 }) : '', notes: '',
+        file_path: j.file_path, hints: d.notes.filter((n) => !n.includes('is new')),
+        lines: d.lines.length ? d.lines.map((l) => ({ ingredient_id: l.ingredient_id ?? '', item_text: l.item_text, qty: String(l.qty), pack_amount: l.pack_amount !== null ? String(l.pack_amount) : '', price: (l.price_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 }), bbf: l.bbf ?? '' })) : [emptyLine()],
+      });
+      window.scrollTo({ top: 0 });
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setReading(false); if (fileInput.current) fileInput.current.value = ''; }
+  }
+
+  async function openFile(path: string) {
+    try { const { url } = await adminFetch<{ url: string }>(`/api/admin/production/stock/file?path=${encodeURIComponent(path)}`); window.open(url, '_blank'); }
+    catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
   }
 
   async function newSupplier() {
@@ -110,11 +143,16 @@ export default function StockPage() {
   return (
     <div>
       <PageHeader title="Stock" subtitle="Levels from booked deliveries, booked bake days and counts. Prices come from the latest delivery."
-        actions={!form ? <button className={btnPrimary} onClick={() => openForm()}>New delivery</button> : undefined} />
+        actions={!form ? <>
+          <input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadInvoice(f); }} />
+          <button className={btnSecondary} disabled={reading} onClick={() => fileInput.current?.click()}>{reading ? 'Reading…' : 'Upload invoice'}</button>
+          <button className={btnPrimary} onClick={() => openForm()}>New delivery</button>
+        </> : undefined} />
       <SubNav current="/admin/production/stock" />
 
       {form && (
-        <Card title={form.id ? 'Delivery' : 'New delivery'} className="mb-6">
+        <Card title={form.id ? 'Delivery' : 'New delivery'} className="mb-6" right={form.file_path ? <button className="text-xs underline text-smitten-text/60" onClick={() => openFile(form.file_path!)}>open invoice</button> : undefined}>
+          {form.hints && form.hints.length > 0 && <div className="mb-3"><Notice tone="warning">Read from the invoice — check: {form.hints.join(' ')}</Notice></div>}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <L label="Supplier"><div className="flex gap-1">
               <select className={`${smallInputCls} w-full`} value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
@@ -219,7 +257,7 @@ export default function StockPage() {
                 <tr key={d.id} className="border-t border-smitten-cream">
                   <td className={td}>{de(d.date)}</td>
                   <td className={td}>{d.supplier_id ? supplierName.get(d.supplier_id) : '—'}</td>
-                  <td className={`${td} text-smitten-text/60`}>{d.invoice_no ?? ''}</td>
+                  <td className={`${td} text-smitten-text/60`}>{d.invoice_no ?? ''}{d.file_path && <button className="ml-2 text-xs underline" onClick={() => openFile(d.file_path!)}>pdf</button>}</td>
                   <td className={`${td} text-xs text-smitten-text/70`}>{d.lines.map((l) => `${ingById.get(l.ingredient_id ?? '')?.name ?? '?'} ${fmtG(l.amount)} ${ingById.get(l.ingredient_id ?? '')?.unit ?? ''}`).join(', ')}</td>
                   <td className={tdNum}>{eur(d.lines.reduce((s, l) => s + l.price_cents, 0))}</td>
                   <td className={tdNum}>{d.delivery_fee_cents ? eur(d.delivery_fee_cents) : ''}</td>

@@ -24,7 +24,7 @@ const product: ProductLink = { id: 'prod', product_id: 'shop', name: 'Loaf', cha
 const data: ProductionData = { ingredients: [flour, water, salt, egg, yolk, sesame], starters: [], recipes: [dough, poolish], products: [product], settings: { dough_margin_factor: 0.05, build_margin_pct: 10, final_build_margin_pct: 10 } };
 
 const delivery = (id: string, date: string, fee: number, lines: { ingredient_id: string; qty: number; pack: number; price: number; bbf?: string }[], status: Delivery['status'] = 'confirmed'): Delivery => ({
-  id, supplier_id: 's1', date, invoice_no: null, delivery_fee_cents: fee, status, source: 'manual', notes: null, confirmed_at: null,
+  id, supplier_id: 's1', date, invoice_no: null, delivery_fee_cents: fee, status, source: 'manual', file_path: null, notes: null, confirmed_at: null,
   lines: lines.map((l, i) => ({ position: i, ingredient_id: l.ingredient_id, item_text: null, qty: l.qty, pack_amount: l.pack, amount: l.qty * l.pack, price_cents: l.price, bbf: l.bbf ?? null })),
 });
 const deliveries = [

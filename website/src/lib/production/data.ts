@@ -466,7 +466,7 @@ export async function loadStockRaw(db: DB): Promise<StockRaw> {
     suppliers: (sup.data ?? []).map((s) => ({ id: s.id, name: s.name, notes: s.notes })),
     deliveries: (del.data ?? []).map((d) => ({
       id: d.id, supplier_id: d.supplier_id, date: d.date, invoice_no: d.invoice_no, delivery_fee_cents: Number(d.delivery_fee_cents), status: d.status, source: d.source,
-      notes: d.notes, confirmed_at: d.confirmed_at, lines: byDelivery.get(d.id) ?? [],
+      file_path: d.file_path ?? null, notes: d.notes, confirmed_at: d.confirmed_at, lines: byDelivery.get(d.id) ?? [],
     })),
     ledger: (led.data ?? []).map((r) => ({ id: r.id, ingredient_id: r.ingredient_id, date: r.date, kind: r.kind, amount: num(r.amount), ref_type: r.ref_type, ref_id: r.ref_id, note: r.note, created_at: r.created_at })),
     supplier_items: (items.data ?? []).map((i) => ({ supplier_id: i.supplier_id, ingredient_id: i.ingredient_id, item_text: i.item_text, pack_amount: num(i.pack_amount) })),
@@ -475,6 +475,7 @@ export async function loadStockRaw(db: DB): Promise<StockRaw> {
 
 export interface DeliveryInput {
   id?: string; supplier_id: string | null; date: string; invoice_no: string | null; delivery_fee_cents: number; notes: string | null;
+  file_path?: string | null; source?: 'manual' | 'upload' | 'email';
   lines: { ingredient_id: string | null; item_text: string | null; qty: number; pack_amount: number; price_cents: number; bbf: string | null }[];
 }
 
@@ -486,12 +487,12 @@ export async function saveDraftDelivery(db: DB, input: DeliveryInput): Promise<s
     const { data: cur, error: e0 } = await db.from('pr_deliveries').select('status').eq('id', id).single();
     if (e0) throw new Error(e0.message);
     if (cur.status !== 'draft') throw new Error('Confirmed deliveries cannot be edited. Undo the confirmation first.');
-    const { error } = await db.from('pr_deliveries').update({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, updated_at: now }).eq('id', id);
+    const { error } = await db.from('pr_deliveries').update({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, updated_at: now, ...(input.file_path ? { file_path: input.file_path, source: input.source ?? 'upload' } : {}) }).eq('id', id);
     if (error) throw new Error(error.message);
     const { error: e2 } = await db.from('pr_delivery_lines').delete().eq('delivery_id', id);
     if (e2) throw new Error(e2.message);
   } else {
-    const { data, error } = await db.from('pr_deliveries').insert({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, status: 'draft', source: 'manual' }).select('id').single();
+    const { data, error } = await db.from('pr_deliveries').insert({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, status: 'draft', source: input.file_path ? (input.source ?? 'upload') : 'manual', file_path: input.file_path ?? null }).select('id').single();
     if (error) throw new Error(error.message);
     id = data.id as string;
   }

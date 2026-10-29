@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         }
         const id = await saveDraftDelivery(db, {
           id: d.id || undefined, supplier_id: d.supplier_id || null, date: d.date, invoice_no: (d.invoice_no ?? '').trim() || null, delivery_fee_cents: fee, notes: (d.notes ?? '').trim() || null,
+          file_path: typeof d.file_path === 'string' && /^invoices\/[\w\-./]+$/.test(d.file_path) ? d.file_path : null, source: d.file_path ? 'upload' : undefined,
           lines: lines.map((l) => ({ ingredient_id: l.ingredient_id || null, item_text: (l.item_text ?? '').trim() || null, qty: Number(l.qty), pack_amount: Number(l.pack_amount), price_cents: Number(l.price_cents), bbf: l.bbf || null })),
         });
         return NextResponse.json({ id });
