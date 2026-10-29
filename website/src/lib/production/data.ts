@@ -519,8 +519,12 @@ export async function confirmDelivery(db: DB, id: string): Promise<void> {
   );
   if (error) throw new Error(error.message);
   if (d.supplier_id) {
+    // one remembered entry per supplier + ingredient: two lines on the same ingredient (e.g. two almond
+    // products) would otherwise hit "ON CONFLICT DO UPDATE command cannot affect row a second time"
+    const byIngredient = new Map<string, (typeof d.lines)[number]>();
+    for (const l of d.lines) if (l.ingredient_id && !byIngredient.has(l.ingredient_id)) byIngredient.set(l.ingredient_id, l);
     const { error: e2 } = await db.from('pr_supplier_items').upsert(
-      d.lines.map((l) => ({ supplier_id: d.supplier_id, ingredient_id: l.ingredient_id, item_text: l.item_text, pack_amount: l.pack_amount, updated_at: now })),
+      [...byIngredient.values()].map((l) => ({ supplier_id: d.supplier_id, ingredient_id: l.ingredient_id, item_text: l.item_text, pack_amount: l.pack_amount, updated_at: now })),
       { onConflict: 'supplier_id,ingredient_id' },
     );
     if (e2) throw new Error(e2.message);
