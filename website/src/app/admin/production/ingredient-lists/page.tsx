@@ -6,7 +6,7 @@ import { AdminLoading } from '@/components/admin/AdminLoading';
 import { StatusPill, type PillTone } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { Bold, Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary } from '@/components/admin/production/ui';
-import { adminFetch } from '@/lib/production/client';
+import { adminFetch, fmtG } from '@/lib/production/client';
 import { TRACE_NOTICE } from '@/lib/productInfo';
 import { buildIngredientLabelPdf, type LabelProduct } from '@/lib/production/ingredientLabelPdf';
 import type { ProductListRow, ListStatus } from '@/lib/production/listStatus';
@@ -107,7 +107,7 @@ export default function IngredientListsPage() {
                       )}
                       <details className="mt-2 text-xs text-smitten-text/60">
                         <summary className="cursor-pointer">weights per piece</summary>
-                        <ul>{r.generated.entries.map((e) => <li key={e.name_de}><Bold text={e.name_de} />: {Math.round(e.grams * 10) / 10} g{e.allergens.length ? ` · ${e.allergens.join(', ')}` : ''}</li>)}</ul>
+                        <ul>{r.generated.entries.map((e) => <li key={e.name_de}><Bold text={e.name_de} />: {fmtG(e.grams)} g{e.allergens.length ? ` · ${e.allergens.join(', ')}` : ''}</li>)}</ul>
                       </details>
                     </>
                   ) : <p className="text-smitten-text/40">No production product linked — link it on the <Link href="/admin/production/products" className="underline">Products</Link> page.</p>}

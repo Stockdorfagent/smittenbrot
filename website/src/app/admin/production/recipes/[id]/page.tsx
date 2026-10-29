@@ -7,7 +7,7 @@ import { AdminLoading } from '@/components/admin/AdminLoading';
 import { showToast } from '@/components/admin/toast';
 import { supabase } from '@/lib/supabase';
 import { Card, Field, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, inputCls, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
-import { adminFetch, fmtG, fmtPct, loadData } from '@/lib/production/client';
+import { adminFetch, fmtDec, fmtG, fmtPct, fmtSum, loadData } from '@/lib/production/client';
 import { previewForBaseAmount, previewForPieces, sumPct, validateRecipe } from '@/lib/production/engine';
 import type { ProductionData, Recipe, RecipeItem } from '@/lib/production/types';
 
@@ -141,12 +141,12 @@ export default function RecipeEditorPage() {
                 </select>
               </Field>
               {draft.kind === 'dough' ? (
-                <Field label="Dough margin factor" hint={`Empty = default ${data.settings.dough_margin_factor}. Adds factor × Σ% grams of dough per batch.`}>
-                  <input className={`${inputCls} w-full`} type="number" step="any" min="0" value={draft.dough_margin_factor ?? ''} onChange={(e) => update({ dough_margin_factor: e.target.value === '' ? null : Number(e.target.value) })} />
+                <Field label="Dough margin factor" hint="Adds factor × Σ % grams of dough per batch. Empty = the value from Settings.">
+                  <input className={`${inputCls} w-full`} type="number" step="any" min="0" placeholder={String(data.settings.dough_margin_factor)} value={draft.dough_margin_factor ?? ''} onChange={(e) => update({ dough_margin_factor: e.target.value === '' ? null : Number(e.target.value) })} />
                 </Field>
               ) : (
-                <Field label="Build margin %" hint={`Empty = default ${data.settings.build_margin_pct} %. Applied to the amount the parent needs.`}>
-                  <input className={`${inputCls} w-full`} type="number" step="any" min="0" value={draft.build_margin_pct ?? ''} onChange={(e) => update({ build_margin_pct: e.target.value === '' ? null : Number(e.target.value) })} />
+                <Field label="Build margin %" hint="Applied to the amount the parent needs. Empty = the value from Settings.">
+                  <input className={`${inputCls} w-full`} type="number" step="any" min="0" placeholder={String(data.settings.build_margin_pct)} value={draft.build_margin_pct ?? ''} onChange={(e) => update({ build_margin_pct: e.target.value === '' ? null : Number(e.target.value) })} />
                 </Field>
               )}
               <Field label="Max batch g" hint="Mixer limit; larger batches are split and the margin applies per batch.">
@@ -162,7 +162,7 @@ export default function RecipeEditorPage() {
             </div>
           </Card>
 
-          <Card title={<span>Lines <span className="text-xs font-normal text-smitten-text/50">Σ {fmtPct(sumPct(asRecipe!))} %</span></span>}>
+          <Card title={<span>Lines <span className="text-xs font-normal text-smitten-text/50">Σ {fmtSum(sumPct(asRecipe!))} %</span></span>}>
             <table className="w-full">
               <thead><tr><th className={th}>#</th><th className={th}>Type</th><th className={`${th} w-full`}>Item</th><th className={`${th} text-right`}>%</th><th className={th}>Label / final flour</th><th className={th}></th></tr></thead>
               <tbody>
@@ -274,7 +274,7 @@ export default function RecipeEditorPage() {
             {preview?.kind === 'pieces' && (
               <div className="text-sm">
                 <p className="text-xs text-smitten-text/60 mb-2">
-                  {previewPieces} × {preview.product.dough_per_unit_g} g = {fmtG(preview.result.block.total_dough_g)} g dough · factor {preview.result.block.factor.toFixed(4)} · margin +{fmtG(preview.result.block.margin_g_per_batch)} g
+                  {previewPieces} × {fmtG(Number(preview.product.dough_per_unit_g))} g = {fmtG(preview.result.block.total_dough_g)} g dough · margin {fmtDec(preview.result.block.dough_margin_factor, 2)} = +{fmtG(preview.result.block.margin_g_per_batch)} g
                   {preview.result.block.batches > 1 && <span className="text-amber-700 dark:text-amber-300"> · {preview.result.block.batches} batches, per batch below</span>}
                 </p>
                 <table className="w-full">
@@ -282,14 +282,14 @@ export default function RecipeEditorPage() {
                     {preview.result.block.lines.map((l) => <tr key={l.item_id} className="border-t border-smitten-cream"><td className={td}>{l.label}</td><td className={tdNum}>{fmtPct(l.pct)}</td><td className={`${tdNum} font-medium`}>{fmtG(l.grams)}</td></tr>)}
                     {preview.result.block.starters.map((s) => <tr key={s.item_id} className="border-t border-smitten-cream"><td className={td}>{s.label}<span className="block text-xs text-smitten-text/50">final build {fmtG(s.final_build_g)} = {fmtG(s.flour_g)} {s.flour_ingredient_name} / {fmtG(s.water_g)} / {fmtG(s.seed_g)}</span></td><td className={tdNum}></td><td className={`${tdNum} font-medium`}>{fmtG(s.in_dough_g)}</td></tr>)}
                     {preview.result.block.subs.map((b) => <tr key={b.recipe_id} className="border-t border-smitten-cream"><td className={td}>{b.name}<span className="block text-xs text-smitten-text/50">{b.lines.map((l) => `${l.label} ${fmtG(l.grams)}`).join(' · ')}</span></td><td className={tdNum}></td><td className={`${tdNum} font-medium`}>{fmtG(b.total_g)}</td></tr>)}
-                    <tr className="border-t-2 border-smitten-cream font-medium"><td className={td}>Total</td><td className={tdNum}>{fmtPct(preview.result.block.sum_pct)}</td><td className={tdNum}>{fmtG(preview.result.block.batch_total_g)}</td></tr>
+                    <tr className="border-t-2 border-smitten-cream font-medium"><td className={td}>Total</td><td className={tdNum}>{fmtSum(preview.result.block.sum_pct)}</td><td className={tdNum}>{fmtG(preview.result.block.batch_total_g)}</td></tr>
                   </tbody>
                 </table>
               </div>
             )}
             {preview?.kind === 'batch' && (
               <div className="text-sm">
-                <p className="text-xs text-smitten-text/60 mb-2">factor {preview.result.factor.toFixed(4)} · dough {fmtG(preview.result.total_g)} g{Number(ballG) > 0 && <> = <span className="font-medium">{Math.floor(preview.result.total_g / Number(ballG))} balls</span> of {ballG} g</>}</p>
+                <p className="text-xs text-smitten-text/60 mb-2">dough {fmtG(preview.result.total_g)} g{Number(ballG) > 0 && <> = <span className="font-medium">{Math.floor(preview.result.total_g / Number(ballG))} balls</span> of {ballG} g</>}</p>
                 <table className="w-full">
                   <tbody>
                     {preview.result.lines.map((l) => <tr key={l.item_id} className="border-t border-smitten-cream"><td className={td}>{l.label}</td><td className={tdNum}>{fmtPct(l.pct)}</td><td className={`${tdNum} font-medium`}>{fmtG(l.grams)}</td></tr>)}

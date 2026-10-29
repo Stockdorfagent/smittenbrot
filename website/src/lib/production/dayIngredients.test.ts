@@ -61,8 +61,8 @@ test('whole-egg lines and eggs behind a yolk line share one row', () => {
 });
 
 test('fmtAmount', () => {
-  assert.equal(fmtAmount({ unit: 'g', amount: 5500 }), '5.5 kg');
-  assert.equal(fmtAmount({ unit: 'g', amount: 12345 }), '12.3 kg');
+  assert.equal(fmtAmount({ unit: 'g', amount: 5500 }), '5,50 kg');
+  assert.equal(fmtAmount({ unit: 'g', amount: 12345 }), '12,3 kg');
   assert.equal(fmtAmount({ unit: 'g', amount: 36.4 }), '36 g');
   assert.equal(fmtAmount({ unit: 'pcs', amount: 12 }), '12 pcs');
 });

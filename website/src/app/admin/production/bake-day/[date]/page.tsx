@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
-import { adminFetch, adminDownload, fmtG, fmtPct } from '@/lib/production/client';
+import { adminFetch, adminDownload, fmtDec, fmtG, fmtPct, fmtSum } from '@/lib/production/client';
 import { computeBakeSheet } from '@/lib/production/engine';
 import { b2bDemands } from '@/lib/production/b2b';
 import type { PlannedClient } from '@/lib/production/b2b';
@@ -360,7 +360,7 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
         <div className="text-right text-sm">
           <p>{r.products.map((p) => `${p.qty}× ${p.name}`).join(' · ')}</p>
           <p className="text-smitten-text/60 text-xs">
-            dough {fmtG(r.total_dough_g)} g · Σ {fmtPct(r.sum_pct)} % · margin {r.dough_margin_factor} (+{fmtG(r.margin_g_per_batch)} g/batch) · factor {r.factor.toFixed(4)}
+            dough {fmtG(r.total_dough_g)} g · Σ {fmtSum(r.sum_pct)} % · margin {fmtDec(r.dough_margin_factor, 2)} (+{fmtG(r.margin_g_per_batch)} g/batch)
             {r.batches > 1 && <span className="text-amber-700 dark:text-amber-300 font-medium"> · {r.batches} batches of {fmtG(r.per_batch_dough_g)} g — figures below are PER BATCH</span>}
           </p>
         </div>
@@ -372,7 +372,7 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
           {r.lines.map((l) => <Line key={l.item_id} l={l} recipeId={r.recipe_id} frozen={frozen} onAdjust={onAdjust} />)}
           {directStarters.map((s) => <StarterLine key={s.item_id} s={s} />)}
           {r.subs.map((b) => <SubLine key={b.recipe_id} b={b} />)}
-          <tr className="border-t-2 border-smitten-cream font-medium"><td className={td}>Dough total (incl. margin)</td><td className={tdNum}>{fmtPct(r.sum_pct)}</td><td className={tdNum}>{fmtG(r.batch_total_g)}</td><td></td></tr>
+          <tr className="border-t-2 border-smitten-cream font-medium"><td className={td}>Dough total (incl. margin)</td><td className={tdNum}>{fmtSum(r.sum_pct)}</td><td className={tdNum}>{fmtG(r.batch_total_g)}</td><td></td></tr>
         </tbody>
       </table>
 
@@ -451,7 +451,7 @@ function SubLine({ b }: { b: SubBlock }) {
       <td className={td}>{b.name} <span className="text-xs text-smitten-text/60">· pre-dough, built separately (see below)</span></td>
       <td className={tdNum}>{fmtPct(b.pct)}</td>
       <td className={`${tdNum} font-medium`}>{fmtG(b.needed_g)}</td>
-      <td className={`${td} text-xs text-smitten-text/60`}>build {fmtG(b.total_g)} g (+{b.build_margin_pct} % build margin)</td>
+      <td className={`${td} text-xs text-smitten-text/60`}>build {fmtG(b.total_g)} g (+{fmtSum(b.build_margin_pct)} % build margin)</td>
     </tr>
   );
 }
@@ -459,7 +459,7 @@ function SubLine({ b }: { b: SubBlock }) {
 function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
   return (
     <div className={`mt-3 rounded-lg border border-smitten-cream p-3 ${depth > 0 ? 'ml-4' : ''} print:break-inside-avoid`}>
-      <p className="text-sm font-medium">{b.name} <span className="text-xs font-normal text-smitten-text/60">· needed {fmtG(b.needed_g)} g + {b.build_margin_pct} % = {fmtG(b.total_g)} g · factor {b.factor.toFixed(4)}</span></p>
+      <p className="text-sm font-medium">{b.name} <span className="text-xs font-normal text-smitten-text/60">· needed {fmtG(b.needed_g)} g + {fmtSum(b.build_margin_pct)} % = {fmtG(b.total_g)} g</span></p>
       <table className="w-full mt-1">
         <tbody>
           {b.lines.map((l) => (

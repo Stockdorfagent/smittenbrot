@@ -56,12 +56,13 @@ export function dayIngredientTotals(sheet: BakeSheet): IngredientTotal[] {
   return Array.from(totals.values()).sort((a, b) => (a.unit === b.unit ? b.amount - a.amount : a.unit === 'g' ? -1 : 1));
 }
 
-/** 5500 g → "5.5 kg", 36.4 g → "36 g", 12 pcs → "12 pcs". */
+/** 5500 g → "5,50 kg", 12345 g → "12,3 kg", 36.4 g → "36 g", 12 pcs → "12 pcs" (German format, fixed decimals). */
 export function fmtAmount(t: { unit: Unit; amount: number }): string {
   if (t.unit === 'pcs') return `${Math.ceil(t.amount - 1e-9)} pcs`;
   if (t.amount >= 1000) {
     const kg = t.amount / 1000;
-    return `${kg.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: kg >= 10 ? 1 : 2 })} kg`;
+    const d = kg >= 10 ? 1 : 2;
+    return `${kg.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d })} kg`;
   }
-  return `${Math.round(t.amount).toLocaleString('en-GB')} g`;
+  return `${Math.round(t.amount).toLocaleString('de-DE')} g`;
 }

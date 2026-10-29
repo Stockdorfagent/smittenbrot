@@ -6,8 +6,8 @@ import { AdminLoading } from '@/components/admin/AdminLoading';
 import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnDanger, th, td, tdNum } from '@/components/admin/production/ui';
-import { adminFetch, fmtPct, loadData } from '@/lib/production/client';
-import { recipeBuildMargin, recipeMarginFactor, sumPct } from '@/lib/production/engine';
+import { adminFetch, fmtDec, fmtG, fmtSum, loadData } from '@/lib/production/client';
+import { recipeBuildMargin, recipeMarginFactor } from '@/lib/production/engine';
 import type { ProductionData } from '@/lib/production/types';
 
 export default function RecipesPage() {
@@ -47,7 +47,6 @@ export default function RecipesPage() {
             <thead>
               <tr>
                 <th className={th}>Name</th>
-                <th className={`${th} text-right`}>Σ %</th>
                 <th className={`${th} text-right`}>{kind === 'dough' ? 'Dough margin' : 'Build margin %'}</th>
                 <th className={`${th} text-right`}>Max batch g</th>
                 <th className={th}>{kind === 'dough' ? 'Products' : 'Used by'}</th>
@@ -59,20 +58,18 @@ export default function RecipesPage() {
               {data.recipes.filter((r) => r.kind === kind).map((r) => {
                 const users = kind === 'dough' ? usedBy(r.id) : usedAsSub(r.id);
                 const margin = kind === 'dough' ? recipeMarginFactor(r, data.settings) : recipeBuildMargin(r, data.settings);
-                const isDefault = kind === 'dough' ? r.dough_margin_factor === null : r.build_margin_pct === null;
                 return (
                   <tr key={r.id} className="border-t border-smitten-cream">
                     <td className={td}><Link href={`/admin/production/recipes/${r.id}`} className="font-medium hover:text-smitten-primary">{r.name}</Link></td>
-                    <td className={tdNum}>{fmtPct(sumPct(r))}</td>
-                    <td className={tdNum}>{margin}{isDefault && <span className="text-xs text-smitten-text/40"> (default)</span>}</td>
-                    <td className={tdNum}>{r.max_batch_g ?? ''}</td>
+                    <td className={tdNum}>{kind === 'dough' ? fmtDec(margin, 2) : `${fmtSum(margin)} %`}</td>
+                    <td className={tdNum}>{r.max_batch_g != null ? fmtG(Number(r.max_batch_g)) : ''}</td>
                     <td className={td}>{users.length ? users.join(', ') : <StatusPill tone="gray">unused</StatusPill>}</td>
                     <td className={tdNum}>v{r.current_version}</td>
                     <td className={`${td} text-right`}><button className={btnDanger} onClick={() => remove(r.id, r.name)}>delete</button></td>
                   </tr>
                 );
               })}
-              {data.recipes.filter((r) => r.kind === kind).length === 0 && <tr><td className={td} colSpan={7}><span className="text-smitten-text/50">None yet.</span></td></tr>}
+              {data.recipes.filter((r) => r.kind === kind).length === 0 && <tr><td className={td} colSpan={6}><span className="text-smitten-text/50">None yet.</span></td></tr>}
             </tbody>
           </table>
         </Card>

@@ -6,7 +6,7 @@ import { StatusPill } from '@/components/admin/StatusPill';
 import { showToast } from '@/components/admin/toast';
 import { supabase } from '@/lib/supabase';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, btnDanger, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
-import { adminFetch, loadData } from '@/lib/production/client';
+import { adminFetch, fmtG, fmtSum, loadData } from '@/lib/production/client';
 import type { ProductLink, ProductionData } from '@/lib/production/types';
 
 type Form = {
@@ -169,10 +169,10 @@ export default function ProductsPage() {
                   {p.link_status === 'internal' && <StatusPill tone="gray">internal</StatusPill>}
                 </td>
                 <td className={td}>{p.recipe_id ? recipeName.get(p.recipe_id) : <StatusPill tone="red">no recipe</StatusPill>}</td>
-                <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? p.dough_per_unit_g : <StatusPill tone="red">not set</StatusPill>}</td>
-                <td className={tdNum}>{p.bake_loss_pct ?? ''}</td>
+                <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? fmtG(Number(p.dough_per_unit_g)) : <StatusPill tone="red">not set</StatusPill>}</td>
+                <td className={tdNum}>{p.bake_loss_pct != null ? `${fmtSum(Number(p.bake_loss_pct))} %` : ''}</td>
                 <td className={td}>{p.production}{p.pieces_per_unit ? ` · ${p.pieces_per_unit} pcs/unit` : ''}</td>
-                <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${e.grams} g`).join(', ')}</td>
+                <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${fmtG(Number(e.grams))} g`).join(', ')}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
                   <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => setEditing(toForm(p))}>edit</button>
                   <button className={btnDanger} onClick={() => remove(p)}>remove</button>

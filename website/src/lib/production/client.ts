@@ -41,16 +41,36 @@ export function loadData(): Promise<ProductionData> {
   return loadProductionData(supabase);
 }
 
-/** Display rounding (spec 1.3 step 6): whole grams, one decimal under 10 g so 0.5 g yeast does not read as 0. */
+/**
+ * Number display on the production pages — German format, FIXED decimals per
+ * kind of figure (owner, 29.10.2026: "0, 1 or 2 decimals side by side reads
+ * chaotic"): grams whole ("1.500"), one decimal under 10 g ("0,5" yeast, "0,8"
+ * acerola); line percentages 2 decimals ("32,16"); sums whole; factors 2.
+ */
+const de = (n: number, d: number) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/** Whole grams, one decimal under 10 g (spec 1.3 step 6). */
 export function fmtG(n: number | null | undefined): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return '';
-  const abs = Math.abs(n);
-  if (abs === 0) return '0';
-  if (abs < 10) return (Math.round(n * 10) / 10).toLocaleString('en-GB', { maximumFractionDigits: 1 });
-  return Math.round(n).toLocaleString('en-GB');
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '';
+  const v = Number(n);
+  if (v === 0) return '0';
+  return Math.abs(v) < 10 ? de(v, 1) : de(Math.round(v), 0);
 }
 
-export function fmtPct(n: number | null | undefined): string {
+/** A baker's percentage of one line: always 2 decimals. */
+export function fmtPct(n: number | string | null | undefined): string {
+  if (n === null || n === undefined || n === '') return '';
+  return de(Number(n), 2);
+}
+
+/** A sum of percentages (Σ): whole number — a calculation aid, not a figure to read precisely. */
+export function fmtSum(n: number | null | undefined): string {
   if (n === null || n === undefined) return '';
-  return Number(n).toLocaleString('en-GB', { maximumFractionDigits: 4 });
+  return de(Math.round(Number(n)), 0);
+}
+
+/** Fixed decimals, e.g. margin factor 0,05 / 0,10. */
+export function fmtDec(n: number | string | null | undefined, decimals = 2): string {
+  if (n === null || n === undefined || n === '') return '';
+  return de(Number(n), decimals);
 }

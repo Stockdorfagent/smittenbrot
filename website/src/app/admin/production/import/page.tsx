@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary } from '@/components/admin/production/ui';
-import { adminDownload, adminFetch } from '@/lib/production/client';
+import { adminDownload, adminFetch, fmtSum } from '@/lib/production/client';
 import type { ImportPlan } from '@/lib/production/csvImport';
 
 const FILES = ['ingredients', 'recipes', 'products', 'recipe_lines'] as const;
@@ -77,7 +77,7 @@ export default function ImportPage() {
           <div className="mt-3 text-sm">
             <p className="font-medium mb-1">Recipes</p>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-              {plan.recipes.map((r) => <li key={r.name} className="py-0.5">{r.name} <span className="text-xs text-smitten-text/50">({r.kind}, {r.lines.length} lines, Σ {Math.round(r.sum_pct * 100) / 100} %)</span></li>)}
+              {plan.recipes.map((r) => <li key={r.name} className="py-0.5">{r.name} <span className="text-xs text-smitten-text/50">({r.kind}, {r.lines.length} lines, Σ {fmtSum(r.sum_pct)} %)</span></li>)}
             </ul>
           </div>
           <div className="mt-4 border-t border-smitten-cream pt-3">
