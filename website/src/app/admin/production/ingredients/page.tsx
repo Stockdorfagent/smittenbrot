@@ -11,15 +11,17 @@ import type { Ingredient, ProductionData } from '@/lib/production/types';
 type Form = {
   id?: string; name: string; unit: 'g' | 'pcs'; name_de: string; allergens: string; // '' = not checked, 'none', or 'a|b'
   components_de: string; derived_from: string; g_per_source_unit: string; notes: string;
+  track_stock: boolean; track_bbf: boolean; reorder_level: string;
 };
 
 function toForm(i: Ingredient): Form {
   return {
     id: i.id, name: i.name, unit: i.unit, name_de: i.name_de ?? '', allergens: i.allergens === null ? '' : (i.allergens.length ? i.allergens.join('|') : 'none'),
     components_de: i.components_de ?? '', derived_from: i.derived_from ?? '', g_per_source_unit: i.g_per_source_unit?.toString() ?? '', notes: i.notes ?? '',
+    track_stock: i.track_stock, track_bbf: i.track_bbf, reorder_level: i.reorder_level?.toString() ?? '',
   };
 }
-const EMPTY: Form = { name: '', unit: 'g', name_de: '', allergens: '', components_de: '', derived_from: '', g_per_source_unit: '', notes: '' };
+const EMPTY: Form = { name: '', unit: 'g', name_de: '', allergens: '', components_de: '', derived_from: '', g_per_source_unit: '', notes: '', track_stock: true, track_bbf: false, reorder_level: '' };
 
 export default function IngredientsPage() {
   const [data, setData] = useState<ProductionData | null>(null);
@@ -42,6 +44,7 @@ export default function IngredientsPage() {
             id: editing.id, name: editing.name, unit: editing.unit, name_de: editing.name_de,
             allergens: allergRaw === '' ? null : allergRaw.toLowerCase() === 'none' ? 'none' : allergRaw.split('|').map((a) => a.trim()).filter(Boolean),
             components_de: editing.components_de, derived_from: editing.derived_from || null, g_per_source_unit: editing.g_per_source_unit, notes: editing.notes,
+            track_stock: editing.track_stock, track_bbf: editing.track_bbf, reorder_level: editing.reorder_level,
           },
         },
       });
@@ -94,6 +97,11 @@ export default function IngredientsPage() {
             </L>
             <L label="g per source unit (yolk: 17 g per egg)"><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.g_per_source_unit} onChange={(e) => setEditing({ ...editing, g_per_source_unit: e.target.value })} /></L>
             <L label="Notes"><input className={`${smallInputCls} w-full`} value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></L>
+            <div className="flex items-end gap-4 md:col-span-2">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.track_stock} onChange={(e) => setEditing({ ...editing, track_stock: e.target.checked })} /> Count in stock</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.track_bbf} onChange={(e) => setEditing({ ...editing, track_bbf: e.target.checked })} /> Best-before date</label>
+            </div>
+            <L label={`Reorder level (${editing.unit})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.reorder_level} onChange={(e) => setEditing({ ...editing, reorder_level: e.target.value })} /></L>
           </div>
           <div className="mt-3 flex gap-2">
             <button className={btnPrimary} onClick={save} disabled={busy || !editing.name.trim()}>Save</button>

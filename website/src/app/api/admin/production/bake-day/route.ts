@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
-import { getBakeSheet, loadFreezer, loadProductionData } from '@/lib/production/data';
+import { bookDayConsumption, getBakeSheet, loadFreezer, loadProductionData, unbookDayConsumption } from '@/lib/production/data';
 import { cutoffInfo, isValidISODate, isBakeDay } from '@/lib/production/bakeDays';
 
 export const runtime = 'nodejs';
@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
  * POST /api/admin/production/bake-day
  *      { date, action: 'save_day', extra_quantities?, adjustments?, notes? }   edit the day, returns the recomputed sheet
  *      { date, action: 'recompute' }                                            drop the snapshot and compute again
+ *      { date, action: 'book_consumption' | 'unbook_consumption' }              stock ledger (frozen days only)
  */
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get('date') ?? '';
@@ -30,7 +31,9 @@ export async function POST(req: NextRequest) {
   if (!isValidISODate(date)) return bad('date must be YYYY-MM-DD.');
   return withAdmin(req, async (db) => {
     const now = new Date().toISOString();
-    if (body.action === 'recompute') {
+    if (body.action === 'book_consumption' || body.action === 'unbook_consumption') {
+      if (body.action === 'book_consumption') await bookDayConsumption(db, date); else await unbookDayConsumption(db, date);
+    } else if (body.action === 'recompute') {
       const { error } = await db.from('pr_bake_days').upsert({ date, snapshot: null, snapshot_at: null, updated_at: now }, { onConflict: 'date' });
       if (error) throw new Error(error.message);
     } else if (body.action === 'save_day') {

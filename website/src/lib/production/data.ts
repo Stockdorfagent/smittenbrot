@@ -8,13 +8,14 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Adjustment, B2BClient, BakeSheet, DayOverride, Demand, Ingredient, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Starter } from './types';
+import type { Adjustment, B2BClient, BakeSheet, DayOverride, Delivery, DeliveryLine, Demand, Ingredient, LedgerRow, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Supplier, SupplierItem, Starter } from './types';
 import type { ImportPlan } from './csvImport';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { b2bDemands, b2bDays, planB2BDay, type PlannedClient } from './b2b.ts';
 import { freezerStatus, type AheadDemand, type FreezerMovement, type FreezerSettings, type FreezerStatus } from './freezer.ts';
 import { addDays, isBakeDay } from './bakeDays.ts';
+import { dayConsumption } from './stock.ts';
 
 type DB = SupabaseClient;
 
@@ -38,6 +39,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
   const ingredients: Ingredient[] = (ing.data ?? []).map((r) => ({
     id: r.id, name: r.name, unit: r.unit, name_de: r.name_de, allergens: r.allergens, components_de: r.components_de,
     derived_from: r.derived_from, g_per_source_unit: numOrNull(r.g_per_source_unit), notes: r.notes,
+    track_stock: r.track_stock !== false, track_bbf: !!r.track_bbf, reorder_level: numOrNull(r.reorder_level),
   }));
   const starters: Starter[] = (st.data ?? []).map((s) => ({
     id: s.id, name: s.name, maintenance_flour_ingredient_id: s.maintenance_flour_ingredient_id,
@@ -60,6 +62,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     id: p.id, product_id: p.product_id, name: p.name, channel: p.channel, recipe_id: p.recipe_id, dough_per_unit_g: num(p.dough_per_unit_g),
     bake_loss_pct: numOrNull(p.bake_loss_pct), extras: (p.extras ?? []).map((e: { ingredient_id: string; grams: unknown }) => ({ ingredient_id: e.ingredient_id, grams: num(e.grams) })),
     production: p.production, pieces_per_unit: numOrNull(p.pieces_per_unit), pieces_from_shop: !!p.pieces_from_shop, link_status: p.link_status,
+    b2b_net_price_cents: p.b2b_net_price_cents === null || p.b2b_net_price_cents === undefined ? null : Number(p.b2b_net_price_cents),
   }));
   const s = settings.data;
   return {
@@ -227,6 +230,7 @@ export interface BakeDayRow {
   notes: string | null;
   snapshot: BakeSheet | null;
   snapshot_at: string | null;
+  consumed_at: string | null;   // stock consumption booked (step 4)
 }
 
 export async function loadBakeDayRow(db: DB, date: string): Promise<BakeDayRow> {
@@ -239,6 +243,7 @@ export async function loadBakeDayRow(db: DB, date: string): Promise<BakeDayRow> 
     notes: data?.notes ?? null,
     snapshot: data?.snapshot ?? null,
     snapshot_at: data?.snapshot_at ?? null,
+    consumed_at: data?.consumed_at ?? null,
   };
 }
 
@@ -436,4 +441,123 @@ export function exportCsv(data: ProductionData): { ingredients: string; recipes:
         it.type === 'ingredient' ? ingName.get(it.ingredient_id!) : it.type === 'sub' ? recName.get(it.sub_recipe_id!) : stName.get(it.starter_id!),
         it.pct, it.final_flour_ingredient_id ? ingName.get(it.final_flour_ingredient_id) : '', it.label]))),
   };
+}
+
+// ---------- steps 3 + 4: deliveries, ledger, costs ----------
+
+export interface StockRaw { suppliers: Supplier[]; deliveries: Delivery[]; ledger: LedgerRow[]; supplier_items: SupplierItem[] }
+
+export async function loadStockRaw(db: DB): Promise<StockRaw> {
+  const [sup, del, lines, led, items] = await Promise.all([
+    db.from('pr_suppliers').select('*').order('name'),
+    db.from('pr_deliveries').select('*').order('date', { ascending: false }).order('created_at', { ascending: false }),
+    db.from('pr_delivery_lines').select('*').order('position'),
+    db.from('pr_stock_ledger').select('*').order('date').order('created_at'),
+    db.from('pr_supplier_items').select('*'),
+  ]);
+  for (const r of [sup, del, lines, led, items]) if (r.error) throw new Error(r.error.message);
+  const byDelivery = new Map<string, DeliveryLine[]>();
+  for (const l of lines.data ?? []) {
+    const arr = byDelivery.get(l.delivery_id) ?? [];
+    arr.push({ id: l.id, position: l.position, ingredient_id: l.ingredient_id, item_text: l.item_text, qty: num(l.qty), pack_amount: num(l.pack_amount), amount: num(l.amount), price_cents: Number(l.price_cents), bbf: l.bbf });
+    byDelivery.set(l.delivery_id, arr);
+  }
+  return {
+    suppliers: (sup.data ?? []).map((s) => ({ id: s.id, name: s.name, notes: s.notes })),
+    deliveries: (del.data ?? []).map((d) => ({
+      id: d.id, supplier_id: d.supplier_id, date: d.date, invoice_no: d.invoice_no, delivery_fee_cents: Number(d.delivery_fee_cents), status: d.status, source: d.source,
+      notes: d.notes, confirmed_at: d.confirmed_at, lines: byDelivery.get(d.id) ?? [],
+    })),
+    ledger: (led.data ?? []).map((r) => ({ id: r.id, ingredient_id: r.ingredient_id, date: r.date, kind: r.kind, amount: num(r.amount), ref_type: r.ref_type, ref_id: r.ref_id, note: r.note, created_at: r.created_at })),
+    supplier_items: (items.data ?? []).map((i) => ({ supplier_id: i.supplier_id, ingredient_id: i.ingredient_id, item_text: i.item_text, pack_amount: num(i.pack_amount) })),
+  };
+}
+
+export interface DeliveryInput {
+  id?: string; supplier_id: string | null; date: string; invoice_no: string | null; delivery_fee_cents: number; notes: string | null;
+  lines: { ingredient_id: string | null; item_text: string | null; qty: number; pack_amount: number; price_cents: number; bbf: string | null }[];
+}
+
+/** Insert or replace a DRAFT delivery with its lines (confirmed ones are not editable; unconfirm first). */
+export async function saveDraftDelivery(db: DB, input: DeliveryInput): Promise<string> {
+  const now = new Date().toISOString();
+  let id = input.id;
+  if (id) {
+    const { data: cur, error: e0 } = await db.from('pr_deliveries').select('status').eq('id', id).single();
+    if (e0) throw new Error(e0.message);
+    if (cur.status !== 'draft') throw new Error('Confirmed deliveries cannot be edited. Undo the confirmation first.');
+    const { error } = await db.from('pr_deliveries').update({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, updated_at: now }).eq('id', id);
+    if (error) throw new Error(error.message);
+    const { error: e2 } = await db.from('pr_delivery_lines').delete().eq('delivery_id', id);
+    if (e2) throw new Error(e2.message);
+  } else {
+    const { data, error } = await db.from('pr_deliveries').insert({ supplier_id: input.supplier_id, date: input.date, invoice_no: input.invoice_no, delivery_fee_cents: input.delivery_fee_cents, notes: input.notes, status: 'draft', source: 'manual' }).select('id').single();
+    if (error) throw new Error(error.message);
+    id = data.id as string;
+  }
+  if (input.lines.length) {
+    const { error } = await db.from('pr_delivery_lines').insert(input.lines.map((l, i) => ({ delivery_id: id, position: i, ingredient_id: l.ingredient_id, item_text: l.item_text, qty: l.qty, pack_amount: l.pack_amount, price_cents: l.price_cents, bbf: l.bbf })));
+    if (error) throw new Error(error.message);
+  }
+  return id!;
+}
+
+/** Confirm: book one purchase per line into the ledger, remember supplier items, mark confirmed. Idempotent per line. */
+export async function confirmDelivery(db: DB, id: string): Promise<void> {
+  const raw = await loadStockRaw(db);
+  const d = raw.deliveries.find((x) => x.id === id);
+  if (!d) throw new Error('Delivery not found.');
+  if (d.lines.length === 0) throw new Error('A delivery needs at least one line.');
+  if (d.lines.some((l) => !l.ingredient_id)) throw new Error('Every line needs an ingredient.');
+  const now = new Date().toISOString();
+  const { error } = await db.from('pr_stock_ledger').upsert(
+    d.lines.map((l) => ({ ingredient_id: l.ingredient_id, date: d.date, kind: 'purchase', amount: l.amount, ref_type: 'delivery_line', ref_id: l.id, note: l.item_text })),
+    { onConflict: 'ref_id' },
+  );
+  if (error) throw new Error(error.message);
+  if (d.supplier_id) {
+    const { error: e2 } = await db.from('pr_supplier_items').upsert(
+      d.lines.map((l) => ({ supplier_id: d.supplier_id, ingredient_id: l.ingredient_id, item_text: l.item_text, pack_amount: l.pack_amount, updated_at: now })),
+      { onConflict: 'supplier_id,ingredient_id' },
+    );
+    if (e2) throw new Error(e2.message);
+  }
+  const { error: e3 } = await db.from('pr_deliveries').update({ status: 'confirmed', confirmed_at: now, updated_at: now }).eq('id', id);
+  if (e3) throw new Error(e3.message);
+}
+
+/** Undo a confirmation: remove its purchase bookings, back to draft (prices follow automatically). */
+export async function unconfirmDelivery(db: DB, id: string): Promise<void> {
+  const { data: lines, error } = await db.from('pr_delivery_lines').select('id').eq('delivery_id', id);
+  if (error) throw new Error(error.message);
+  if (lines?.length) {
+    const { error: e2 } = await db.from('pr_stock_ledger').delete().eq('kind', 'purchase').in('ref_id', lines.map((l) => l.id));
+    if (e2) throw new Error(e2.message);
+  }
+  const { error: e3 } = await db.from('pr_deliveries').update({ status: 'draft', confirmed_at: null, updated_at: new Date().toISOString() }).eq('id', id);
+  if (e3) throw new Error(e3.message);
+}
+
+/** Book (or re-book) a frozen bake day's consumption: one row per ingredient and day, replaces earlier bookings of that day. */
+export async function bookDayConsumption(db: DB, date: string): Promise<number> {
+  const { sheet, frozen, data } = await getBakeSheet(db, date);
+  if (!frozen) throw new Error('Only a frozen bake day can be booked.');
+  const used = dayConsumption(sheet, data);
+  const { error: e0 } = await db.from('pr_stock_ledger').delete().eq('kind', 'consumption').eq('date', date);
+  if (e0) throw new Error(e0.message);
+  const rows = [...used.entries()].filter(([, amt]) => amt > 0).map(([ingredient_id, amt]) => ({ ingredient_id, date, kind: 'consumption', amount: -amt, ref_type: 'bake_day', ref_id: date, note: null }));
+  if (rows.length) {
+    const { error } = await db.from('pr_stock_ledger').insert(rows);
+    if (error) throw new Error(error.message);
+  }
+  const { error: e2 } = await db.from('pr_bake_days').upsert({ date, consumed_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'date' });
+  if (e2) throw new Error(e2.message);
+  return rows.length;
+}
+
+export async function unbookDayConsumption(db: DB, date: string): Promise<void> {
+  const { error } = await db.from('pr_stock_ledger').delete().eq('kind', 'consumption').eq('date', date);
+  if (error) throw new Error(error.message);
+  const { error: e2 } = await db.from('pr_bake_days').update({ consumed_at: null, updated_at: new Date().toISOString() }).eq('date', date);
+  if (e2) throw new Error(e2.message);
 }

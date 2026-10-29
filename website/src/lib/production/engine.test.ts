@@ -16,7 +16,7 @@ import type { Ingredient, ProductionData, Recipe, RecipeItem, Starter, ProductLi
 
 const ING: Record<string, Ingredient> = {};
 function ing(name: string, unit: 'g' | 'pcs' = 'g', extra: Partial<Ingredient> = {}): Ingredient {
-  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, ...extra };
+  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, ...extra };
   ING[name] = i;
   return i;
 }
@@ -121,7 +121,7 @@ pos = 0;
 const ONLY_RYE_STARTER = recipe('only rye starter', 'dough', [line('or', 'starter', 'LL Rye', 100)], { dough_margin_factor: 0 });
 
 function product(name: string, recipeId: string | null, dough: number, extra: Partial<ProductLink> = {}): ProductLink {
-  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'linked', ...extra };
+  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, b2b_net_price_cents: null, link_status: 'linked', ...extra };
 }
 
 const DATA: ProductionData = {
@@ -277,7 +277,7 @@ test('Stock products: pieces from the freezer plus coating, no dough from orders
 });
 
 test('Stock product: web orders from the freezer, extra quantities INTO the freezer join the dough batch', () => {
-  const data = { ...DATA, products: [...DATA.products, product('Baby-Brioche Lumbono', 'rec-Brioche', 50, { channel: 'intern', product_id: null, pieces_from_shop: false, link_status: 'internal', production: 'stock' })] };
+  const data = { ...DATA, products: [...DATA.products, product('Baby-Brioche Lumbono', 'rec-Brioche', 50, { channel: 'intern', product_id: null, pieces_from_shop: false, b2b_net_price_cents: null, link_status: 'internal', production: 'stock' })] };
   const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 1), { ...demand('Baby-Brioche Lumbono', 6, 'extra'), reason: 'Freezer stock' }, { ...demand('Baby-Brioche Lumbono', 2, 'b2b'), reason: 'Lumbono' }, demand('Amaretti Classici', 2)], data);
   const b = sheet.recipes.find((r) => r.name === 'Brioche')!;
   close(b.total_dough_g, 265 + 6 * 50, 1e-9);

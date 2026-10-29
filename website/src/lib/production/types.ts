@@ -20,6 +20,12 @@ export interface Ingredient {
   /** Grams of this ingredient per one unit of the source (yolk: 17 g per egg). */
   g_per_source_unit: number | null;
   notes: string | null;
+  /** Step 4: counted in stock (false for fresh/homemade things that are only priced). */
+  track_stock: boolean;
+  /** Best-before date asked on deliveries and warned about (flours, nuts, seeds, dried fruit, herbs). */
+  track_bbf: boolean;
+  /** Red on the stock page below this (ingredient unit); null = no level set. */
+  reorder_level: number | null;
 }
 
 export interface StarterStage {
@@ -90,6 +96,8 @@ export interface ProductLink {
   pieces_per_unit: number | null;
   pieces_from_shop: boolean;    // pieces follow the shop's unit label ("10 Stück") until the owner overrides them
   link_status: 'linked' | 'pending' | 'internal';
+  /** Step 3: net price on the B2B price list (Lumbono), per unit sold; null = not sold B2B. */
+  b2b_net_price_cents: number | null;
 }
 
 export interface Settings {
@@ -271,3 +279,33 @@ export interface StandingOrder { id: string; client_id: string; weekday: number;
 export interface DayOverride { id: string; client_id: string; date: string; skip: boolean; items: OrderItem[] | null; note: string | null }
 export type ManualOrderType = 'b2b' | 'market' | 'test' | 'own';
 export interface ManualOrder { id: string; date: string; type: ManualOrderType; client_id: string | null; label: string | null; items: OrderItem[]; notes: string | null }
+
+// ---------- steps 3 + 4: deliveries, stock, costs ----------
+
+export interface Supplier { id: string; name: string; notes: string | null }
+export interface DeliveryLine {
+  id?: string;
+  position: number;
+  ingredient_id: string | null;
+  item_text: string | null;
+  qty: number;                  // packs
+  pack_amount: number;          // g or pcs per pack
+  amount: number;               // qty × pack_amount
+  price_cents: number;          // net, whole line
+  bbf: string | null;           // YYYY-MM-DD
+}
+export interface Delivery {
+  id: string;
+  supplier_id: string | null;
+  date: string;
+  invoice_no: string | null;
+  delivery_fee_cents: number;
+  status: 'draft' | 'confirmed';
+  source: 'manual' | 'upload' | 'email';
+  notes: string | null;
+  confirmed_at: string | null;
+  lines: DeliveryLine[];
+}
+export interface SupplierItem { supplier_id: string; ingredient_id: string; item_text: string | null; pack_amount: number }
+export type LedgerKind = 'purchase' | 'consumption' | 'count' | 'manual';
+export interface LedgerRow { id: string; ingredient_id: string; date: string; kind: LedgerKind; amount: number; ref_type: string | null; ref_id: string | null; note: string | null; created_at: string }

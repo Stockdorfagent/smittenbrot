@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
       name: i.name.trim(), unit: i.unit, name_de: (i.name_de ?? '').trim() || null, allergens,
       components_de: (i.components_de ?? '').trim() || null, derived_from: i.derived_from || null, g_per_source_unit: gps,
       notes: (i.notes ?? '').trim() || null, updated_at: new Date().toISOString(),
+      track_stock: i.track_stock !== false, track_bbf: !!i.track_bbf,
+      reorder_level: i.reorder_level === null || i.reorder_level === undefined || i.reorder_level === '' ? null : Number(i.reorder_level),
     };
+    if (row.reorder_level !== null && !(row.reorder_level >= 0)) return bad('reorder_level must be ≥ 0.');
     const { data: clash } = await db.from('pr_ingredients').select('id').ilike('name', row.name).neq('id', i.id ?? '00000000-0000-0000-0000-000000000000').maybeSingle();
     if (clash) return bad(`An ingredient named "${row.name}" already exists.`);
     if (i.id) {

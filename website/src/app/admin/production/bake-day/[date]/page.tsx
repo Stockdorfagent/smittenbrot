@@ -25,7 +25,7 @@ import type { Adjustment, BakeSheet, Demand, GramLine, ManualOrder, ProductionDa
 
 interface DayResponse {
   sheet: BakeSheet;
-  row: { extra_quantities: { pr_product_id: string; qty: number; reason: string | null }[]; adjustments: Adjustment[]; notes: string | null; snapshot_at: string | null };
+  row: { extra_quantities: { pr_product_id: string; qty: number; reason: string | null }[]; adjustments: Adjustment[]; notes: string | null; snapshot_at: string | null; consumed_at: string | null };
   frozen: boolean;
   cutoff: { date: string; hour: number; passed: boolean; label: string };
   is_bake_day: boolean;
@@ -86,6 +86,16 @@ export default function BakeDayPage() {
       const r = await adminFetch<DayResponse>('/api/admin/production/bake-day', { body: { date, action: 'save_day', extra_quantities: extras, adjustments } });
       setRes(r); setExtras(r.row.extra_quantities); setAdjustments(r.row.adjustments); setDirty(false);
       showToast('Bake day saved.', 'success');
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  }
+
+  /** Step 4: book this frozen day's ingredient use into the stock ledger (one row per ingredient, replaces earlier bookings of the day). */
+  async function bookStock(book: boolean) {
+    setBusy(true);
+    try {
+      await adminFetch('/api/admin/production/bake-day', { body: { date, action: book ? 'book_consumption' : 'unbook_consumption' } });
+      showToast(book ? 'Stock booked.' : 'Stock booking removed.', 'success');
+      await load();
     } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
 
@@ -158,6 +168,9 @@ export default function BakeDayPage() {
           <button className={btnSecondary} onClick={() => window.print()}>Print</button>
           <button className={btnSecondary} onClick={() => adminDownload(`/api/admin/production/bake-day/xlsx?date=${date}`, `${date}_bake-sheet.xlsx`).catch((e) => showToast(e.message))}>Excel</button>
           {res.frozen && <button className={btnSecondary} onClick={recompute} disabled={busy}>Recalculate</button>}
+          {res.frozen && !dirty && (res.row.consumed_at
+            ? <button className={btnSecondary} disabled={busy} title={`Stock booked ${new Date(res.row.consumed_at).toLocaleString('en-GB')}`} onClick={() => bookStock(false)}>Stock booked · undo</button>
+            : <button className={btnPrimary} disabled={busy} onClick={() => bookStock(true)}>Book stock</button>)}
           {dirty && <button className={btnPrimary} onClick={save} disabled={busy}>Save day</button>}
         </>}
       />

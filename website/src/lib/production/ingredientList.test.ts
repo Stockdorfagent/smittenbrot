@@ -6,7 +6,7 @@ import type { Ingredient, ProductionData, Recipe, RecipeItem, Starter, ProductLi
 
 const ING: Ingredient[] = [];
 function ing(name: string, name_de: string | null, allergens: string[] | null, components_de: string | null = null, unit: 'g' | 'pcs' = 'g'): Ingredient {
-  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de, allergens, components_de, derived_from: null, g_per_source_unit: null, notes: null };
+  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de, allergens, components_de, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null };
   ING.push(i); return i;
 }
 ing('Wheat flour T80/1050', '**Weizen**mehl', ['Weizen']);
@@ -40,7 +40,7 @@ const CIABATTA = recipe('Ciabatta', 'dough', [line('ingredient', 'Wheat flour T5
 const AMARETTI = recipe('Amaretti Classici', 'dough', [line('ingredient', 'Egg white', 100), line('ingredient', 'Almond flour', 286), line('ingredient', 'Sugar', 257), line('ingredient', 'Almond extract', 7)]);
 
 function product(name: string, recipeId: string, dough: number, extras: { ingredient_id: string; grams: number }[] = []): ProductLink {
-  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras, production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'linked' };
+  return { id: `pp-${name}`, product_id: `shop-${name}`, name, channel: 'web', recipe_id: recipeId, dough_per_unit_g: dough, bake_loss_pct: null, extras, production: 'orders', pieces_per_unit: null, pieces_from_shop: false, b2b_net_price_cents: null, link_status: 'linked' };
 }
 const DATA: ProductionData = { ingredients: ING, starters: [LL_WHEAT], recipes: [STOCKDORF, BRIOCHE, CIABATTA, AMARETTI], products: [], settings: { dough_margin_factor: 0.1, build_margin_pct: 10, final_build_margin_pct: 10 } };
 
