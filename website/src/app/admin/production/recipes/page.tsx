@@ -30,7 +30,10 @@ export default function RecipesPage() {
   if (!data) return <AdminLoading what="recipes" />;
 
   const usedBy = (recipeId: string) => data.products.filter((p) => p.recipe_id === recipeId).map((p) => p.name);
-  const usedAsSub = (recipeId: string) => data.recipes.filter((r) => r.items.some((it) => it.sub_recipe_id === recipeId)).map((r) => r.name);
+  const usedAsSub = (recipeId: string) => [
+    ...data.recipes.filter((r) => r.items.some((it) => it.sub_recipe_id === recipeId)).map((r) => r.name),
+    ...data.ingredients.filter((i) => i.made_from_recipe_id === recipeId).map((i) => `makes ${i.name}`),   // in-house batches (Stock → Make batch)
+  ];
 
   return (
     <div>

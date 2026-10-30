@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 /**
  * POST   /api/admin/production/recipes   { recipe: RecipeInput, note?: string }  → { id, version }
  *        Validates (unknown items, cycles, Σpct) and writes the next version.
- * DELETE /api/admin/production/recipes   { id }   refused while a product or another recipe uses it.
+ * DELETE /api/admin/production/recipes   { id }   refused while a product, another recipe or an in-house ingredient uses it.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -48,10 +48,12 @@ export async function DELETE(req: NextRequest) {
   const id = body?.id;
   if (!id) return bad('id is required.');
   return withAdmin(req, async (db) => {
-    const [{ data: products }, { data: uses }] = await Promise.all([
+    const [{ data: products }, { data: uses }, { data: made }] = await Promise.all([
       db.from('pr_products').select('name').eq('recipe_id', id),
       db.from('pr_recipe_items').select('recipe_id').eq('sub_recipe_id', id),
+      db.from('pr_ingredients').select('name').eq('made_from_recipe_id', id),
     ]);
+    if (made?.length) return bad(`Still the recipe of the in-house ingredient ${made.map((m) => m.name).join(', ')}.`, 409);
     if (products?.length) return bad(`Still linked to: ${products.map((p) => p.name).join(', ')}. Unlink the products first.`, 409);
     if (uses?.length) return bad('Still used as a sub-recipe by another recipe.', 409);
     const { error } = await db.from('pr_recipes').delete().eq('id', id);
