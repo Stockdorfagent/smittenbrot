@@ -114,8 +114,10 @@ export async function POST(req: NextRequest) {
         const amount = Number(body.amount);
         if (!body.ingredient_id || !(amount > 0)) return bad('ingredient_id and amount > 0 are required.');
         if (!isValidISODate(body.date ?? '')) return bad('date must be YYYY-MM-DD.');
-        const r = await bookBatch(db, { ingredient_id: body.ingredient_id, amount, date: body.date, note: (body.note ?? '').trim() || null });
-        return NextResponse.json(r);
+        try {
+          const r = await bookBatch(db, { ingredient_id: body.ingredient_id, amount, date: body.date, note: (body.note ?? '').trim() || null });
+          return NextResponse.json(r);
+        } catch (e) { return bad(e instanceof Error ? e.message : String(e)); }   // missing price / no recipe: the owner's input, not a server fault
       }
       case 'delete_batch': {
         if (!body.id) return bad('id is required.');
