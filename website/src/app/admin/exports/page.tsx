@@ -589,10 +589,10 @@ export default function AdminExportsPage() {
             Produktionsexport
           </h2>
           <p className="text-sm text-smitten-text/60 mt-2">
-            Alles, was für einen Abholtag gebacken wird: alle Bestellungen dieses Tages außer stornierten, eine Zeile pro
-            Produkt (drei Produkte = drei Zeilen mit derselben Bestellnummer). Nach dem Bestellschluss ziehen, dann ist die
-            Liste vollständig. „Produktionsplan (Excel)“ füllt deine Excel-Vorlage (Tab „Orders“) und rechnet die
-            anderen Tabs beim Öffnen neu; die Datei heißt nach dem (letzten) Abholtag.
+            „Produktionsplan (Excel)“: Tab „Overview“ aus dem Backzettel des Tages (Shop, B2B, Einmaliges, Extra-Mengen),
+            eine Zeile pro gebackenem Produkt mit Menge, Rohgewicht pro Stück und Herkunft; Tab „Orders“ mit allen
+            Shop-Bestellungen des Abholtags außer stornierten, eine Zeile pro Produkt. Nach dem Bestellschluss ziehen,
+            dann ist die Liste vollständig; die Datei heißt nach dem (letzten) Abholtag.
           </p>
           <div className="mt-4 flex items-end gap-3 flex-wrap">
             <div>
