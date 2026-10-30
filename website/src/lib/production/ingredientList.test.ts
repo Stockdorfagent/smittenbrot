@@ -6,7 +6,7 @@ import type { Ingredient, ProductionData, Recipe, RecipeItem, Starter, ProductLi
 
 const ING: Ingredient[] = [];
 function ing(name: string, name_de: string | null, allergens: string[] | null, components_de: string | null = null, unit: 'g' | 'pcs' = 'g'): Ingredient {
-  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de, allergens, components_de, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null };
+  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de, allergens, components_de, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, made_from_recipe_id: null };
   ING.push(i); return i;
 }
 ing('Wheat flour T80/1050', '**Weizen**mehl', ['Weizen']);

@@ -16,7 +16,7 @@ import type { Ingredient, ProductionData, Recipe, RecipeItem, Starter, ProductLi
 
 const ING: Record<string, Ingredient> = {};
 function ing(name: string, unit: 'g' | 'pcs' = 'g', extra: Partial<Ingredient> = {}): Ingredient {
-  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, ...extra };
+  const i: Ingredient = { id: `ing-${name}`, name, unit, name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, made_from_recipe_id: null, ...extra };
   ING[name] = i;
   return i;
 }

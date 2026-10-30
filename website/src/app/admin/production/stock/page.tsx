@@ -5,12 +5,13 @@ import { AdminLoading } from '@/components/admin/AdminLoading';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnDanger, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, fmtG, loadData } from '@/lib/production/client';
-import { parseEuro, type StockRow } from '@/lib/production/stock';
+import { parseEuro, type BatchPlan, type StockRow } from '@/lib/production/stock';
 import type { MatchedInvoice } from '@/lib/production/invoiceMatch';
 import { supabase } from '@/lib/supabase';
-import type { Delivery, Ingredient, LedgerRow, ProductionData, Supplier, SupplierItem } from '@/lib/production/types';
+import type { Batch, Delivery, Ingredient, LedgerRow, ProductionData, Supplier, SupplierItem } from '@/lib/production/types';
 
-interface StockResponse { today: string; rows: StockRow[]; suppliers: Supplier[]; deliveries: Delivery[]; supplier_items: SupplierItem[]; movements: LedgerRow[] }
+interface StockResponse { today: string; rows: StockRow[]; suppliers: Supplier[]; deliveries: Delivery[]; supplier_items: SupplierItem[]; movements: LedgerRow[]; batches: Batch[] }
+interface BatchForm { ingredient_id: string; amount: string; date: string; note: string }
 
 interface LineForm { ingredient_id: string; item_text: string; qty: string; pack_amount: string; price: string; bbf: string }
 interface DeliveryForm { id?: string; supplier_id: string; date: string; invoice_no: string; fee: string; notes: string; lines: LineForm[]; file_path?: string | null; hints?: string[] }
@@ -30,6 +31,8 @@ export default function StockPage() {
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [showMoves, setShowMoves] = useState(false);
   const [reading, setReading] = useState(false);
+  const [batch, setBatch] = useState<BatchForm | null>(null);
+  const [plan, setPlan] = useState<BatchPlan | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -39,6 +42,19 @@ export default function StockPage() {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   useEffect(() => { load(); }, []);
+
+  // batch preview: the recipe expanded for the typed amount, priced on the server (nothing saved)
+  const planKey = batch ? `${batch.ingredient_id}|${batch.amount}` : '';
+  useEffect(() => {
+    if (!batch?.ingredient_id || !(Number(batch.amount) > 0)) { setPlan(null); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      adminFetch<BatchPlan>('/api/admin/production/stock', { body: { action: 'plan_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount) } })
+        .then((p) => { if (live) setPlan(p); }).catch(() => { if (live) setPlan(null); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planKey]);
 
   async function act(body: Record<string, unknown>, okText: string): Promise<boolean> {
     setBusy(true);
@@ -137,14 +153,21 @@ export default function StockPage() {
     setForm({ ...form, lines });
   };
 
+  const homemade = data.ingredients.filter((i) => i.made_from_recipe_id);
+  const openBatch = () => { setForm(null); setBatch({ ingredient_id: homemade[0]?.id ?? '', amount: '', date: res.today, note: '' }); };
+  async function bookBatch() {
+    if (!batch || !plan || plan.error || plan.missing.length) return;
+    if (await act({ action: 'book_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount), date: batch.date, note: batch.note }, 'Batch booked.')) { setBatch(null); setPlan(null); }
+  }
   const low = res.rows.filter((r) => r.low).length;
   const expiring = res.rows.filter((r) => r.bbf_days !== null && r.bbf_days <= 30).length;
 
   return (
     <div>
-      <PageHeader title="Stock" subtitle="Levels from booked deliveries, booked bake days and counts. Prices come from the latest delivery."
-        actions={!form ? <>
+      <PageHeader title="Stock" subtitle="Levels from booked deliveries, batches, booked bake days and counts. Prices come from the latest delivery or batch."
+        actions={!form && !batch ? <>
           <input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadInvoice(f); }} />
+          {homemade.length > 0 && <button className={btnSecondary} onClick={openBatch}>Make batch</button>}
           <button className={btnSecondary} disabled={reading} onClick={() => fileInput.current?.click()}>{reading ? 'Reading…' : 'Upload invoice'}</button>
           <button className={btnPrimary} onClick={() => openForm()}>New delivery</button>
         </> : undefined} />
@@ -194,6 +217,49 @@ export default function StockPage() {
             <button className={btnSecondary} onClick={() => setForm(null)} disabled={busy}>Cancel</button>
             <button className={btnSecondary} onClick={() => saveForm(false)} disabled={busy}>Save draft</button>
             <button className={btnPrimary} onClick={() => saveForm(true)} disabled={busy}>Book delivery</button>
+          </div>
+        </Card>
+      )}
+
+      {batch && (
+        <Card title="Make batch" className="mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+            <L label="Ingredient"><select className={`${smallInputCls} w-full`} value={batch.ingredient_id} onChange={(e) => setBatch({ ...batch, ingredient_id: e.target.value })}>
+              {homemade.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select></L>
+            <L label={`Amount made (${ingById.get(batch.ingredient_id)?.unit ?? 'g'})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={batch.amount} onChange={(e) => setBatch({ ...batch, amount: e.target.value })} autoFocus /></L>
+            <L label="Date"><input className={`${smallInputCls} w-full`} type="date" value={batch.date} onChange={(e) => setBatch({ ...batch, date: e.target.value })} /></L>
+            <L label="Note" className="md:col-span-2"><input className={`${smallInputCls} w-full`} value={batch.note} onChange={(e) => setBatch({ ...batch, note: e.target.value })} /></L>
+          </div>
+          {plan && plan.error && <Notice tone="error">{plan.error}</Notice>}
+          {plan && !plan.error && (
+            <>
+              <table className="w-full">
+                <thead><tr><th className={th}>Component</th><th className={`${th} text-right`}>Amount</th><th className={`${th} text-right`}>Goods</th><th className={`${th} text-right`}>Delivery</th></tr></thead>
+                <tbody>
+                  {plan.lines.map((l) => (
+                    <tr key={l.ingredient_id} className="border-t border-smitten-cream">
+                      <td className={td}>{l.name}</td>
+                      <td className={tdNum}>{fmtG(l.amount)} {l.unit}</td>
+                      <td className={`${tdNum} ${plan.missing.includes(l.name) ? 'text-red-700 dark:text-red-400' : ''}`}>{plan.missing.includes(l.name) ? 'no price' : eur(l.goods_cents)}</td>
+                      <td className={`${tdNum} text-smitten-text/60`}>{l.delivery_cents > 0 ? eur(l.delivery_cents) : ''}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-smitten-cream font-medium">
+                    <td className={td}>{ingById.get(batch.ingredient_id)?.name} · {fmtG(plan.amount)} {ingById.get(batch.ingredient_id)?.unit}</td>
+                    <td className={tdNum}>{perKg(plan.goods_cents / plan.amount, ingById.get(batch.ingredient_id)?.unit ?? 'g')}<span className="text-xs text-smitten-text/50 font-normal">/{(ingById.get(batch.ingredient_id)?.unit ?? 'g') === 'g' ? 'kg' : 'pc'}</span></td>
+                    <td className={tdNum}>{eur(plan.goods_cents)}</td>
+                    <td className={`${tdNum} text-smitten-text/60`}>{plan.delivery_cents > 0 ? eur(plan.delivery_cents) : ''}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {plan.missing.length > 0 && <div className="mt-2"><Notice tone="warning">No price yet for {plan.missing.join(', ')}. Book the purchase first.</Notice></div>}
+            </>
+          )}
+          <div className="mt-3 flex gap-2">
+            <span className="flex-1" />
+            <button className={btnSecondary} onClick={() => { setBatch(null); setPlan(null); }} disabled={busy}>Cancel</button>
+            <button className={btnPrimary} onClick={bookBatch} disabled={busy || !plan || !!plan.error || plan.missing.length > 0}>Book batch</button>
           </div>
         </Card>
       )}
@@ -268,10 +334,33 @@ export default function StockPage() {
           </table>
         )}
       </Card>
+
+      {res.batches.length > 0 && (
+        <Card title="Batches" className="mt-6">
+          <table className="w-full">
+            <thead><tr><th className={th}>Date</th><th className={th}>Made</th><th className={th}>From</th><th className={`${th} text-right`}>Goods</th><th className={`${th} text-right`}>Delivery</th><th className={th}></th></tr></thead>
+            <tbody>
+              {res.batches.map((b) => {
+                const made = ingById.get(b.ingredient_id);
+                return (
+                  <tr key={b.id} className="border-t border-smitten-cream">
+                    <td className={td}>{de(b.date)}</td>
+                    <td className={`${td} font-medium`}>{made?.name ?? '?'} {fmtG(b.amount)} {made?.unit ?? ''}{b.note ? <span className="font-normal text-smitten-text/60"> · {b.note}</span> : null}</td>
+                    <td className={`${td} text-xs text-smitten-text/70`}>{b.lines.map((l) => `${ingById.get(l.ingredient_id)?.name ?? '?'} ${fmtG(l.amount)} ${ingById.get(l.ingredient_id)?.unit ?? ''}`).join(', ')}</td>
+                    <td className={tdNum}>{eur(b.goods_cents)}<span className="text-xs text-smitten-text/50"> · {perKg(b.goods_cents / b.amount, made?.unit ?? 'g')}/{(made?.unit ?? 'g') === 'g' ? 'kg' : 'pc'}</span></td>
+                    <td className={`${tdNum} text-smitten-text/60`}>{b.delivery_cents ? eur(b.delivery_cents) : ''}</td>
+                    <td className={`${td} text-right`}><button className="text-xs underline text-smitten-text/60" disabled={busy} onClick={() => { if (confirm('Undo this batch? The stock and the price go back to before.')) act({ action: 'delete_batch', id: b.id }, 'Batch undone.'); }}>undo</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   );
 }
 
-function L({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">{label}</span>{children}</label>;
+function L({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return <label className={`block ${className ?? ''}`}><span className="block text-[11px] text-smitten-text/60 mb-1">{label}</span>{children}</label>;
 }

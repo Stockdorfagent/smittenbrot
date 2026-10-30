@@ -27,8 +27,14 @@ export async function POST(req: NextRequest) {
       notes: (i.notes ?? '').trim() || null, updated_at: new Date().toISOString(),
       track_stock: i.track_stock !== false, track_bbf: !!i.track_bbf,
       reorder_level: i.reorder_level === null || i.reorder_level === undefined || i.reorder_level === '' ? null : Number(i.reorder_level),
+      made_from_recipe_id: i.made_from_recipe_id || null,
     };
     if (row.reorder_level !== null && !(row.reorder_level >= 0)) return bad('reorder_level must be ≥ 0.');
+    if (row.made_from_recipe_id) {
+      const { data: rec } = await db.from('pr_recipes').select('id').eq('id', row.made_from_recipe_id).maybeSingle();
+      if (!rec) return bad('Recipe not found.');
+      if (row.derived_from) return bad('An ingredient is either derived (egg yolk) or made in-house, not both.');
+    }
     const { data: clash } = await db.from('pr_ingredients').select('id').ilike('name', row.name).neq('id', i.id ?? '00000000-0000-0000-0000-000000000000').maybeSingle();
     if (clash) return bad(`An ingredient named "${row.name}" already exists.`);
     if (i.id) {
@@ -47,13 +53,14 @@ export async function DELETE(req: NextRequest) {
   const id = body?.id;
   if (!id) return bad('id is required.');
   return withAdmin(req, async (db) => {
-    const [items, finals, starters, derived, recipes, products] = await Promise.all([
+    const [items, finals, starters, derived, recipes, products, batches] = await Promise.all([
       db.from('pr_recipe_items').select('recipe_id').eq('ingredient_id', id),
       db.from('pr_recipe_items').select('recipe_id').eq('final_flour_ingredient_id', id),
       db.from('pr_starters').select('name').eq('maintenance_flour_ingredient_id', id),
       db.from('pr_ingredients').select('name').eq('derived_from', id),
       db.from('pr_recipes').select('name, per_batch_items'),
       db.from('pr_products').select('name, extras'),
+      db.from('pr_batches').select('id').eq('ingredient_id', id).limit(1),
     ]);
     const used: string[] = [];
     if (items.data?.length) used.push('recipe lines');
@@ -64,6 +71,7 @@ export async function DELETE(req: NextRequest) {
     if (pb.length) used.push(`per-batch items of ${pb.join(', ')}`);
     const ex = (products.data ?? []).filter((p) => (p.extras ?? []).some((e: { ingredient_id: string }) => e.ingredient_id === id)).map((p) => p.name);
     if (ex.length) used.push(`extras of ${ex.join(', ')}`);
+    if (batches.data?.length) used.push('booked batches');
     if (used.length) return bad(`Still used in ${used.join('; ')}.`, 409);
     const { error } = await db.from('pr_ingredients').delete().eq('id', id);
     if (error) throw new Error(error.message);

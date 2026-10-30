@@ -6,14 +6,16 @@
  *          confirmed lines that together cover the current level (FIFO view).
  * Prices:  the newest confirmed line of an ingredient is its price. Two numbers,
  *          kept apart on purpose: goods price per unit and the delivery share per
- *          unit (that delivery's fee spread evenly over its lines).
+ *          unit (that delivery's fee spread evenly over its lines). An in-house
+ *          batch (vanilla sugar made from sugar + vanilla) prices its ingredient
+ *          the same way from the components it used.
  * Costs:   cost per unit sold = the recipe expanded for one unit (dough_per_unit_g,
  *          sub-recipes with their build margin, starters' final build incl. its
  *          margin, derived ingredients charged as their source, extras once) ×
  *          price. Dough margin and per-batch items are not included.
  * Consumption: what a frozen bake sheet used, by ingredient id, for the ledger.
  */
-import type { BakeSheet, Delivery, DeliveryLine, GramLine, Ingredient, LedgerRow, ProductLink, ProductionData, Recipe, Starter, SubBlock } from './types';
+import type { BakeSheet, Batch, BatchLine, Delivery, DeliveryLine, GramLine, Ingredient, LedgerRow, ProductLink, ProductionData, Recipe, Starter, SubBlock } from './types';
 
 export interface IngredientPrice {
   ingredient_id: string;
@@ -24,26 +26,30 @@ export interface IngredientPrice {
   pack_amount: number;
   price_cents: number;
   previous_unit_price: number | null;   // the line before (goods price only), for the trend
+  source: 'delivery' | 'batch';
 }
 
 /** Confirmed lines newest first, with their delivery's fee share. */
-function confirmedLines(deliveries: Delivery[]): (DeliveryLine & { date: string; supplier_id: string | null; fee_share_cents: number; delivery_id: string })[] {
-  const out: (DeliveryLine & { date: string; supplier_id: string | null; fee_share_cents: number; delivery_id: string })[] = [];
+function confirmedLines(deliveries: Delivery[]): (DeliveryLine & { date: string; supplier_id: string | null; fee_share_cents: number; delivery_id: string; created_at?: string })[] {
+  const out: (DeliveryLine & { date: string; supplier_id: string | null; fee_share_cents: number; delivery_id: string; created_at?: string })[] = [];
   for (const d of deliveries) {
     if (d.status !== 'confirmed') continue;
     const n = d.lines.filter((l) => l.ingredient_id).length || 1;
-    for (const l of d.lines) if (l.ingredient_id && l.amount > 0) out.push({ ...l, date: d.date, supplier_id: d.supplier_id, fee_share_cents: d.delivery_fee_cents / n, delivery_id: d.id });
+    for (const l of d.lines) if (l.ingredient_id && l.amount > 0) out.push({ ...l, date: d.date, supplier_id: d.supplier_id, fee_share_cents: d.delivery_fee_cents / n, delivery_id: d.id, created_at: d.confirmed_at ?? undefined });
   }
   return out.sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
 }
 
-export function ingredientPrices(deliveries: Delivery[]): Map<string, IngredientPrice> {
+export function ingredientPrices(deliveries: Delivery[], batches: Batch[] = []): Map<string, IngredientPrice> {
+  type Src = { ingredient_id: string; date: string; created: string; amount: number; price_cents: number; fee_cents: number; supplier_id: string | null; pack_amount: number; source: IngredientPrice['source'] };
+  const all: Src[] = confirmedLines(deliveries).map((l) => ({ ingredient_id: l.ingredient_id!, date: l.date, created: l.created_at ?? '', amount: l.amount, price_cents: l.price_cents, fee_cents: l.fee_share_cents, supplier_id: l.supplier_id, pack_amount: l.pack_amount, source: 'delivery' }));
+  for (const b of batches) if (b.amount > 0) all.push({ ingredient_id: b.ingredient_id, date: b.date, created: b.created_at, amount: b.amount, price_cents: b.goods_cents, fee_cents: b.delivery_cents, supplier_id: null, pack_amount: b.amount, source: 'batch' });
+  all.sort((a, b) => (a.date === b.date ? (a.created < b.created ? 1 : a.created > b.created ? -1 : 0) : a.date < b.date ? 1 : -1));
   const out = new Map<string, IngredientPrice>();
-  for (const l of confirmedLines(deliveries)) {
-    const id = l.ingredient_id!;
-    const cur = out.get(id);
+  for (const l of all) {
+    const cur = out.get(l.ingredient_id);
     if (!cur) {
-      out.set(id, { ingredient_id: id, unit_price: l.price_cents / l.amount, delivery_share: l.fee_share_cents / l.amount, date: l.date, supplier_id: l.supplier_id, pack_amount: l.pack_amount, price_cents: l.price_cents, previous_unit_price: null });
+      out.set(l.ingredient_id, { ingredient_id: l.ingredient_id, unit_price: l.price_cents / l.amount, delivery_share: l.fee_cents / l.amount, date: l.date, supplier_id: l.supplier_id, pack_amount: l.pack_amount, price_cents: l.price_cents, previous_unit_price: null, source: l.source });
     } else if (cur.previous_unit_price === null) {
       cur.previous_unit_price = l.price_cents / l.amount;
     }
@@ -77,9 +83,9 @@ export interface StockRow {
   price: IngredientPrice | null;
 }
 
-export function stockRows(data: ProductionData, ledger: LedgerRow[], deliveries: Delivery[], today: string): StockRow[] {
+export function stockRows(data: ProductionData, ledger: LedgerRow[], deliveries: Delivery[], today: string, batches: Batch[] = []): StockRow[] {
   const levels = stockLevels(ledger);
-  const prices = ingredientPrices(deliveries);
+  const prices = ingredientPrices(deliveries, batches);
   const t = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10));
   return data.ingredients.filter((i) => i.track_stock && !i.derived_from).map((i) => {
     const level = levels.get(i.id) ?? 0;
@@ -163,6 +169,51 @@ export function productCost(product: ProductLink, data: ProductionData, prices: 
   }
   lines.sort((a, b) => (b.goods_cents ?? 0) - (a.goods_cents ?? 0) || a.name.localeCompare(b.name));
   return { pr_product_id: product.id, name: product.name, channel: product.channel, lines, goods_cents: goods, delivery_cents: delivery, total_cents: goods + delivery, missing, blocked };
+}
+
+// ---------- in-house batches ----------
+
+export interface BatchPlan {
+  ingredient_id: string; recipe_id: string; amount: number;
+  lines: (BatchLine & { name: string; unit: Ingredient['unit'] })[];
+  goods_cents: number; delivery_cents: number;
+  missing: string[];            // component names without a price (the batch cannot be priced)
+  error: string | null;         // not a homemade ingredient / recipe missing / circular
+}
+
+/**
+ * Plan a batch of a homemade ingredient: the recipe expanded for `amount` (the made
+ * quantity, in the ingredient's unit; the recipe's percentages sum up to it),
+ * derived components charged as their source, priced from `prices`. Water is
+ * free; any other component without a price makes the batch unpriceable.
+ */
+export function planBatch(ingredientId: string, amount: number, data: ProductionData, prices: Map<string, IngredientPrice>): BatchPlan {
+  const byId = new Map(data.ingredients.map((i) => [i.id, i]));
+  const ing = byId.get(ingredientId);
+  const empty = (error: string): BatchPlan => ({ ingredient_id: ingredientId, recipe_id: ing?.made_from_recipe_id ?? '', amount, lines: [], goods_cents: 0, delivery_cents: 0, missing: [], error });
+  if (!ing) return empty('Ingredient not found.');
+  if (!ing.made_from_recipe_id) return empty(`${ing.name} has no recipe (set "Made in-house from" on the ingredient).`);
+  const recipe = data.recipes.find((r) => r.id === ing.made_from_recipe_id);
+  if (!recipe) return empty(`${ing.name}: recipe missing.`);
+  if (!(amount > 0)) return empty('Amount must be > 0.');
+  const pseudo: ProductLink = { id: '', product_id: null, name: ing.name, channel: 'intern', recipe_id: recipe.id, dough_per_unit_g: amount, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'linked', b2b_net_price_cents: null };
+  const { amounts, blocked } = perUnitAmounts(pseudo, data);
+  if (blocked) return empty(`${recipe.name}: ${blocked}`);
+  if (amounts.has(ing.id)) return empty(`${recipe.name} contains ${ing.name} itself.`);
+  const lines: BatchPlan['lines'] = [];
+  const missing: string[] = [];
+  let goods = 0, delivery = 0;
+  for (const [id, amt] of amounts) {
+    const c = byId.get(id); if (!c) continue;
+    if (c.name.toLowerCase() === 'water' || c.name_de?.toLowerCase() === 'wasser') { lines.push({ ingredient_id: id, name: c.name, unit: c.unit, amount: amt, goods_cents: 0, delivery_cents: 0 }); continue; }
+    const p = prices.get(id);
+    if (!p) { missing.push(c.name); lines.push({ ingredient_id: id, name: c.name, unit: c.unit, amount: amt, goods_cents: 0, delivery_cents: 0 }); continue; }
+    const g = amt * p.unit_price, d = amt * p.delivery_share;
+    goods += g; delivery += d;
+    lines.push({ ingredient_id: id, name: c.name, unit: c.unit, amount: amt, goods_cents: g, delivery_cents: d });
+  }
+  lines.sort((a, b) => b.amount - a.amount);
+  return { ingredient_id: ing.id, recipe_id: recipe.id, amount, lines, goods_cents: goods, delivery_cents: delivery, missing, error: null };
 }
 
 // ---------- consumption of a bake day ----------

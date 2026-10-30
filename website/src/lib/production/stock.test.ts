@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayConsumption, earliestBbf, ingredientPrices, parseEuro, perUnitAmounts, productCost, stockLevels, stockRows } from './stock.ts';
-import type { BakeSheet, Delivery, Ingredient, LedgerRow, ProductLink, ProductionData, Recipe } from './types';
+import { dayConsumption, earliestBbf, ingredientPrices, parseEuro, perUnitAmounts, planBatch, productCost, stockLevels, stockRows } from './stock.ts';
+import type { BakeSheet, Batch, Delivery, Ingredient, LedgerRow, ProductLink, ProductionData, Recipe } from './types';
 
 const ing = (id: string, name: string, extra: Partial<Ingredient> = {}): Ingredient =>
-  ({ id, name, unit: 'g', name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, ...extra });
+  ({ id, name, unit: 'g', name_de: null, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, made_from_recipe_id: null, ...extra });
 
 const flour = ing('flour', 'Wheat flour'), water = ing('water', 'Water', { track_stock: false }), salt = ing('salt', 'Salt');
 const egg = ing('egg', 'Egg', { unit: 'pcs', track_stock: false });
@@ -120,4 +120,76 @@ test('parseEuro', () => {
   assert.equal(parseEuro('1.234,56 €'), 123456);
   assert.equal(parseEuro(''), null);
   assert.ok(Number.isNaN(parseEuro('abc')));
+});
+
+// ---------- in-house batches ----------
+
+const sugar = ing('sugar', 'Sugar'), vanilla = ing('vanilla', 'Vanilla'), lemon = ing('lemon', 'Lemon', { track_stock: false });
+const vanillaSugar = ing('vsugar', 'Vanilla sugar (homemade)', { made_from_recipe_id: 'rv' });
+const lemonSugar = ing('lsugar', 'Lemon sugar (homemade)', { made_from_recipe_id: 'rl' });
+const vanillaRecipe: Recipe = { ...poolish, id: 'rv', name: 'Vanilla sugar', items: [
+  { id: 'v1', position: 1, type: 'ingredient', ingredient_id: 'sugar', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 98, label: null },
+  { id: 'v2', position: 2, type: 'ingredient', ingredient_id: 'vanilla', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 2, label: null },
+] };
+const lemonRecipe: Recipe = { ...poolish, id: 'rl', name: 'Lemon sugar', items: [
+  { id: 'l1', position: 1, type: 'ingredient', ingredient_id: 'sugar', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 90, label: null },
+  { id: 'l2', position: 2, type: 'ingredient', ingredient_id: 'lemon', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 10, label: null },
+] };
+const brioche: Recipe = { ...dough, id: 'rb', name: 'Brioche', items: [
+  { id: 'b1', position: 1, type: 'ingredient', ingredient_id: 'flour', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 100, label: null },
+  { id: 'b2', position: 2, type: 'ingredient', ingredient_id: 'vsugar', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 10, label: null },
+] };
+const briocheProduct: ProductLink = { ...product, id: 'pb', name: 'Brioche', recipe_id: 'rb', dough_per_unit_g: 110, extras: [] };
+const data2: ProductionData = { ...data, ingredients: [...data.ingredients, sugar, vanilla, lemon, vanillaSugar, lemonSugar], recipes: [...data.recipes, vanillaRecipe, lemonRecipe, brioche], products: [briocheProduct] };
+const sugarDeliveries = [
+  ...deliveries,
+  delivery('d4', '2026-10-15', 200, [{ ingredient_id: 'sugar', qty: 1, pack: 10000, price: 1500 }, { ingredient_id: 'vanilla', qty: 1, pack: 50, price: 2500 }]),   // 1,50 €/kg sugar, 50 €/kg vanilla, 1 € fee each
+];
+
+test('planBatch: recipe percentages sum up to the made amount, priced from the components, goods and delivery apart', () => {
+  const p = planBatch('vsugar', 1000, data2, ingredientPrices(sugarDeliveries));
+  assert.equal(p.error, null);
+  assert.deepEqual(p.lines.map((l) => [l.name, l.amount]), [['Sugar', 980], ['Vanilla', 20]]);
+  assert.equal(Math.round(p.goods_cents), 147 + 1000);           // 980 g × 0,15 ct + 20 g × 50 ct
+  assert.equal(Math.round(p.delivery_cents * 100) / 100, Math.round((980 * 100 / 10000 + 20 * 100 / 50) * 100) / 100);  // 9,8 ct + 40 ct
+  assert.deepEqual(p.missing, []);
+});
+
+test('planBatch: a component without a price is listed as missing; water is free; not homemade / circular are errors', () => {
+  const p = planBatch('lsugar', 500, data2, ingredientPrices(sugarDeliveries));
+  assert.deepEqual(p.missing, ['Lemon']);
+  assert.equal(p.lines.find((l) => l.name === 'Lemon')!.amount, 50);
+  assert.match(planBatch('sugar', 100, data2, new Map()).error!, /no recipe/);
+  const loop: ProductionData = { ...data2, recipes: [...data2.recipes, { ...vanillaRecipe, id: 'rx', items: [{ ...vanillaRecipe.items[0], ingredient_id: 'vsugar' }] }], ingredients: data2.ingredients.map((i) => (i.id === 'vsugar' ? { ...i, made_from_recipe_id: 'rx' } : i)) };
+  assert.match(planBatch('vsugar', 100, loop, new Map()).error!, /itself/);
+  assert.match(planBatch('vsugar', 0, data2, new Map()).error!, /Amount/);
+});
+
+test('a booked batch prices its ingredient like a delivery line, newest wins, and the product cost uses it', () => {
+  const batches: Batch[] = [
+    { id: 'b1', ingredient_id: 'vsugar', recipe_id: 'rv', date: '2026-10-20', amount: 1000, goods_cents: 1147, delivery_cents: 50, lines: [], note: null, created_at: '2026-10-20T10:00:00Z' },
+    { id: 'b2', ingredient_id: 'vsugar', recipe_id: 'rv', date: '2026-10-28', amount: 500, goods_cents: 600, delivery_cents: 25, lines: [], note: null, created_at: '2026-10-28T10:00:00Z' },
+  ];
+  const prices = ingredientPrices(sugarDeliveries, batches);
+  const v = prices.get('vsugar')!;
+  assert.equal(v.unit_price, 600 / 500);
+  assert.equal(v.delivery_share, 25 / 500);
+  assert.equal(v.previous_unit_price, 1147 / 1000);
+  assert.equal(v.source, 'batch');
+  assert.equal(prices.get('sugar')!.source, 'delivery');
+  const c = productCost(briocheProduct, data2, prices);
+  assert.deepEqual(c.missing, []);
+  assert.equal(Math.round(c.goods_cents * 100) / 100, Math.round((100 * 5000 / 50000 + 10 * 600 / 500) * 100) / 100);   // flour 10 ct + vanilla sugar 12 ct
+  assert.equal(c.lines.find((l) => l.name === 'Vanilla sugar (homemade)')!.amount, 10);
+});
+
+test('ledger: a batch adds the made amount and removes the components', () => {
+  const ledger: LedgerRow[] = [
+    { id: '1', ingredient_id: 'sugar', date: '2026-10-15', kind: 'purchase', amount: 10000, ref_type: 'delivery_line', ref_id: 'x', note: null, created_at: '' },
+    { id: '2', ingredient_id: 'vsugar', date: '2026-10-20', kind: 'batch', amount: 1000, ref_type: 'batch', ref_id: 'b1', note: null, created_at: '' },
+    { id: '3', ingredient_id: 'sugar', date: '2026-10-20', kind: 'batch', amount: -980, ref_type: 'batch', ref_id: 'b1', note: null, created_at: '' },
+    { id: '4', ingredient_id: 'vanilla', date: '2026-10-20', kind: 'batch', amount: -20, ref_type: 'batch', ref_id: 'b1', note: null, created_at: '' },
+  ];
+  const l = stockLevels(ledger);
+  assert.equal(l.get('sugar'), 9020); assert.equal(l.get('vsugar'), 1000); assert.equal(l.get('vanilla'), -20);
 });

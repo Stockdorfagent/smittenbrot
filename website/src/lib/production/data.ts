@@ -8,14 +8,14 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Adjustment, B2BClient, BakeSheet, DayOverride, Delivery, DeliveryLine, Demand, Ingredient, LedgerRow, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Supplier, SupplierItem, Starter } from './types';
+import type { Adjustment, B2BClient, BakeSheet, DayOverride, Delivery, DeliveryLine, Demand, Ingredient, LedgerRow, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Supplier, SupplierItem, Starter, Batch } from './types';
 import type { ImportPlan } from './csvImport';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { b2bDemands, b2bDays, planB2BDay, type PlannedClient } from './b2b.ts';
 import { freezerStatus, type AheadDemand, type FreezerMovement, type FreezerSettings, type FreezerStatus } from './freezer.ts';
 import { addDays, isBakeDay } from './bakeDays.ts';
-import { dayConsumption } from './stock.ts';
+import { dayConsumption, ingredientPrices, planBatch } from './stock.ts';
 
 type DB = SupabaseClient;
 
@@ -40,6 +40,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     id: r.id, name: r.name, unit: r.unit, name_de: r.name_de, allergens: r.allergens, components_de: r.components_de,
     derived_from: r.derived_from, g_per_source_unit: numOrNull(r.g_per_source_unit), notes: r.notes,
     track_stock: r.track_stock !== false, track_bbf: !!r.track_bbf, reorder_level: numOrNull(r.reorder_level),
+    made_from_recipe_id: r.made_from_recipe_id ?? null,
   }));
   const starters: Starter[] = (st.data ?? []).map((s) => ({
     id: s.id, name: s.name, maintenance_flour_ingredient_id: s.maintenance_flour_ingredient_id,
@@ -445,17 +446,18 @@ export function exportCsv(data: ProductionData): { ingredients: string; recipes:
 
 // ---------- steps 3 + 4: deliveries, ledger, costs ----------
 
-export interface StockRaw { suppliers: Supplier[]; deliveries: Delivery[]; ledger: LedgerRow[]; supplier_items: SupplierItem[] }
+export interface StockRaw { suppliers: Supplier[]; deliveries: Delivery[]; ledger: LedgerRow[]; supplier_items: SupplierItem[]; batches: Batch[] }
 
 export async function loadStockRaw(db: DB): Promise<StockRaw> {
-  const [sup, del, lines, led, items] = await Promise.all([
+  const [sup, del, lines, led, items, bat] = await Promise.all([
     db.from('pr_suppliers').select('*').order('name'),
     db.from('pr_deliveries').select('*').order('date', { ascending: false }).order('created_at', { ascending: false }),
     db.from('pr_delivery_lines').select('*').order('position'),
     db.from('pr_stock_ledger').select('*').order('date').order('created_at'),
     db.from('pr_supplier_items').select('*'),
+    db.from('pr_batches').select('*').order('date', { ascending: false }).order('created_at', { ascending: false }),
   ]);
-  for (const r of [sup, del, lines, led, items]) if (r.error) throw new Error(r.error.message);
+  for (const r of [sup, del, lines, led, items, bat]) if (r.error) throw new Error(r.error.message);
   const byDelivery = new Map<string, DeliveryLine[]>();
   for (const l of lines.data ?? []) {
     const arr = byDelivery.get(l.delivery_id) ?? [];
@@ -470,6 +472,11 @@ export async function loadStockRaw(db: DB): Promise<StockRaw> {
     })),
     ledger: (led.data ?? []).map((r) => ({ id: r.id, ingredient_id: r.ingredient_id, date: r.date, kind: r.kind, amount: num(r.amount), ref_type: r.ref_type, ref_id: r.ref_id, note: r.note, created_at: r.created_at })),
     supplier_items: (items.data ?? []).map((i) => ({ supplier_id: i.supplier_id, ingredient_id: i.ingredient_id, item_text: i.item_text, pack_amount: num(i.pack_amount) })),
+    batches: (bat.data ?? []).map((b) => ({
+      id: b.id, ingredient_id: b.ingredient_id, recipe_id: b.recipe_id, date: b.date, amount: num(b.amount), goods_cents: Number(b.goods_cents), delivery_cents: Number(b.delivery_cents),
+      lines: (b.lines ?? []).map((l: { ingredient_id: string; amount: unknown; goods_cents: unknown; delivery_cents: unknown }) => ({ ingredient_id: l.ingredient_id, amount: num(l.amount), goods_cents: Number(l.goods_cents), delivery_cents: Number(l.delivery_cents) })),
+      note: b.note, created_at: b.created_at,
+    })),
   };
 }
 
@@ -566,5 +573,41 @@ export async function unbookDayConsumption(db: DB, date: string): Promise<void> 
   const { error } = await db.from('pr_stock_ledger').delete().eq('kind', 'consumption').eq('date', date);
   if (error) throw new Error(error.message);
   const { error: e2 } = await db.from('pr_bake_days').update({ consumed_at: null, updated_at: new Date().toISOString() }).eq('date', date);
+  if (e2) throw new Error(e2.message);
+}
+
+// ---------- in-house batches ----------
+
+/**
+ * Book a batch of a homemade ingredient (owner, 30.10.2026): components out of the ledger,
+ * the made amount in, priced from the current component prices (planBatch). Refused while a
+ * component has no price — the point of the batch is the price.
+ */
+export async function bookBatch(db: DB, input: { ingredient_id: string; amount: number; date: string; note: string | null }): Promise<{ id: string; goods_cents: number; delivery_cents: number }> {
+  const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
+  const plan = planBatch(input.ingredient_id, input.amount, data, ingredientPrices(raw.deliveries, raw.batches));
+  if (plan.error) throw new Error(plan.error);
+  if (plan.missing.length) throw new Error(`No price yet for ${plan.missing.join(', ')}. Book the purchase first.`);
+  const goods = Math.round(plan.goods_cents), delivery = Math.round(plan.delivery_cents);
+  const { data: row, error } = await db.from('pr_batches').insert({
+    ingredient_id: plan.ingredient_id, recipe_id: plan.recipe_id, date: input.date, amount: plan.amount, goods_cents: goods, delivery_cents: delivery, note: input.note,
+    lines: plan.lines.map((l) => ({ ingredient_id: l.ingredient_id, amount: l.amount, goods_cents: Math.round(l.goods_cents), delivery_cents: Math.round(l.delivery_cents) })),
+  }).select('id').single();
+  if (error) throw new Error(error.message);
+  const made = data.ingredients.find((i) => i.id === plan.ingredient_id)!;
+  const rows = [
+    { ingredient_id: plan.ingredient_id, date: input.date, kind: 'batch', amount: plan.amount, ref_type: 'batch', ref_id: row.id, note: `batch ${made.name}` },
+    ...plan.lines.map((l) => ({ ingredient_id: l.ingredient_id, date: input.date, kind: 'batch', amount: -l.amount, ref_type: 'batch', ref_id: row.id, note: `batch ${made.name}` })),
+  ];
+  const { error: e2 } = await db.from('pr_stock_ledger').insert(rows);
+  if (e2) { await db.from('pr_batches').delete().eq('id', row.id); throw new Error(e2.message); }
+  return { id: row.id, goods_cents: goods, delivery_cents: delivery };
+}
+
+/** Undo a batch: its ledger movements and the price go away. */
+export async function deleteBatch(db: DB, id: string): Promise<void> {
+  const { error } = await db.from('pr_stock_ledger').delete().eq('kind', 'batch').eq('ref_id', id);
+  if (error) throw new Error(error.message);
+  const { error: e2 } = await db.from('pr_batches').delete().eq('id', id);
   if (e2) throw new Error(e2.message);
 }

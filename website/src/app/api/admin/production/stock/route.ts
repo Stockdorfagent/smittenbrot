@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
-import { confirmDelivery, loadProductionData, loadStockRaw, saveDraftDelivery, unconfirmDelivery, type DeliveryInput } from '@/lib/production/data';
-import { stockRows } from '@/lib/production/stock';
+import { bookBatch, confirmDelivery, deleteBatch, loadProductionData, loadStockRaw, saveDraftDelivery, unconfirmDelivery, type DeliveryInput } from '@/lib/production/data';
+import { ingredientPrices, planBatch, stockRows } from '@/lib/production/stock';
 import { berlinTodayISO, isValidISODate } from '@/lib/production/bakeDays';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET  /api/admin/production/stock → { today, rows: StockRow[], suppliers, deliveries (drafts + last 40 confirmed), supplier_items, ledger (counts/manual, last 100) }
+ * GET  /api/admin/production/stock → { today, rows: StockRow[], suppliers, deliveries (drafts + last 40 confirmed), supplier_items, ledger (counts/manual, last 100), batches (last 40) }
  * POST /api/admin/production/stock { action, ... }
  *   save_supplier   { name }                      → { id }
  *   save_delivery   { delivery: DeliveryInput }   draft insert/replace → { id }
@@ -18,16 +18,19 @@ export const dynamic = 'force-dynamic';
  *   set_count       { ingredient_id, counted, note? }   books the difference as 'count'
  *   manual          { ingredient_id, amount, note }      ± correction
  *   delete_movement { id }                        count/manual rows only
+ *   plan_batch      { ingredient_id, amount }     → BatchPlan (preview, nothing saved)
+ *   book_batch      { ingredient_id, amount, date, note? }  components out, made amount in, priced → { id }
+ *   delete_batch    { id }                        undo
  */
 export async function GET(req: NextRequest) {
   return withAdmin(req, async (db) => {
     const today = berlinTodayISO();
     const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
-    const rows = stockRows(data, raw.ledger, raw.deliveries, today);
+    const rows = stockRows(data, raw.ledger, raw.deliveries, today, raw.batches);
     const confirmed = raw.deliveries.filter((d) => d.status === 'confirmed').slice(0, 40);
     const drafts = raw.deliveries.filter((d) => d.status === 'draft');
     const movements = raw.ledger.filter((r) => r.kind === 'count' || r.kind === 'manual').slice(-100).reverse();
-    return NextResponse.json({ today, rows, suppliers: raw.suppliers, deliveries: [...drafts, ...confirmed], supplier_items: raw.supplier_items, movements });
+    return NextResponse.json({ today, rows, suppliers: raw.suppliers, deliveries: [...drafts, ...confirmed], supplier_items: raw.supplier_items, movements, batches: raw.batches.slice(0, 40) });
   });
 }
 
@@ -99,6 +102,24 @@ export async function POST(req: NextRequest) {
         if (!body.id) return bad('id is required.');
         const { error } = await db.from('pr_stock_ledger').delete().eq('id', body.id).in('kind', ['count', 'manual']);
         if (error) throw new Error(error.message);
+        return NextResponse.json({ ok: true });
+      }
+      case 'plan_batch': {
+        const amount = Number(body.amount);
+        if (!body.ingredient_id || !(amount > 0)) return bad('ingredient_id and amount > 0 are required.');
+        const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
+        return NextResponse.json(planBatch(body.ingredient_id, amount, data, ingredientPrices(raw.deliveries, raw.batches)));
+      }
+      case 'book_batch': {
+        const amount = Number(body.amount);
+        if (!body.ingredient_id || !(amount > 0)) return bad('ingredient_id and amount > 0 are required.');
+        if (!isValidISODate(body.date ?? '')) return bad('date must be YYYY-MM-DD.');
+        const r = await bookBatch(db, { ingredient_id: body.ingredient_id, amount, date: body.date, note: (body.note ?? '').trim() || null });
+        return NextResponse.json(r);
+      }
+      case 'delete_batch': {
+        if (!body.id) return bad('id is required.');
+        await deleteBatch(db, body.id);
         return NextResponse.json({ ok: true });
       }
       default: return bad('Unknown action.');

@@ -11,17 +11,17 @@ import type { Ingredient, ProductionData } from '@/lib/production/types';
 type Form = {
   id?: string; name: string; unit: 'g' | 'pcs'; name_de: string; allergens: string; // '' = not checked, 'none', or 'a|b'
   components_de: string; derived_from: string; g_per_source_unit: string; notes: string;
-  track_stock: boolean; track_bbf: boolean; reorder_level: string;
+  track_stock: boolean; track_bbf: boolean; reorder_level: string; made_from_recipe_id: string;
 };
 
 function toForm(i: Ingredient): Form {
   return {
     id: i.id, name: i.name, unit: i.unit, name_de: i.name_de ?? '', allergens: i.allergens === null ? '' : (i.allergens.length ? i.allergens.join('|') : 'none'),
     components_de: i.components_de ?? '', derived_from: i.derived_from ?? '', g_per_source_unit: i.g_per_source_unit?.toString() ?? '', notes: i.notes ?? '',
-    track_stock: i.track_stock, track_bbf: i.track_bbf, reorder_level: i.reorder_level?.toString() ?? '',
+    track_stock: i.track_stock, track_bbf: i.track_bbf, reorder_level: i.reorder_level?.toString() ?? '', made_from_recipe_id: i.made_from_recipe_id ?? '',
   };
 }
-const EMPTY: Form = { name: '', unit: 'g', name_de: '', allergens: '', components_de: '', derived_from: '', g_per_source_unit: '', notes: '', track_stock: true, track_bbf: false, reorder_level: '' };
+const EMPTY: Form = { name: '', unit: 'g', name_de: '', allergens: '', components_de: '', derived_from: '', g_per_source_unit: '', notes: '', track_stock: true, track_bbf: false, reorder_level: '', made_from_recipe_id: '' };
 
 export default function IngredientsPage() {
   const [data, setData] = useState<ProductionData | null>(null);
@@ -44,7 +44,7 @@ export default function IngredientsPage() {
             id: editing.id, name: editing.name, unit: editing.unit, name_de: editing.name_de,
             allergens: allergRaw === '' ? null : allergRaw.toLowerCase() === 'none' ? 'none' : allergRaw.split('|').map((a) => a.trim()).filter(Boolean),
             components_de: editing.components_de, derived_from: editing.derived_from || null, g_per_source_unit: editing.g_per_source_unit, notes: editing.notes,
-            track_stock: editing.track_stock, track_bbf: editing.track_bbf, reorder_level: editing.reorder_level,
+            track_stock: editing.track_stock, track_bbf: editing.track_bbf, reorder_level: editing.reorder_level, made_from_recipe_id: editing.made_from_recipe_id || null,
           },
         },
       });
@@ -67,6 +67,7 @@ export default function IngredientsPage() {
   if (!data) return <AdminLoading what="ingredients" />;
 
   const byId = new Map(data.ingredients.map((i) => [i.id, i]));
+  const recipeName = new Map(data.recipes.map((r) => [r.id, r.name]));
   const rows = data.ingredients.filter((i) => !filter || i.name.toLowerCase().includes(filter.toLowerCase()) || (i.name_de ?? '').toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -102,6 +103,12 @@ export default function IngredientsPage() {
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.track_bbf} onChange={(e) => setEditing({ ...editing, track_bbf: e.target.checked })} /> Best-before date</label>
             </div>
             <L label={`Reorder level (${editing.unit})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.reorder_level} onChange={(e) => setEditing({ ...editing, reorder_level: e.target.value })} /></L>
+            <L label="Made in-house from recipe (batches on Stock)">
+              <select className={`${smallInputCls} w-full`} value={editing.made_from_recipe_id} onChange={(e) => setEditing({ ...editing, made_from_recipe_id: e.target.value })}>
+                <option value="">— bought</option>
+                {[...data.recipes].sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'sub' ? -1 : 1)).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </L>
           </div>
           <div className="mt-3 flex gap-2">
             <button className={btnPrimary} onClick={save} disabled={busy || !editing.name.trim()}>Save</button>
@@ -112,7 +119,7 @@ export default function IngredientsPage() {
 
       <Card>
         <table className="w-full">
-          <thead><tr><th className={th}>Name</th><th className={th}>Unit</th><th className={th}>German name</th><th className={th}>Allergens</th><th className={th}>Components</th><th className={th}>Derived</th><th className={th}></th></tr></thead>
+          <thead><tr><th className={th}>Name</th><th className={th}>Unit</th><th className={th}>German name</th><th className={th}>Allergens</th><th className={th}>Components</th><th className={th}>Derived / made</th><th className={th}></th></tr></thead>
           <tbody>
             {rows.map((i) => (
               <tr key={i.id} className="border-t border-smitten-cream">
@@ -123,7 +130,7 @@ export default function IngredientsPage() {
                   {i.allergens === null ? <StatusPill tone="amber">not checked</StatusPill> : i.allergens.length === 0 ? <span className="text-smitten-text/40">none</span> : i.allergens.join(', ')}
                 </td>
                 <td className={`${td} text-xs text-smitten-text/70`}><Bold text={i.components_de ?? ''} /></td>
-                <td className={`${td} text-xs text-smitten-text/70`}>{i.derived_from ? `${byId.get(i.derived_from)?.name ?? '?'} · ${i.g_per_source_unit} g/unit` : ''}</td>
+                <td className={`${td} text-xs text-smitten-text/70`}>{i.derived_from ? `${byId.get(i.derived_from)?.name ?? '?'} · ${i.g_per_source_unit} g/unit` : i.made_from_recipe_id ? `in-house · ${recipeName.get(i.made_from_recipe_id) ?? '?'}` : ''}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
                   <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => { setEditing(toForm(i)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>edit</button>
                   <button className={btnDanger} onClick={() => remove(i)}>delete</button>

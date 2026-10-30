@@ -4,7 +4,7 @@ import { matchInvoice, tokens, toUnit, type ExtractedInvoice } from './invoiceMa
 import type { Ingredient, ProductionData } from './types';
 
 const ing = (id: string, name: string, name_de: string | null, extra: Partial<Ingredient> = {}): Ingredient =>
-  ({ id, name, unit: 'g', name_de, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, ...extra });
+  ({ id, name, unit: 'g', name_de, allergens: [], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: true, track_bbf: false, reorder_level: null, made_from_recipe_id: null, ...extra });
 const data: ProductionData = {
   ingredients: [
     ing('t55', 'Wheat flour T55/550', '**Weizen**mehl', { track_bbf: true }),

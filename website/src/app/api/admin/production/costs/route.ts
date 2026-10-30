@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const [data, raw, shop] = await Promise.all([loadProductionData(db), loadStockRaw(db), db.from('products').select('id, price_cents, active')]);
     if (shop.error) throw new Error(shop.error.message);
     const shopPrice = new Map((shop.data ?? []).map((p) => [p.id, { cents: Number(p.price_cents), active: !!p.active }]));
-    const prices = ingredientPrices(raw.deliveries);
+    const prices = ingredientPrices(raw.deliveries, raw.batches);
     const products: CostRow[] = data.products
       .filter((p) => p.channel === 'intern' || !p.product_id || shopPrice.get(p.product_id)?.active !== false)
       .map((p) => {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => a.name.localeCompare(b.name));
     const supplierName = new Map(raw.suppliers.map((s) => [s.id, s.name]));
     const ingName = new Map(data.ingredients.map((i) => [i.id, i]));
-    const priceRows: PriceRow[] = [...prices.values()].map((p) => ({ ...p, name: ingName.get(p.ingredient_id)?.name ?? '?', unit: ingName.get(p.ingredient_id)?.unit ?? 'g', supplier: p.supplier_id ? supplierName.get(p.supplier_id) ?? null : null }))
+    const priceRows: PriceRow[] = [...prices.values()].map((p) => ({ ...p, name: ingName.get(p.ingredient_id)?.name ?? '?', unit: ingName.get(p.ingredient_id)?.unit ?? 'g', supplier: p.source === 'batch' ? 'in-house' : p.supplier_id ? supplierName.get(p.supplier_id) ?? null : null }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json({ products, prices: priceRows });
   });

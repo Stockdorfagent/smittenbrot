@@ -26,6 +26,8 @@ export interface Ingredient {
   track_bbf: boolean;
   /** Red on the stock page below this (ingredient unit); null = no level set. */
   reorder_level: number | null;
+  /** Made in-house from this recipe in batches ("Make batch" on Stock); null = bought. */
+  made_from_recipe_id: string | null;
 }
 
 export interface StarterStage {
@@ -308,5 +310,12 @@ export interface Delivery {
   lines: DeliveryLine[];
 }
 export interface SupplierItem { supplier_id: string; ingredient_id: string; item_text: string | null; pack_amount: number }
-export type LedgerKind = 'purchase' | 'consumption' | 'count' | 'manual';
+export type LedgerKind = 'purchase' | 'consumption' | 'count' | 'manual' | 'batch';
 export interface LedgerRow { id: string; ingredient_id: string; date: string; kind: LedgerKind; amount: number; ref_type: string | null; ref_id: string | null; note: string | null; created_at: string }
+
+/** An in-house batch: components booked out, the made ingredient in, priced from the components. */
+export interface BatchLine { ingredient_id: string; amount: number; goods_cents: number; delivery_cents: number }
+export interface Batch {
+  id: string; ingredient_id: string; recipe_id: string | null; date: string;
+  amount: number; goods_cents: number; delivery_cents: number; lines: BatchLine[]; note: string | null; created_at: string;
+}
