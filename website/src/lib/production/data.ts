@@ -583,9 +583,9 @@ export async function unbookDayConsumption(db: DB, date: string): Promise<void> 
  * the made amount in, priced from the current component prices (planBatch). Refused while a
  * component has no price — the point of the batch is the price.
  */
-export async function bookBatch(db: DB, input: { ingredient_id: string; amount: number; date: string; note: string | null }): Promise<{ id: string; goods_cents: number; delivery_cents: number }> {
+export async function bookBatch(db: DB, input: { ingredient_id: string; amount: number; date: string; note: string | null; used?: { ingredient_id: string; amount: number }[] }): Promise<{ id: string; goods_cents: number; delivery_cents: number }> {
   const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
-  const plan = planBatch(input.ingredient_id, input.amount, data, ingredientPrices(raw.deliveries, raw.batches));
+  const plan = planBatch(input.ingredient_id, input.amount, data, ingredientPrices(raw.deliveries, raw.batches), input.used);
   if (plan.error) throw new Error(plan.error);
   if (plan.missing.length) throw new Error(`No price yet for ${plan.missing.join(', ')}. Book the purchase first.`);
   const goods = Math.round(plan.goods_cents), delivery = Math.round(plan.delivery_cents);
@@ -597,7 +597,7 @@ export async function bookBatch(db: DB, input: { ingredient_id: string; amount: 
   const made = data.ingredients.find((i) => i.id === plan.ingredient_id)!;
   const rows = [
     { ingredient_id: plan.ingredient_id, date: input.date, kind: 'batch', amount: plan.amount, ref_type: 'batch', ref_id: row.id, note: `batch ${made.name}` },
-    ...plan.lines.map((l) => ({ ingredient_id: l.ingredient_id, date: input.date, kind: 'batch', amount: -l.amount, ref_type: 'batch', ref_id: row.id, note: `batch ${made.name}` })),
+    ...plan.lines.filter((l) => l.amount > 0).map((l) => ({ ingredient_id: l.ingredient_id, date: input.date, kind: 'batch', amount: -l.amount, ref_type: 'batch', ref_id: row.id, note: `batch ${made.name}` })),
   ];
   const { error: e2 } = await db.from('pr_stock_ledger').insert(rows);
   if (e2) { await db.from('pr_batches').delete().eq('id', row.id); throw new Error(e2.message); }

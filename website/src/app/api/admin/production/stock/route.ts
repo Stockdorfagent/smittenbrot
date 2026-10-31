@@ -18,10 +18,16 @@ export const dynamic = 'force-dynamic';
  *   set_count       { ingredient_id, counted, note? }   books the difference as 'count'
  *   manual          { ingredient_id, amount, note }      ± correction
  *   delete_movement { id }                        count/manual rows only
- *   plan_batch      { ingredient_id, amount }     → BatchPlan (preview, nothing saved)
- *   book_batch      { ingredient_id, amount, date, note? }  components out, made amount in, priced → { id }
+ *   plan_batch      { ingredient_id, amount, used? }  → BatchPlan (preview, nothing saved); used = [{ingredient_id, amount}] overrides the recipe amounts
+ *   book_batch      { ingredient_id, amount, date, note?, used? }  components out, made amount in, priced → { id }
  *   delete_batch    { id }                        undo
  */
+/** Component overrides of a batch: [{ ingredient_id, amount }] or undefined (recipe amounts). */
+function usedLines(v: unknown): { ingredient_id: string; amount: number }[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.filter((u) => u && typeof u.ingredient_id === 'string').map((u) => ({ ingredient_id: u.ingredient_id as string, amount: Number(u.amount) }));
+}
+
 export async function GET(req: NextRequest) {
   return withAdmin(req, async (db) => {
     const today = berlinTodayISO();
@@ -108,14 +114,14 @@ export async function POST(req: NextRequest) {
         const amount = Number(body.amount);
         if (!body.ingredient_id || !(amount > 0)) return bad('ingredient_id and amount > 0 are required.');
         const [data, raw] = await Promise.all([loadProductionData(db), loadStockRaw(db)]);
-        return NextResponse.json(planBatch(body.ingredient_id, amount, data, ingredientPrices(raw.deliveries, raw.batches)));
+        return NextResponse.json(planBatch(body.ingredient_id, amount, data, ingredientPrices(raw.deliveries, raw.batches), usedLines(body.used)));
       }
       case 'book_batch': {
         const amount = Number(body.amount);
         if (!body.ingredient_id || !(amount > 0)) return bad('ingredient_id and amount > 0 are required.');
         if (!isValidISODate(body.date ?? '')) return bad('date must be YYYY-MM-DD.');
         try {
-          const r = await bookBatch(db, { ingredient_id: body.ingredient_id, amount, date: body.date, note: (body.note ?? '').trim() || null });
+          const r = await bookBatch(db, { ingredient_id: body.ingredient_id, amount, date: body.date, note: (body.note ?? '').trim() || null, used: usedLines(body.used) });
           return NextResponse.json(r);
         } catch (e) { return bad(e instanceof Error ? e.message : String(e)); }   // missing price / no recipe: the owner's input, not a server fault
       }

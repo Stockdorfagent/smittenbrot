@@ -186,8 +186,10 @@ export interface BatchPlan {
  * quantity, in the ingredient's unit; the recipe's percentages sum up to it),
  * derived components charged as their source, priced from `prices`. Water is
  * free; any other component without a price makes the batch unpriceable.
+ * `used` overrides the component amounts (what was really weighed in — drying
+ * loss, a bigger pod, …); the recipe only prefills.
  */
-export function planBatch(ingredientId: string, amount: number, data: ProductionData, prices: Map<string, IngredientPrice>): BatchPlan {
+export function planBatch(ingredientId: string, amount: number, data: ProductionData, prices: Map<string, IngredientPrice>, used?: { ingredient_id: string; amount: number }[]): BatchPlan {
   const byId = new Map(data.ingredients.map((i) => [i.id, i]));
   const ing = byId.get(ingredientId);
   const empty = (error: string): BatchPlan => ({ ingredient_id: ingredientId, recipe_id: ing?.made_from_recipe_id ?? '', amount, lines: [], goods_cents: 0, delivery_cents: 0, missing: [], error });
@@ -200,6 +202,13 @@ export function planBatch(ingredientId: string, amount: number, data: Production
   const { amounts, blocked } = perUnitAmounts(pseudo, data);
   if (blocked) return empty(`${recipe.name}: ${blocked}`);
   if (amounts.has(ing.id)) return empty(`${recipe.name} contains ${ing.name} itself.`);
+  if (used) {
+    for (const u of used) {
+      if (!amounts.has(u.ingredient_id)) return empty('A component is not in the recipe.');
+      if (!(u.amount >= 0)) return empty('Component amounts must be ≥ 0.');
+      amounts.set(u.ingredient_id, u.amount);
+    }
+  }
   const lines: BatchPlan['lines'] = [];
   const missing: string[] = [];
   let goods = 0, delivery = 0;

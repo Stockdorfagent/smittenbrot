@@ -193,3 +193,17 @@ test('ledger: a batch adds the made amount and removes the components', () => {
   const l = stockLevels(ledger);
   assert.equal(l.get('sugar'), 9020); assert.equal(l.get('vsugar'), 1000); assert.equal(l.get('vanilla'), -20);
 });
+
+test('planBatch: used amounts override the recipe (drying loss: 100 g pods → 70 g powder); unknown component refused', () => {
+  const pods = ing('pods', 'Vanilla pods'), powder = ing('powder', 'Vanilla (dried, ground)', { made_from_recipe_id: 'rp' });
+  const powderRecipe: Recipe = { ...poolish, id: 'rp', name: 'Vanilla powder', items: [{ id: 'q1', position: 1, type: 'ingredient', ingredient_id: 'pods', sub_recipe_id: null, starter_id: null, final_flour_ingredient_id: null, pct: 100, label: null }] };
+  const d: ProductionData = { ...data2, ingredients: [...data2.ingredients, pods, powder], recipes: [...data2.recipes, powderRecipe] };
+  const prices = ingredientPrices([delivery('d9', '2026-10-20', 0, [{ ingredient_id: 'pods', qty: 1, pack: 100, price: 4000 }])]);   // 40 €/100 g
+  const byRecipe = planBatch('powder', 70, d, prices);
+  assert.equal(byRecipe.lines[0].amount, 70);                                  // recipe alone would book only 70 g pods
+  const real = planBatch('powder', 70, d, prices, [{ ingredient_id: 'pods', amount: 100 }]);
+  assert.equal(real.lines[0].amount, 100);
+  assert.equal(real.goods_cents, 4000);                                        // 70 g powder cost the whole 100 g of pods
+  assert.match(planBatch('powder', 70, d, prices, [{ ingredient_id: 'sugar', amount: 1 }]).error!, /not in the recipe/);
+  assert.match(planBatch('powder', 70, d, prices, [{ ingredient_id: 'pods', amount: -1 }]).error!, /≥ 0/);
+});

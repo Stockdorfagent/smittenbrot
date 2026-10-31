@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 import type { Batch, Delivery, Ingredient, LedgerRow, ProductionData, Supplier, SupplierItem } from '@/lib/production/types';
 
 interface StockResponse { today: string; rows: StockRow[]; suppliers: Supplier[]; deliveries: Delivery[]; supplier_items: SupplierItem[]; movements: LedgerRow[]; batches: Batch[] }
-interface BatchForm { ingredient_id: string; amount: string; date: string; note: string }
+interface BatchForm { ingredient_id: string; amount: string; date: string; note: string; used: Record<string, string> }   // used: component amounts typed over the recipe's
 
 interface LineForm { ingredient_id: string; item_text: string; qty: string; pack_amount: string; price: string; bbf: string }
 interface DeliveryForm { id?: string; supplier_id: string; date: string; invoice_no: string; fee: string; notes: string; lines: LineForm[]; file_path?: string | null; hints?: string[] }
@@ -44,12 +44,13 @@ export default function StockPage() {
   useEffect(() => { load(); }, []);
 
   // batch preview: the recipe expanded for the typed amount, priced on the server (nothing saved)
-  const planKey = batch ? `${batch.ingredient_id}|${batch.amount}` : '';
+  const usedPayload = (b: BatchForm) => Object.entries(b.used).filter(([, v]) => v !== '').map(([ingredient_id, v]) => ({ ingredient_id, amount: Number(v) }));
+  const planKey = batch ? `${batch.ingredient_id}|${batch.amount}|${JSON.stringify(batch.used)}` : '';
   useEffect(() => {
     if (!batch?.ingredient_id || !(Number(batch.amount) > 0)) { setPlan(null); return; }
     let live = true;
     const t = setTimeout(() => {
-      adminFetch<BatchPlan>('/api/admin/production/stock', { body: { action: 'plan_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount) } })
+      adminFetch<BatchPlan>('/api/admin/production/stock', { body: { action: 'plan_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount), used: usedPayload(batch) } })
         .then((p) => { if (live) setPlan(p); }).catch(() => { if (live) setPlan(null); });
     }, 250);
     return () => { live = false; clearTimeout(t); };
@@ -154,10 +155,10 @@ export default function StockPage() {
   };
 
   const homemade = data.ingredients.filter((i) => i.made_from_recipe_id);
-  const openBatch = () => { setForm(null); setBatch({ ingredient_id: homemade[0]?.id ?? '', amount: '', date: res.today, note: '' }); };
+  const openBatch = () => { setForm(null); setBatch({ ingredient_id: homemade[0]?.id ?? '', amount: '', date: res.today, note: '', used: {} }); };
   async function bookBatch() {
     if (!batch || !plan || plan.error || plan.missing.length) return;
-    if (await act({ action: 'book_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount), date: batch.date, note: batch.note }, 'Batch booked.')) { setBatch(null); setPlan(null); }
+    if (await act({ action: 'book_batch', ingredient_id: batch.ingredient_id, amount: Number(batch.amount), date: batch.date, note: batch.note, used: usedPayload(batch) }, 'Batch booked.')) { setBatch(null); setPlan(null); }
   }
   const low = res.rows.filter((r) => r.low).length;
   const expiring = res.rows.filter((r) => r.bbf_days !== null && r.bbf_days <= 30).length;
@@ -224,10 +225,10 @@ export default function StockPage() {
       {batch && (
         <Card title="Make batch" className="mb-6">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-            <L label="Ingredient"><select className={`${smallInputCls} w-full`} value={batch.ingredient_id} onChange={(e) => setBatch({ ...batch, ingredient_id: e.target.value })}>
+            <L label="Ingredient"><select className={`${smallInputCls} w-full`} value={batch.ingredient_id} onChange={(e) => setBatch({ ...batch, ingredient_id: e.target.value, used: {} })}>
               {homemade.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select></L>
-            <L label={`Amount made (${ingById.get(batch.ingredient_id)?.unit ?? 'g'})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={batch.amount} onChange={(e) => setBatch({ ...batch, amount: e.target.value })} autoFocus /></L>
+            <L label={`Amount made (${ingById.get(batch.ingredient_id)?.unit ?? 'g'})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={batch.amount} onChange={(e) => setBatch({ ...batch, amount: e.target.value, used: {} })} autoFocus /></L>
             <L label="Date"><input className={`${smallInputCls} w-full`} type="date" value={batch.date} onChange={(e) => setBatch({ ...batch, date: e.target.value })} /></L>
             <L label="Note" className="md:col-span-2"><input className={`${smallInputCls} w-full`} value={batch.note} onChange={(e) => setBatch({ ...batch, note: e.target.value })} /></L>
           </div>
@@ -235,12 +236,15 @@ export default function StockPage() {
           {plan && !plan.error && (
             <>
               <table className="w-full">
-                <thead><tr><th className={th}>Component</th><th className={`${th} text-right`}>Amount</th><th className={`${th} text-right`}>Goods</th><th className={`${th} text-right`}>Delivery</th></tr></thead>
+                <thead><tr><th className={th}>Component</th><th className={`${th} text-right`}>Used</th><th className={`${th} text-right`}>Goods</th><th className={`${th} text-right`}>Delivery</th></tr></thead>
                 <tbody>
                   {plan.lines.map((l) => (
                     <tr key={l.ingredient_id} className="border-t border-smitten-cream">
                       <td className={td}>{l.name}</td>
-                      <td className={tdNum}>{fmtG(l.amount)} {l.unit}</td>
+                      <td className={`${tdNum} whitespace-nowrap`}>
+                        <input className={`${smallInputCls} w-24 text-right`} type="number" step="any" min="0" value={batch.used[l.ingredient_id] ?? String(Math.round(l.amount * 10) / 10)} onChange={(e) => setBatch({ ...batch, used: { ...batch.used, [l.ingredient_id]: e.target.value } })} title="Prefilled from the recipe; type what you really used" />
+                        <span className="ml-1 text-xs text-smitten-text/50">{l.unit}</span>
+                      </td>
                       <td className={`${tdNum} ${plan.missing.includes(l.name) ? 'text-red-700 dark:text-red-400' : ''}`}>{plan.missing.includes(l.name) ? 'no price' : eur(l.goods_cents)}</td>
                       <td className={`${tdNum} text-smitten-text/60`}>{l.delivery_cents > 0 ? eur(l.delivery_cents) : ''}</td>
                     </tr>
@@ -254,6 +258,7 @@ export default function StockPage() {
                 </tbody>
               </table>
               {plan.missing.length > 0 && <div className="mt-2"><Notice tone="warning">No price yet for {plan.missing.join(', ')}. Book the purchase first.</Notice></div>}
+              <p className="mt-2 text-xs text-smitten-text/50">Component amounts come from the recipe for the amount made; overwrite them with what you really weighed in (drying loss, a bigger pod).</p>
             </>
           )}
           <div className="mt-3 flex gap-2">
