@@ -49,6 +49,9 @@ interface Props {
 export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // Hooks before the early return: a hook after `return null` is skipped while the modal has
+  // no product and runs once it has one → "Rendered more hooks than during the previous render".
+  const [photoIndex, setPhotoIndex] = useState(0);
   if (!product) return null;
 
   const images = product.images && product.images.length > 0
@@ -57,7 +60,6 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
       ? [product.cover_image_url]
       : [];
 
-  const [photoIndex, setPhotoIndex] = useState(0);
   const onPhotoScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width));
     if (i !== photoIndex) setPhotoIndex(Math.min(Math.max(i, 0), images.length - 1));
