@@ -66,6 +66,8 @@ test('stock levels sum the ledger; best-before is the earliest among the newest 
   const ses = rows.find((r) => r.ingredient_id === 'sesame')!;
   assert.equal(ses.low, true);                        // 300 < 500
   assert.equal(ses.bbf, '2027-01-15'); assert.equal(ses.bbf_days, 30);
+  assert.equal(ses.counted, '2026-10-28');            // latest count row
+  assert.equal(rows.find((r) => r.ingredient_id === 'flour')!.counted, null);
   assert.deepEqual(rows.map((r) => r.ingredient_id), ['flour', 'salt', 'sesame']);   // water/egg not tracked, yolk derived
 });
 

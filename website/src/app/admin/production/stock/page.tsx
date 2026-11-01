@@ -305,6 +305,7 @@ export default function StockPage() {
                   <td className={`${tdNum} whitespace-nowrap`}>
                     <input className={`${smallInputCls} w-24 text-right`} type="number" step="any" min="0" placeholder={r.unit} value={counts[r.ingredient_id] ?? ''} onChange={(e) => setCounts({ ...counts, [r.ingredient_id]: e.target.value })} />
                     <button className="ml-2 text-xs underline" disabled={busy || !counts[r.ingredient_id]} onClick={async () => { if (await act({ action: 'set_count', ingredient_id: r.ingredient_id, counted: Number(counts[r.ingredient_id]) }, 'Count booked.')) setCounts({ ...counts, [r.ingredient_id]: '' }); }}>set</button>
+                    <span className={`ml-2 inline-block w-14 text-left text-[11px] ${r.counted === res.today ? 'text-smitten-text' : 'text-smitten-text/40'}`} title={r.counted ? `last count ${de(r.counted)}` : undefined}>{r.counted ? `✓ ${r.counted.slice(8, 10)}.${r.counted.slice(5, 7)}.` : ''}</span>
                   </td>
                 </tr>
               );

@@ -91,8 +91,7 @@ export async function POST(req: NextRequest) {
         if (!body.ingredient_id || !(counted >= 0)) return bad('ingredient_id and counted ≥ 0 are required.');
         const raw = await loadStockRaw(db);
         const level = raw.ledger.filter((r) => r.ingredient_id === body.ingredient_id).reduce((s, r) => s + r.amount, 0);
-        const diff = counted - level;
-        if (diff === 0) return NextResponse.json({ ok: true, diff: 0 });
+        const diff = counted - level;   // a 0 row is booked too: the count date is the owner's "already counted" marker
         const { error } = await db.from('pr_stock_ledger').insert({ ingredient_id: body.ingredient_id, date: berlinTodayISO(), kind: 'count', amount: diff, note: (body.note ?? '').trim() || `counted ${counted}` });
         if (error) throw new Error(error.message);
         return NextResponse.json({ ok: true, diff });

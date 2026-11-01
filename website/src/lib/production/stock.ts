@@ -81,17 +81,20 @@ export interface StockRow {
   level: number; reorder_level: number | null; low: boolean;
   bbf: string | null; bbf_days: number | null;
   price: IngredientPrice | null;
+  counted: string | null;       // date of the latest stock count (owner's "did I count this already?" marker)
 }
 
 export function stockRows(data: ProductionData, ledger: LedgerRow[], deliveries: Delivery[], today: string, batches: Batch[] = []): StockRow[] {
   const levels = stockLevels(ledger);
   const prices = ingredientPrices(deliveries, batches);
+  const counted = new Map<string, string>();
+  for (const r of ledger) if (r.kind === 'count' && (counted.get(r.ingredient_id) ?? '') < r.date) counted.set(r.ingredient_id, r.date);
   const t = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10));
   return data.ingredients.filter((i) => i.track_stock && !i.derived_from).map((i) => {
     const level = levels.get(i.id) ?? 0;
     const bbf = i.track_bbf ? earliestBbf(i.id, level, deliveries) : null;
     const bbfDays = bbf ? Math.round((Date.UTC(+bbf.slice(0, 4), +bbf.slice(5, 7) - 1, +bbf.slice(8, 10)) - t) / 86400000) : null;
-    return { ingredient_id: i.id, name: i.name, unit: i.unit, level, reorder_level: i.reorder_level, low: i.reorder_level !== null && level < i.reorder_level, bbf, bbf_days: bbfDays, price: prices.get(i.id) ?? null };
+    return { ingredient_id: i.id, name: i.name, unit: i.unit, level, reorder_level: i.reorder_level, low: i.reorder_level !== null && level < i.reorder_level, bbf, bbf_days: bbfDays, price: prices.get(i.id) ?? null, counted: counted.get(i.id) ?? null };
   });
 }
 
