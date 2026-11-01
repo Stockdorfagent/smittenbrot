@@ -214,14 +214,34 @@ export async function loadFreezer(db: DB, date: string, data: ProductionData, ex
   });
 }
 
-/** Book today's freezer usage once (idempotent) — called when a bake day is frozen. */
-export async function bookFreezerUsage(db: DB, date: string, data: ProductionData): Promise<void> {
+/**
+ * One 'batch' or 'usage' row per product and day (migration 039: partial unique index
+ * pr_freezer_movements_day_uniq). PostgREST's upsert sends ON CONFLICT without the index
+ * predicate, which Postgres cannot match against a partial index ("there is no unique or
+ * exclusion constraint matching the ON CONFLICT specification") → select, then update or insert.
+ */
+export async function setFreezerMovement(db: DB, row: { pr_product_id: string; date: string; kind: 'batch' | 'usage'; qty: number; note: string | null }): Promise<void> {
+  const { data: existing, error } = await db.from('pr_freezer_movements').select('id').eq('pr_product_id', row.pr_product_id).eq('date', row.date).eq('kind', row.kind).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (existing) {
+    const { error: e2 } = await db.from('pr_freezer_movements').update({ qty: row.qty, note: row.note }).eq('id', existing.id);
+    if (e2) throw new Error(e2.message);
+    return;
+  }
+  const { error: e3 } = await db.from('pr_freezer_movements').insert(row);
+  if (e3 && !e3.message.includes('duplicate')) throw new Error(e3.message);
+}
+
+/** Book a day's freezer usage (idempotent) — called when a bake day is frozen, and by the repair action 'book_usage'. */
+export async function bookFreezerUsage(db: DB, date: string, data: ProductionData): Promise<number> {
   const usage = await freezerUsageOn(db, date, data);
+  let booked = 0;
   for (const [pid, u] of usage) {
     if (u.pieces <= 0) continue;
-    const { error } = await db.from('pr_freezer_movements').upsert({ pr_product_id: pid, date, kind: 'usage', qty: -u.pieces, note: u.who.join(', ') }, { onConflict: 'pr_product_id,date,kind' });
-    if (error && !error.message.includes('duplicate')) throw new Error(error.message);
+    await setFreezerMovement(db, { pr_product_id: pid, date, kind: 'usage', qty: -u.pieces, note: u.who.join(', ') });
+    booked++;
   }
+  return booked;
 }
 
 export interface BakeDayRow {

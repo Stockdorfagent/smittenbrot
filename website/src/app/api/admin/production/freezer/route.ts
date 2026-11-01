@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
-import { loadFreezer, loadFreezerRaw, loadProductionData } from '@/lib/production/data';
+import { bookFreezerUsage, loadBakeDayRow, loadFreezer, loadFreezerRaw, loadProductionData, setFreezerMovement } from '@/lib/production/data';
 import { counterOf } from '@/lib/production/freezer';
 import { isValidISODate, berlinTodayISO } from '@/lib/production/bakeDays';
 
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
  *   save_settings   { pr_product_id, batch_size, min_level, max_age_days }
  *   book_batch      { pr_product_id, date, qty, note? }      confirm "made n pieces today" (one per product+day, replaces)
  *   unbook_batch    { pr_product_id, date }
+ *   book_usage      { date }                                 book the usage of a frozen day again (repair; idempotent)
  *   set_count       { pr_product_id, counted, note? }        stock count → books the difference as 'count'
  *   manual          { pr_product_id, qty, note }             ± correction (e.g. discard)
  *   delete_movement { id }                                   count/manual rows only
@@ -46,9 +47,15 @@ export async function POST(req: NextRequest) {
       case 'book_batch': {
         const qty = Number(body.qty);
         if (!body.pr_product_id || !isValidISODate(body.date ?? '') || !(qty > 0)) return bad('pr_product_id, date and qty > 0 are required.');
-        const { error } = await db.from('pr_freezer_movements').upsert({ pr_product_id: body.pr_product_id, date: body.date, kind: 'batch', qty, note: (body.note ?? '').trim() || 'confirmed on the bake sheet' }, { onConflict: 'pr_product_id,date,kind' });
-        if (error) throw new Error(error.message);
+        await setFreezerMovement(db, { pr_product_id: body.pr_product_id, date: body.date, kind: 'batch', qty, note: (body.note ?? '').trim() || 'confirmed on the bake sheet' });
         return NextResponse.json({ ok: true });
+      }
+      case 'book_usage': {
+        if (!isValidISODate(body.date ?? '')) return bad('date is required.');
+        const row = await loadBakeDayRow(db, body.date);
+        if (!row.snapshot) return bad('Only a frozen bake day can be booked.');
+        const booked = await bookFreezerUsage(db, body.date, await loadProductionData(db));
+        return NextResponse.json({ ok: true, booked });
       }
       case 'unbook_batch': {
         if (!body.pr_product_id || !isValidISODate(body.date ?? '')) return bad('pr_product_id and date are required.');

@@ -274,7 +274,7 @@ export default function BakeDayPage() {
 
       {/* Freezer */}
       {res.freezer.length > 0 && (
-        <FreezerCard date={date} freezer={res.freezer} busy={busy} setBusy={setBusy} onChanged={() => load()} plannedExtra={(pid) => extras.filter((e) => e.pr_product_id === pid).reduce((n, e) => n + e.qty, 0)} />
+        <FreezerCard date={date} frozen={res.frozen} freezer={res.freezer} busy={busy} setBusy={setBusy} onChanged={() => load()} plannedExtra={(pid) => extras.filter((e) => e.pr_product_id === pid).reduce((n, e) => n + e.qty, 0)} />
       )}
 
       {/* Starter feeding schedule */}
@@ -490,8 +490,8 @@ function SubCard({ b, depth }: { b: SubBlock; depth: number }) {
   );
 }
 
-function FreezerCard({ date, freezer, busy, setBusy, onChanged, plannedExtra }: {
-  date: string; freezer: FreezerStatus[]; busy: boolean; setBusy: (b: boolean) => void; onChanged: () => void; plannedExtra: (pid: string) => number;
+function FreezerCard({ date, frozen, freezer, busy, setBusy, onChanged, plannedExtra }: {
+  date: string; frozen: boolean; freezer: FreezerStatus[]; busy: boolean; setBusy: (b: boolean) => void; onChanged: () => void; plannedExtra: (pid: string) => number;
 }) {
   async function act(body: Record<string, unknown>, okText: string) {
     setBusy(true);
@@ -523,6 +523,7 @@ function FreezerCard({ date, freezer, busy, setBusy, onChanged, plannedExtra }: 
                 </td>
                 <td className={`${tdNum} font-medium ${low ? 'text-red-700 dark:text-red-400' : ''}`}>{f.projected}{low && <span className="block text-[11px] font-normal">min {f.settings.min_level}</span>}</td>
                 <td className={`${td} text-right whitespace-nowrap print:hidden`}>
+                  {frozen && f.usage_today > 0 && !f.usage_booked_today && <button className="text-xs underline mr-2" disabled={busy} onClick={() => act({ action: 'book_usage', date }, `Usage of ${formatDateEN(date)} booked.`)}>book usage</button>}
                   {planned > 0 && unconfirmed && <button className="text-xs underline mr-2" disabled={busy} onClick={() => act({ action: 'book_batch', pr_product_id: f.pr_product_id, date, qty: planned }, `${f.name}: +${planned} booked.`)}>confirm made {planned}</button>}
                   {f.batch_today > 0 && <button className="text-xs underline text-smitten-text/60" disabled={busy} onClick={() => act({ action: 'unbook_batch', pr_product_id: f.pr_product_id, date }, 'Batch booking removed.')}>undo</button>}
                 </td>
