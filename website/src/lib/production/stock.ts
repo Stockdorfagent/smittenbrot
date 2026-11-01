@@ -90,7 +90,7 @@ export function stockRows(data: ProductionData, ledger: LedgerRow[], deliveries:
   const counted = new Map<string, string>();
   for (const r of ledger) if (r.kind === 'count' && (counted.get(r.ingredient_id) ?? '') < r.date) counted.set(r.ingredient_id, r.date);
   const t = Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10));
-  return data.ingredients.filter((i) => i.track_stock && !i.derived_from).map((i) => {
+  return data.ingredients.filter((i) => i.track_stock).map((i) => {   // a derived ingredient with its own stock (frozen egg white) is listed too
     const level = levels.get(i.id) ?? 0;
     const bbf = i.track_bbf ? earliestBbf(i.id, level, deliveries) : null;
     const bbfDays = bbf ? Math.round((Date.UTC(+bbf.slice(0, 4), +bbf.slice(5, 7) - 1, +bbf.slice(8, 10)) - t) / 86400000) : null;
@@ -230,18 +230,28 @@ export function planBatch(ingredientId: string, amount: number, data: Production
 
 // ---------- consumption of a bake day ----------
 
-/** Amounts a (frozen) bake sheet used, by ingredient id: derived lines as whole source units, starters' final build flour + water, extras, per-batch items. */
+/**
+ * Amounts a (frozen) bake sheet used, by ingredient id (negative = came in as a by-product):
+ * starters' final build flour + water, extras, per-batch items; derived lines (egg yolk / egg
+ * white) as whole source units — unless the derived ingredient has its own stock
+ * (track_stock, owner 01.11.2026: frozen egg white), then its grams are taken from that stock,
+ * and whenever a sibling is cracked fresh (yolk → eggs) the stocked sibling comes in as a
+ * by-product (7 eggs → +231 g egg white; the yolks of eggs cracked for white are discarded).
+ */
 export function dayConsumption(sheet: BakeSheet, data: ProductionData): Map<string, number> {
   const byName = new Map(data.ingredients.map((i) => [i.name.toLowerCase(), i.id]));
   const byId = new Map(data.ingredients.map((i) => [i.id, i]));
   const water = data.ingredients.find((i) => i.name.toLowerCase() === 'water' || i.name_de?.toLowerCase() === 'wasser')?.id ?? null;
   const out = new Map<string, number>();
-  const add = (id: string | null, amount: number) => { if (id && amount > 0) out.set(id, (out.get(id) ?? 0) + amount); };
+  const add = (id: string | null, amount: number) => { if (id && amount !== 0) out.set(id, (out.get(id) ?? 0) + amount); };
   const addLines = (lines: GramLine[], mult: number) => {
     for (const l of lines) {
-      if (l.source_units_rounded && l.source_name) {
-        const ing = l.ingredient_id ? byId.get(l.ingredient_id) : undefined;
-        add(ing?.derived_from ?? byName.get(l.source_name.toLowerCase()) ?? null, l.source_units_rounded * mult);
+      const ing = l.ingredient_id ? byId.get(l.ingredient_id) : undefined;
+      if (l.source_units_rounded && l.source_name && !ing?.track_stock) {
+        const sourceId = ing?.derived_from ?? byName.get(l.source_name.toLowerCase()) ?? null;
+        const units = l.source_units_rounded * mult;
+        add(sourceId, units);
+        if (sourceId) for (const sib of data.ingredients) if (sib.derived_from === sourceId && sib.id !== ing?.id && sib.track_stock && sib.g_per_source_unit) add(sib.id, -units * Number(sib.g_per_source_unit));
         continue;
       }
       add(l.ingredient_id, l.grams * mult);

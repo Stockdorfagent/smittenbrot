@@ -116,6 +116,26 @@ test('day consumption from the frozen sheet: lines × batches, derived lines as 
   assert.equal(c.has('yolk'), false);
 });
 
+test('day consumption: a derived ingredient with its own stock (frozen egg white) is used from it and comes in as a by-product', () => {
+  const white = ing('white', 'Egg white', { derived_from: 'egg', g_per_source_unit: 33, track_stock: true });
+  const d = { ...data, ingredients: [...data.ingredients, white] };
+  const block = (lines: BakeSheet['recipes'][0]['lines'], batches: number): BakeSheet['recipes'][0] => ({
+    recipe_id: 'r', name: 'R', version: 1, products: [], total_dough_g: 0, sum_pct: 0, dough_margin_factor: 0, margin_g_per_batch: 0, batches, max_batch_g: null, per_batch_dough_g: 0, factor: 1, batch_total_g: 0,
+    lines, subs: [], starters: [], per_batch_items: [], extras: [], eggs_per_batch: 0, adjustments_applied: 0 });
+  const sheet: BakeSheet = { date: '2026-11-04', warnings: [], products: [], stock_products: [], starters: [], totals: { eggs: 0 }, versions: {}, recipes: [
+    block([{ item_id: 'y', label: 'Egg yolk', ingredient_id: 'yolk', ingredient_name: 'Egg yolk', unit: 'g', pct: null, grams: 119, source_units: 7, source_units_rounded: 7, source_name: 'Egg' }], 1),   // Brioche: 7 eggs cracked
+    block([{ item_id: 'w', label: 'Egg white', ingredient_id: 'white', ingredient_name: 'Egg white', unit: 'g', pct: null, grams: 40, source_units: 1.2, source_units_rounded: 2, source_name: 'Egg' }], 2),  // Amaretti: 2 × 40 g white
+  ] };
+  const c = dayConsumption(sheet, d);
+  assert.equal(c.get('egg'), 7);                      // only the yolk cracks eggs
+  assert.equal(c.get('white'), 80 - 7 * 33);          // used 80 g, by-product +231 g → net −151 (= +151 g into the freezer)
+  assert.equal(c.has('yolk'), false);
+  // the same sheet with the white NOT stocked: both lines are whole eggs, as before
+  const c2 = dayConsumption(sheet, { ...d, ingredients: [...data.ingredients, { ...white, track_stock: false }] });
+  assert.equal(c2.get('egg'), 7 + 4);
+  assert.equal(c2.has('white'), false);
+});
+
 test('parseEuro', () => {
   assert.equal(parseEuro('12,50'), 1250);
   assert.equal(parseEuro('12.5'), 1250);

@@ -101,6 +101,7 @@ export default function IngredientsPage() {
             <div className="flex items-end gap-4 md:col-span-2">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.track_stock} onChange={(e) => setEditing({ ...editing, track_stock: e.target.checked })} /> Count in stock</label>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.track_bbf} onChange={(e) => setEditing({ ...editing, track_bbf: e.target.checked })} /> Best-before date</label>
+              {editing.derived_from && <span className="text-[11px] text-smitten-text/60">Derived + counted = own stock (frozen egg white): recipes take it from that stock, and it comes in as a by-product whenever the source is cracked for the other part.</span>}
             </div>
             <L label={`Reorder level (${editing.unit})`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.reorder_level} onChange={(e) => setEditing({ ...editing, reorder_level: e.target.value })} /></L>
             <L label="Made in-house from recipe (batches on Stock)">

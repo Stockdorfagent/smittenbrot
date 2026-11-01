@@ -579,7 +579,7 @@ export async function bookDayConsumption(db: DB, date: string): Promise<number> 
   const used = dayConsumption(sheet, data);
   const { error: e0 } = await db.from('pr_stock_ledger').delete().eq('kind', 'consumption').eq('date', date);
   if (e0) throw new Error(e0.message);
-  const rows = [...used.entries()].filter(([, amt]) => amt > 0).map(([ingredient_id, amt]) => ({ ingredient_id, date, kind: 'consumption', amount: -amt, ref_type: 'bake_day', ref_id: date, note: null }));
+  const rows = [...used.entries()].filter(([, amt]) => amt !== 0).map(([ingredient_id, amt]) => ({ ingredient_id, date, kind: 'consumption', amount: -amt, ref_type: 'bake_day', ref_id: date, note: amt < 0 ? 'by-product' : null }));
   if (rows.length) {
     const { error } = await db.from('pr_stock_ledger').insert(rows);
     if (error) throw new Error(error.message);
