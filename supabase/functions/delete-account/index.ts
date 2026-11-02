@@ -184,7 +184,35 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   // ── 2. Delete the Stripe customer (removes saved cards). Best-effort. ──
+  // The profile rarely carries the id (only create-setup-intent / the portal /
+  // the website checkout since 02.11.2026 store it), so most customers were
+  // reported as "payment method removed" while their Stripe customer survived
+  // (code review 02.11.2026, finding 13). Fall back to Stripe's own e-mail index.
   let stripeWarning: string | null = null;
+  const stripeIds = new Set<string>();
+  if (stripeCustomerId) stripeIds.add(stripeCustomerId);
+  if (STRIPE_SECRET_KEY) {
+    try {
+      const found = await stripe.customers.list({ email, limit: 10 });
+      for (const c of found.data) {
+        const linked = (c.metadata?.supabase_id ?? "") === userId;
+        if (linked || (c.email ?? "").toLowerCase() === email.toLowerCase()) stripeIds.add(c.id);
+      }
+    } catch (err) {
+      console.error("[delete-account] Stripe customer lookup by e-mail failed:", err instanceof Error ? err.message : err);
+    }
+  }
+  for (const id of stripeIds) {
+    if (id === stripeCustomerId) continue; // handled below with the existing warning path
+    try {
+      await stripe.customers.del(id);
+      console.log(`[delete-account] deleted Stripe customer ${id} (found by e-mail)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      stripeWarning = stripeWarning ? `${stripeWarning}; ${id}: ${msg}` : `${id}: ${msg}`;
+      console.error(`[delete-account] Stripe customer ${id} delete failed:`, msg);
+    }
+  }
   if (stripeCustomerId) {
     try {
       await stripe.customers.del(stripeCustomerId);

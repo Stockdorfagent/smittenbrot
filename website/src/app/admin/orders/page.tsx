@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { Order, OrderItem, PickupLocation, formatPrice } from '@/lib/types';
 import Link from 'next/link';
@@ -132,24 +133,33 @@ export default function AdminOrdersPage() {
 
   async function loadData() {
     setLoading(true);
-    const [ordersRes, locsRes] = await Promise.all([
-      // Default: today and later, PLUS any past order that is still open
-      // (not ticked off, not cancelled/refunded). Owner 09.10.2026: a forgotten
-      // bake day vanished from this list while the dashboard kept showing it.
-      // The unbounded version pulled every order ever made (plus all their
-      // items and notifications) on every visit, so "Vergangene anzeigen"
-      // still fetches the full history on demand.
-      (showPast
-        ? supabase.from('orders').select('*')
+    // Default: today and later, PLUS any past order that is still open
+    // (not ticked off, not cancelled/refunded). Owner 09.10.2026: a forgotten
+    // bake day vanished from this list while the dashboard kept showing it.
+    // The unbounded version pulled every order ever made (plus all their
+    // items and notifications) on every visit, so "Vergangene anzeigen"
+    // still fetches the full history on demand — paged, because PostgREST
+    // silently stops at 1000 rows (finding 16).
+    const [ordersData, locsRes] = await Promise.all([
+      showPast
+        ? fetchAll<Order>(() =>
+            supabase
+              .from('orders')
+              .select('*')
+              .order('fulfillment_date', { ascending: false })
+              .order('created_at', { ascending: false })
+              .order('id', { ascending: true }),
+          )
         : supabase
-          .from('orders')
-          .select('*')
-          .or(`fulfillment_date.gte.${berlinTodayISO()},status.not.in.(fulfilled,cancelled,refunded)`)
-      )
-        .order('fulfillment_date', { ascending: false })
-        .order('created_at', { ascending: false }),
+            .from('orders')
+            .select('*')
+            .or(`fulfillment_date.gte.${berlinTodayISO()},status.not.in.(fulfilled,cancelled,refunded)`)
+            .order('fulfillment_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .then((r) => (r.data ?? []) as Order[]),
       supabase.from('pickup_locations').select('*'),
     ]);
+    const ordersRes = { data: ordersData };
 
     if (locsRes.data) setLocations(locsRes.data);
 
@@ -744,7 +754,8 @@ export default function AdminOrdersPage() {
                           imported Squarespace history, or bread paid in cash. That
                           combination used to be unreachable, because every action
                           disappeared once the order was marked fulfilled. */}
-                      {order.payment_status !== 'paid' && order.payment_status !== 'refunded' && (
+                      {order.payment_status !== 'paid' && order.payment_status !== 'refunded'
+                        && order.status !== 'cancelled' && order.status !== 'refunded' && (
                         <button
                           onClick={async () => {
                             if (confirm(

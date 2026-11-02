@@ -270,9 +270,19 @@ export default function OrderDetailPage() {
 
   if (!order || !sellerInfo) return null;
 
-  // Calculate using same formula as cart (gross includes 7% VAT)
+  // Calculate using same formula as cart (gross includes 7% VAT). total_cents is
+  // the amount actually charged (after any discount); the item lines are gross
+  // list prices, so with a discount the page shows Zwischensumme − Rabatt =
+  // Gesamtsumme, and Netto/MwSt are taken from the discounted total — same
+  // figures as the e-mail receipt (code review 02.11.2026, finding 15).
   const netTotal = Math.round(order.total_cents / 1.07);
   const vatTotal = order.total_cents - netTotal;
+  const discountCents = Number((order as any).discount_cents) || 0;
+  const discountCode = ((order as any).discount_code as string | null) ?? null;
+  const linesGross = items.reduce(
+    (sum, it) => sum + (it.unit_price_gross_cents || it.unit_price_cents) * it.quantity,
+    0,
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
@@ -382,6 +392,18 @@ export default function OrderDetailPage() {
         {/* SUMMARY */}
         <div className="border-t border-gray-300 pt-4 mb-8 print:mb-6">
           <div className="max-w-xs ml-auto space-y-1 text-sm">
+            {discountCents > 0 && (
+              <>
+                <div className="flex justify-between text-smitten-text/70">
+                  <span>Zwischensumme</span>
+                  <span>{formatPrice(linesGross)}</span>
+                </div>
+                <div className="flex justify-between text-smitten-text/70">
+                  <span>Rabatt{discountCode ? ` (${discountCode})` : ''}</span>
+                  <span>&minus;{formatPrice(discountCents)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between text-smitten-text/70">
               <span>Nettobetrag</span>
               <span>{formatPrice(netTotal)}</span>
@@ -390,12 +412,6 @@ export default function OrderDetailPage() {
               <span>MwSt. (7 %)</span>
               <span>{formatPrice(vatTotal)}</span>
             </div>
-            {(order as any).discount_code && (
-            <div className="flex justify-between text-green-600 text-sm">
-              <span>Rabatt ({(order as any).discount_code})</span>
-              <span>-{formatPrice((order as any).discount_cents || 0)}</span>
-            </div>
-            )}
             <div className="flex justify-between font-bold text-base text-smitten-text pt-2 border-t border-gray-200">
               <span>Gesamtsumme</span>
               <span className="text-smitten-accent">{formatPrice(order.total_cents)}</span>

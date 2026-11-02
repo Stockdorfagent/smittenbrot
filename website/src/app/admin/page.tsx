@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { formatPrice } from '@/lib/types';
 import { berlinTodayISO } from '@/lib/pickup';
@@ -30,11 +31,14 @@ export default function AdminDashboard() {
   async function loadDashboard() {
     try {
       // Find the earliest unfulfilled pickup day
-      const { data: unfulfilledDates } = await supabase
-        .from('orders')
-        .select('fulfillment_date, status')
-        .neq('status', 'cancelled')
-        .order('fulfillment_date', { ascending: true });
+      const unfulfilledDates = await fetchAll<{ fulfillment_date: string; status: string }>(() =>
+        supabase
+          .from('orders')
+          .select('fulfillment_date, status')
+          .neq('status', 'cancelled')
+          .order('fulfillment_date', { ascending: true })
+          .order('id', { ascending: true }),
+      );
 
       let targetDate = '';
       if (unfulfilledDates && unfulfilledDates.length > 0) {
@@ -135,11 +139,10 @@ export default function AdminDashboard() {
         setRevenueDay((dayOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
       }
 
-      const { data: allOrders } = await supabase
-        .from('orders')
-        .select('total_cents')
-        .eq('payment_status', 'paid');
-      setTotalRevenue((allOrders || []).reduce((sum, o) => sum + o.total_cents, 0));
+      const allOrders = await fetchAll<{ total_cents: number }>(() =>
+        supabase.from('orders').select('total_cents').eq('payment_status', 'paid').order('id', { ascending: true }),
+      );
+      setTotalRevenue(allOrders.reduce((sum, o) => sum + o.total_cents, 0));
     } catch (err) {
       console.error('Dashboard error:', err);
     } finally {

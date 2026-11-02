@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
     // Get the order
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('*, customers!inner(email)')
+      // Left join: guest orders have no customers row and used to 404 for the admin (finding 11).
+      .select('*, customers(email)')
       .eq('id', orderId)
       .single();
 
@@ -75,8 +76,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if order can be cancelled (not already cancelled/refunded)
-    if (order.status === 'cancelled' || order.status === 'refunded') {
+    if (order.status === 'cancelled' || order.status === 'refunded' || order.payment_status === 'refunded') {
       return NextResponse.json({ error: 'Bestellung wurde bereits storniert.' }, { status: 400 });
+    }
+    // Only a PAID order has money to give back; a pending one-time order is an
+    // abandoned checkout and must not be "refunded" (finding 11).
+    if (order.payment_status !== 'paid') {
+      return NextResponse.json({ error: 'Diese Bestellung ist nicht bezahlt – es gibt nichts zu erstatten.' }, { status: 400 });
     }
 
     // Cancellation cutoff — locks two calendar days before the pickup at 22:00
@@ -87,11 +93,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Refund via Stripe
+    let refundId: string | null = null;
     if (order.stripe_payment_intent_id) {
       try {
-        await getStripeClient().refunds.create({
+        const refund = await getStripeClient().refunds.create({
           payment_intent: order.stripe_payment_intent_id,
         });
+        refundId = refund.id;
       } catch (stripeError: unknown) {
         const msg = stripeError instanceof Error ? stripeError.message : 'Refund failed';
         console.error('[refund-order] Stripe error:', msg);
@@ -110,8 +118,22 @@ export async function POST(req: NextRequest) {
       .eq('id', orderId);
 
     if (updateError) {
+      // The money is already on its way back; the order must not stay on the bake
+      // list as if nothing happened. Leave a durable trace and say so (finding 11).
       console.error('[refund-order] Failed to update order:', updateError);
-      return NextResponse.json({ error: 'Status-Update fehlgeschlagen' }, { status: 500 });
+      await supabase.from('audit_log').insert({
+        action: 'refund_db_update_failed',
+        entity_type: 'order',
+        entity_id: orderId,
+        old_data: { status: order.status, payment_status: order.payment_status },
+        new_data: { stripe_refund_id: refundId, error: updateError.message },
+        performed_by: auth.user.id,
+      });
+      return NextResponse.json({
+        error: refundId
+          ? 'Die Rückerstattung wurde bei Stripe ausgelöst, aber die Bestellung konnte nicht aktualisiert werden. Bitte melde dich bei uns – wir korrigieren das.'
+          : 'Status-Update fehlgeschlagen',
+      }, { status: 500 });
     }
 
     // Generate Storno-Rechnung if original invoice exists (GoBD §14 UStG)

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { fetchAll } from '@/lib/fetchAll';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { StatusPill } from '@/components/admin/StatusPill';
 import { formatPrice } from '@/lib/types';
@@ -41,10 +42,9 @@ export default function AdminCustomersPage() {
       if (locs) locs.forEach((l: any) => (locMap[l.id] = l.name));
       setLocations(locMap);
 
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const customers = await fetchAll<any>(() =>
+        supabase.from('customers').select('*').order('created_at', { ascending: false }).order('id', { ascending: true }),
+      );
 
       if (!customers || customers.length === 0) {
         setRows([]);
@@ -52,9 +52,16 @@ export default function AdminCustomersPage() {
         return;
       }
 
-      const { data: orderStats } = await supabase
-        .from('orders')
-        .select('customer_id, total_cents, fulfillment_date');
+      // Only orders that were really paid for and not cancelled/refunded, and no
+      // TEST- orders — the old sum counted everything (finding 16).
+      const orderStats = (await fetchAll<any>(() =>
+        supabase
+          .from('orders')
+          .select('customer_id, total_cents, fulfillment_date, payment_status, status, order_number')
+          .eq('payment_status', 'paid')
+          .not('status', 'in', '("cancelled","refunded")')
+          .order('id', { ascending: true }),
+      )).filter((o: any) => !(o.order_number ?? '').startsWith('TEST-'));
 
       const { data: activeSubs } = await supabase
         .from('subscriptions')

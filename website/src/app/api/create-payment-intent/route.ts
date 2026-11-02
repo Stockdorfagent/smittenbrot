@@ -15,26 +15,27 @@ function getSupabaseAdmin() {
   );
 }
 
+/** "YYYY-MM-DDTHH:MM" wall-clock in Europe/Berlin (DST-correct). Same as refund-order. */
+function berlinWallClock(d: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  const h = g('hour') === '24' ? '00' : g('hour');
+  return `${g('year')}-${g('month')}-${g('day')}T${h}:${g('minute')}`;
+}
+
+/** Order cutoff for a pickup date: two calendar days earlier at 22:00 Berlin (Wed → Mon, Sat → Thu). */
+function cutoffWallClock(fulfillmentDate: string): string {
+  const [y, m, d] = fulfillmentDate.split('-').map(Number);
+  const cal = new Date(Date.UTC(y, m - 1, d));
+  cal.setUTCDate(cal.getUTCDate() - 2);
+  return `${cal.toISOString().slice(0, 10)}T22:00`;
+}
+
 export async function POST(req: NextRequest) {
   let stripeCustomerIdFromProfile: string | null = null;
   try {
-    // Check for active closure (optional — Edge Function may not exist)
-    try {
-      const closureRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/closure-handler/active`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (closureRes.ok) {
-        const closureData = await closureRes.json();
-        if (closureData.active === true) {
-          return NextResponse.json({ error: closureData.closure?.banner_text_de || 'Aktuell findet keine Produktion statt.' }, { status: 503 });
-        }
-      }
-    } catch {
-      // closure handler not deployed on this Supabase project — proceed
-    }
-
     const body = await req.json();
     const { items, pickup_location_id, discount_code } = body;
     let fulfillment_date: string = body.fulfillment_date;
@@ -121,6 +122,27 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    // The pickup date itself must still be open (code review 02.11.2026, finding 8):
+    // cutoff = two calendar days before at 22:00 Berlin (the rule cancel-order and the
+    // engine use), and no closure may cover THAT day (the old check asked whether
+    // today is inside a closure).
+    if (berlinWallClock(new Date()) >= cutoffWallClock(fulfillment_date)) {
+      return NextResponse.json({
+        error: 'Die Bestellfrist für diesen Abholtag ist vorbei. Bitte lade die Seite neu – der nächste Abholtag wird angezeigt.',
+      }, { status: 409 });
+    }
+    {
+      const { data: closed } = await supabase
+        .from('closures')
+        .select('banner_text_de')
+        .lte('start_date', fulfillment_date)
+        .gte('end_date', fulfillment_date)
+        .limit(1)
+        .maybeSingle();
+      if (closed) {
+        return NextResponse.json({ error: closed.banner_text_de || 'An diesem Abholtag findet keine Produktion statt.' }, { status: 503 });
+      }
+    }
     const pickupDow = new Date(`${fulfillment_date}T12:00:00Z`).getUTCDay(); // 3 = Wed, 6 = Sat
     const dayCol = pickupDow === 6 ? 'available_sat' : 'available_wed';
     const dayName = pickupDow === 6 ? 'Samstag' : 'Mittwoch';
@@ -138,11 +160,12 @@ export async function POST(req: NextRequest) {
       // never trust a price sent by the client.
       const { data: product } = await supabase
         .from('products')
-        .select('id, name, capacity, price_cents, available_wed, available_sat')
+        .select('id, name, capacity, price_cents, available_wed, available_sat, active')
         .eq('id', item.product_id)
         .single();
 
-      if (!product) {
+      // A deactivated product can still sit in a stale localStorage cart (finding 9).
+      if (!product || !product.active) {
         return NextResponse.json({ error: 'Ein Produkt ist nicht (mehr) verfügbar.' }, { status: 400 });
       }
       if (!product[dayCol]) {
@@ -151,9 +174,11 @@ export async function POST(req: NextRequest) {
       priceMap[product.id] = { price_cents: product.price_cents, name: product.name };
       subtotalCents += product.price_cents * requested;
 
-      const { count: reservedCount } = await supabase
+      // Reserved = sum of quantities, not number of rows (finding 9: one order of
+      // 10 loaves used to count as 1).
+      const { data: reservedRows } = await supabase
         .from('order_items')
-        .select('*', { count: 'exact', head: true })
+        .select('quantity')
         .eq('product_id', item.product_id)
         .in('order_id', (
           await supabase
@@ -163,7 +188,7 @@ export async function POST(req: NextRequest) {
             .not('status', 'in', '("cancelled","refunded")')
         ).data?.map(o => o.id) ?? []);
 
-      const reserved = reservedCount ?? 0;
+      const reserved = (reservedRows ?? []).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
       const available = product.capacity;
 
       if (reserved + requested > available) {
@@ -282,6 +307,16 @@ export async function POST(req: NextRequest) {
           .eq('id', customer_id)
           .is('stripe_customer_id', null);
       }
+    }
+
+    // Stripe refuses amounts below 0,50 € (and 0): a fixed discount at or above the
+    // cart total used to surface as a raw 500 (finding 15).
+    if (finalAmount < 50) {
+      return NextResponse.json({
+        error: finalAmount === 0
+          ? 'Der Gutschein deckt die ganze Bestellung ab – bitte melde dich kurz bei uns, wir legen die Bestellung für dich an.'
+          : 'Der Restbetrag nach Rabatt liegt unter 0,50 € und kann nicht online bezahlt werden – lege bitte noch etwas in den Warenkorb.',
+      }, { status: 400 });
     }
 
     const idempotencyKey = `order_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;

@@ -132,28 +132,37 @@ serve(async (req: Request): Promise<Response> => {
     if (off) return json({ error: `${off.name} gibt es am ${dayName} nicht.` }, 400);
   }
 
-  // ── 0. Active-closure check ──
-  try {
-    const cr = await fetch(`${SUPABASE_URL}/functions/v1/closure-handler/active`, {
-      method: "POST",
-      headers: svcHeaders,
-      signal: AbortSignal.timeout(5000),
-    });
-    if (cr.ok) {
-      const cd = await cr.json();
-      if (cd.active === true) {
-        return json(
-          {
-            error:
-              cd.closure?.banner_text_de ??
-              "Aktuell findet keine Produktion statt.",
-          },
-          503,
-        );
-      }
+  // ── 0b. The pickup date itself must still be open (code review 02.11.2026, finding 8) ──
+  // Cutoff = two calendar days before the pickup at 22:00 Europe/Berlin (same rule as
+  // cancel-order and the engine's lock). A checkout started 21:55 and confirmed 22:10
+  // used to land after the lock; a date inside a closure used to be charged.
+  {
+    const [y, m, d] = fulfillmentDate.split("-").map(Number);
+    const cal = new Date(Date.UTC(y, m - 1, d));
+    cal.setUTCDate(cal.getUTCDate() - 2);
+    const cutoffWall = `${cal.toISOString().slice(0, 10)}T22:00`;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(new Date());
+    const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+    const nowWall = `${g("year")}-${g("month")}-${g("day")}T${g("hour") === "24" ? "00" : g("hour")}:${g("minute")}`;
+    if (nowWall >= cutoffWall) {
+      return json({
+        error: "cutoff_passed",
+        message: "Die Bestellfrist für diesen Abholtag ist vorbei. Bitte lade die Seite neu – der nächste Abholtag wird angezeigt.",
+      }, 409);
     }
-  } catch {
-    // closure-handler unreachable — proceed (fail-open on closure check)
+    const clr = await fetch(
+      `${SUPABASE_URL}/rest/v1/closures?start_date=lte.${fulfillmentDate}&end_date=gte.${fulfillmentDate}&select=banner_text_de&limit=1`,
+      { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
+    );
+    const closed = clr.ok ? (await clr.json()) as { banner_text_de: string | null }[] : [];
+    if (closed.length > 0) {
+      return json({
+        error: "closed",
+        message: closed[0].banner_text_de ?? "An diesem Abholtag findet keine Produktion statt.",
+      }, 503);
+    }
   }
 
   // ── 1. DB-authoritative pricing + product validation ──

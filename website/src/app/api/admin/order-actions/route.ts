@@ -104,6 +104,13 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         );
       }
+      // A cancelled order marked paid would get a real RE- number for nothing (finding 10).
+      if (order.status === 'cancelled' || order.status === 'refunded') {
+        return NextResponse.json(
+          { error: 'Eine stornierte Bestellung kann nicht als bezahlt markiert werden.' },
+          { status: 409 },
+        );
+      }
 
       const { error: updErr } = await supabase
         .from('orders')

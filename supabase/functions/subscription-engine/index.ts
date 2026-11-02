@@ -951,6 +951,13 @@ async function chargeSubscriptionAmount(
     return { ok: false, reason: "Keine gespeicherte Zahlungsmethode", piId: null };
   }
 
+  // The key stays fixed per subscription + pickup date (one charge per order) but
+  // carries the payment method: after a decline the customer saves a NEW card and
+  // resumes the same day — with the old key Stripe answers "idempotency key reused
+  // with different parameters" and the resume looked like a second decline
+  // (code review 02.11.2026, finding 6). Same card → same key → same (failed) PI.
+  const keyForCard = `${idempotencyKey}_${paymentMethod.id}`;
+
   try {
     const pi = await stripe.paymentIntents.create(
       {
@@ -963,7 +970,7 @@ async function chargeSubscriptionAmount(
         description: `Smittenbrot Dauerbestellung — Abholung ${metadata.fulfillment_date ?? ""}`.trim(),
         metadata,
       },
-      { idempotencyKey },
+      { idempotencyKey: keyForCard },
     );
     if (pi.status === "succeeded") return { ok: true, pi };
     const reason = pi.last_payment_error?.message ?? `Zahlung nicht abgeschlossen (${pi.status})`;
