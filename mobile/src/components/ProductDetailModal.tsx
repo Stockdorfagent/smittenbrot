@@ -1,4 +1,4 @@
-import { Modal, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { Modal, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { productInfoLines, splitDescription } from '@/lib/productInfo';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/lib/theme';
@@ -8,15 +8,20 @@ import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 import { useMemo, useState } from 'react';
 
-const { width } = Dimensions.get('window');
+/** `**Weizen**mehl` → bold "Weizen" (LMIV Art. 21 emphasis in the generated ingredient list, like the website). */
+function emphasised(text: string, boldStyle: object) {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <Text key={i} style={boldStyle}>{part.slice(2, -2)}</Text>
+      : <Text key={i}>{part}</Text>,
+  );
+}
 
 /**
  * Grey info block (weight / ingredients / allergens) rendered like the website:
  * Gewicht/Zutaten/Allergene labels bold, the "gleiche Backstube" disclaimer italic.
  */
-function InfoBlock({ infoSection }: { infoSection: string }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+function InfoBlock({ infoSection, styles }: { infoSection: string; styles: ReturnType<typeof createStyles> }) {
   return (
     <View style={styles.infoBlock}>
       {infoSection.split('\n').map((line, i) => {
@@ -25,7 +30,7 @@ function InfoBlock({ infoSection }: { infoSection: string }) {
           return (
             <Text key={i} style={styles.infoLine}>
               <Text style={styles.infoLabel}>{line.slice(0, idx + 1)}</Text>
-              {line.slice(idx + 1)}
+              {emphasised(line.slice(idx + 1), styles.infoLabel)}
             </Text>
           );
         }
@@ -44,11 +49,14 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onAdd: (product: Product) => void;
+  /** Sold out for the upcoming pickup: the button is disabled and says so (onAdd would silently do nothing). */
+  soldOut?: boolean;
 }
 
-export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) {
+export function ProductDetailModal({ product, visible, onClose, onAdd, soldOut = false }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
   // Hooks before the early return: a hook after `return null` is skipped while the modal has
   // no product and runs once it has one → "Rendered more hooks than during the previous render".
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -112,13 +120,14 @@ export function ProductDetailModal({ product, visible, onClose, onAdd }: Props) 
             {mainDesc ? <Text style={styles.description}>{mainDesc}</Text> : null}
 
             <Button
-              title="In den Warenkorb"
+              title={soldOut ? 'Ausverkauft' : 'In den Warenkorb'}
               onPress={() => { onAdd(product); onClose(); }}
+              disabled={soldOut}
               size="lg"
               style={styles.addButton}
             />
 
-            {infoSection ? <InfoBlock infoSection={infoSection} /> : null}
+            {infoSection ? <InfoBlock infoSection={infoSection} styles={styles} /> : null}
           </View>
         </ScrollView>
       </View>

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Platform, type ViewStyle } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { theme } from '@/lib/theme';
@@ -13,6 +13,7 @@ import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
 import { localDateISO, nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
 import { collectPaymentMethod } from '@/lib/stripeSetup';
+import { edgeErrorMessage } from '@/lib/edgeError';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 
@@ -20,25 +21,6 @@ const DAY_LABELS: Record<string, string> = {
   wednesday: 'Mittwochs',
   saturday: 'Samstags',
 };
-
-/**
- * supabase-js hides the function's response body on a non-2xx: invoke()
- * resolves { data: null, error } without parsing it, so the engine's German
- * message is only reachable through error.context. Falls back to `fallback`
- * for network errors (no context) and non-JSON bodies.
- */
-async function edgeErrorMessage(error: unknown, fallback: string): Promise<string> {
-  try {
-    const ctx = (error as { context?: { json(): Promise<{ error?: unknown }> } }).context;
-    if (ctx && typeof ctx.json === 'function') {
-      const parsed = await ctx.json();
-      if (parsed && typeof parsed.error === 'string' && parsed.error) return parsed.error;
-    }
-  } catch {
-    // keep the fallback
-  }
-  return fallback;
-}
 
 /**
  * "So funktioniert dein Abo" — same four steps and the same owner copy as the
@@ -348,16 +330,30 @@ export default function SubscriptionsScreen() {
                       </TouchableOpacity>
                       <Text style={styles.pauseHint}>Deine Dauerbestellung wird an diesem Tag automatisch fortgesetzt.</Text>
                       {showDatePicker && (
-                        <DateTimePicker
-                          value={pauseDate}
-                          mode="date"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          minimumDate={tomorrow()}
-                          onChange={(_, date) => {
-                            setShowDatePicker(false);
-                            if (date) setPauseDate(date);
-                          }}
-                        />
+                        <View>
+                          <DateTimePicker
+                            value={pauseDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            minimumDate={tomorrow()}
+                            onChange={(event: DateTimePickerEvent, date?: Date) => {
+                              if (Platform.OS === 'android') {
+                                // The Android dialog fires once: 'set' or 'dismissed'.
+                                setShowDatePicker(false);
+                                if (event.type === 'set' && date) setPauseDate(date);
+                              } else if (date) {
+                                // The iOS spinner fires on every tick — closing it here
+                                // (as before) shut the picker after the first wheel move.
+                                setPauseDate(date);
+                              }
+                            }}
+                          />
+                          {Platform.OS === 'ios' && (
+                            <TouchableOpacity style={styles.pickerDone} onPress={() => setShowDatePicker(false)}>
+                              <Text style={styles.pickerDoneText}>Fertig</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       )}
                       <View style={styles.pauseActions}>
                         <Button title="Pause bestätigen" onPress={() => handlePause(sub.id)} size="sm" style={styles.pauseConfirm} />
@@ -526,6 +522,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   dateButtonText: { fontSize: theme.fontSize.md, color: colors.text, fontWeight: '500' },
   pauseHint: { fontSize: theme.fontSize.xs, color: colors.textLight },
+  pickerDone: { alignSelf: 'flex-end', paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md },
+  pickerDoneText: { fontSize: theme.fontSize.md, fontWeight: '600', color: colors.primary },
   pauseActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
   pausedActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   statusHint: {

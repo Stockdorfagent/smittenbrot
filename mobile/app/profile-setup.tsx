@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { theme } from '@/lib/theme';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -19,6 +20,7 @@ export default function ProfileSetupScreen() {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, refreshUser } = useAuth();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -69,7 +71,13 @@ export default function ProfileSetupScreen() {
         'Dein Name ist gespeichert. Die Verbindung ist gerade langsam — ' +
         'gleich geht es weiter.',
       );
+      return;
     }
+    // The tabs gate REPLACED its route with this screen, so on a cold start
+    // (restored session) nothing is mounted underneath: without an explicit
+    // navigation the spinner stopped and the screen just stayed (tester
+    // feedback entry 13, "froze, had to force-quit"). Go to the tabs ourselves.
+    router.replace('/(tabs)');
   };
 
   return (

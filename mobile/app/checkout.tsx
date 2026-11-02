@@ -91,7 +91,9 @@ export default function CheckoutScreen() {
           items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
           fulfillment_date: fulfillmentDate,
           pickup_location_id,
-          customer_name: user.name,
+          // undefined, not '': the edge function uses `??`, so an empty string
+          // (profile read failed) would end up as the name on the order.
+          customer_name: user.name?.trim() || undefined,
           discount_code: discount?.code ?? null,
         },
       });

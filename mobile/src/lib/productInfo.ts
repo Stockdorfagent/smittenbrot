@@ -21,7 +21,8 @@ export function splitDescription(desc: string | null | undefined): { main: strin
 
 /** The "Produktinformationen" lines for the detail modal — structured fields only (migration 027). */
 export function productInfoLines(p: Product): string {
-  const w = p.weight?.trim(), z = p.ingredients?.trim(), a = p.allergens?.trim();
+  // The generated list (with **emphasis** markers) wins over the legacy plain text — same rule as the website.
+  const w = p.weight?.trim(), z = p.ingredients_generated?.trim() || p.ingredients?.trim(), a = p.allergens?.trim();
   if (!(w || z || a)) return '';
   return [w && `Gewicht: ${w}`, z && `Zutaten: ${z}`, a && `Allergene: ${a}`, TRACE_NOTICE].filter(Boolean).join('\n');
 }

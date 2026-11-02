@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
+import { edgeErrorMessage } from '@/lib/edgeError';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
 import { LocationDropdown } from '@/components/LocationDropdown';
@@ -93,7 +94,8 @@ export default function SubscriptionEditScreen() {
     });
     setSaving(false);
     if (error) {
-      Alert.alert('Fehler', 'Änderung fehlgeschlagen. Bitte später erneut versuchen.');
+      // The engine's own message (e.g. the 250 € cap) instead of a blanket text.
+      Alert.alert('Fehler', await edgeErrorMessage(error, 'Änderung fehlgeschlagen. Bitte später erneut versuchen.'));
       return;
     }
     const result = data as {

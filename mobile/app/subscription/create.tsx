@@ -134,8 +134,10 @@ export default function SubscriptionCreateScreen() {
       const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle();
       setWeekCycle(cycle as WeekCycle | null);
     })();
+    // `user?.id`, not `user`: the auth context hands out a new user object on every
+    // token refresh, which re-ran this effect and silently reset Abholort + Abholtag.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   const fetchProducts = useCallback(async () => {
     const { data: allProducts } = await supabase
@@ -162,6 +164,18 @@ export default function SubscriptionCreateScreen() {
   useEffect(() => {
     if (step === 'products') fetchProducts();
   }, [step, fetchProducts]);
+
+  // Changing the day (or week) refilters the list; quantities of products that
+  // are no longer offered must not survive hidden — they were inserted as
+  // subscription_items and showed up as nameless rows that could not be removed.
+  useEffect(() => {
+    if (products.length === 0) return;
+    const ids = new Set(products.map((p) => p.id));
+    setQuantities((prev) => {
+      const kept = Object.fromEntries(Object.entries(prev).filter(([id]) => ids.has(id)));
+      return Object.keys(kept).length === Object.keys(prev).length ? prev : kept;
+    });
+  }, [products]);
 
   const handleConfirm = async () => {
     if (!user || !selectedLocation) return;

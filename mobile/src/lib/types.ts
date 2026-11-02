@@ -65,6 +65,8 @@ export interface Product {
   /** Structured product information (migration 027). */
   weight?: string | null;
   ingredients?: string | null;
+  /** Approved generated list (production module, migration 040) with **allergen** emphasis markers; wins over `ingredients`. */
+  ingredients_generated?: string | null;
   allergens?: string | null;
 }
 

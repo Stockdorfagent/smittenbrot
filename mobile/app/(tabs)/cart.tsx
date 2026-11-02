@@ -30,12 +30,22 @@ export default function CartScreen() {
   // pickup date the chosen location implies? (owner 24.09.: AB90/Feichtstr. on a
   // Thursday = next Wednesday, which may be the other cycle week.)
   const [productDays, setProductDays] = useState<Record<string, ProductDayAvailability>>({});
-  const [currentWeek, setCurrentWeek] = useState<'A' | 'B'>('A');
+  // null until week_cycle has been read: defaulting to 'A' marked week-B items
+  // "nicht im Sortiment" and disabled checkout whenever that read failed.
+  const [currentWeek, setCurrentWeek] = useState<'A' | 'B' | null>(null);
   const selectedForDate = locations.find((l) => l.id === pickup_location_id) ?? null;
   const pickup = getNextPickupFor(selectedForDate);
-  const weekForPickup = weekTypeForPickup(currentWeek, pickup.date);
+  const weekForPickup = currentWeek ? weekTypeForPickup(currentWeek, pickup.date) : null;
   const unavailable = items
-    .filter((i) => { const pd = productDays[i.product_id]; return pd ? !isProductAvailableOn(pd, pickup, weekForPickup) : false; })
+    .filter((i) => {
+      const pd = productDays[i.product_id];
+      if (!pd) return false;
+      if (weekForPickup) return !isProductAvailableOn(pd, pickup, weekForPickup);
+      // Week unknown: judge by the pickup day only (the server re-checks the cycle anyway).
+      return pd.cycle === 'hidden'
+        || (pickup.day === 'wednesday' && !pd.available_wed)
+        || (pickup.day === 'saturday' && !pd.available_sat);
+    })
     .map((i) => i.product_id);
 
   useEffect(() => {

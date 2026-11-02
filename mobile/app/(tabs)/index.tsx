@@ -48,7 +48,9 @@ export default function HomeScreen() {
   const [showAllPickups, setShowAllPickups] = useState(false);
   const [pickedUp, setPickedUp] = useState<Set<string>>(new Set());
 
-  const pickup = useMemo(() => getNextPickup(), []);
+  // Recomputed on every load (focus / pull-to-refresh): after the 22:00 cutoff the
+  // start screen must move to the next pickup like cart and checkout do.
+  const [pickup, setPickup] = useState(() => getNextPickup());
 
   /**
    * One card, one line per upcoming pickup.
@@ -105,6 +107,8 @@ export default function HomeScreen() {
     : 'Deine Dauerbestellungen';
 
   const fetchData = useCallback(async () => {
+    const pickup = getNextPickup();
+    setPickup(pickup);
     setPickedUp(await loadPickedUp());
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
 
@@ -191,7 +195,7 @@ export default function HomeScreen() {
       setUpcomingOrders([]);
       setShowAllPickups(false);
     }
-  }, [user, pickup.day, pickup.date]);
+  }, [user]);
 
   // Refetch every time the tab regains focus (e.g. after placing/cancelling
   // an order elsewhere), not just on first mount.
@@ -392,6 +396,7 @@ export default function HomeScreen() {
         visible={!!detailProduct}
         onClose={() => setDetailProduct(null)}
         onAdd={handleAddToCart}
+        soldOut={detailProduct ? soldOut[detailProduct.id] === true : false}
       />
     </SafeAreaView>
   );

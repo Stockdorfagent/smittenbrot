@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { localDateISO } from './pickup';
 
 /**
  * "Ich habe mein Brot abgeholt" — a purely COSMETIC, device-local mark.
@@ -17,10 +18,6 @@ const KEY = 'smittenbrot.pickedUpOrders';
 const KEEP_DAYS = 14;
 
 type Store = Record<string, string>;
-
-function localDateISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 async function loadStore(): Promise<Store> {
   try {
