@@ -16,6 +16,7 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
+  let stripeCustomerIdFromProfile: string | null = null;
   try {
     // Check for active closure (optional — Edge Function may not exist)
     try {
@@ -35,24 +36,54 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items, customer_id, customer_email, customer_name, pickup_location_id, discount_code } = body;
+    const { items, pickup_location_id, discount_code } = body;
     let fulfillment_date: string = body.fulfillment_date;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
     }
 
-    // For logged-in users: check email is confirmed
-    if (customer_id) {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { data: user } = await supabase.auth.admin.getUserById(customer_id);
-      if (user?.user && !user.user.email_confirmed_at) {
+    // Who is ordering? (code review 02.11.2026) The customer identity comes from
+    // the Supabase JWT, never from the request body: the body used to carry
+    // customer_id/customer_email and the route minted a Stripe Customer Session
+    // (saved cards, remove) for whatever e-mail it was sent. Logged-in customers
+    // send their access token; guests send no Authorization header and get a
+    // guest checkout (no Stripe customer, no saved cards).
+    let customer_id: string | null = null;
+    let customer_email: string = typeof body.customer_email === 'string' ? body.customer_email.trim() : '';
+    let customer_name: string = typeof body.customer_name === 'string' ? body.customer_name.trim() : '';
+    const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!bearer && body.customer_id) {
+      // A checkout page from before this change still sends customer_id in the
+      // body and no token. Silently treating it as a guest would detach the
+      // order from the account — make the page reload instead.
+      return NextResponse.json({ error: 'Bitte lade die Seite neu und versuche es noch einmal.' }, { status: 401 });
+    }
+    if (bearer) {
+      const admin = getSupabaseAdmin();
+      const { data: { user }, error: userErr } = await admin.auth.getUser(bearer);
+      if (userErr || !user) {
+        return NextResponse.json({ error: 'Bitte melde dich erneut an.' }, { status: 401 });
+      }
+      if (!user.email_confirmed_at) {
         return NextResponse.json({
           error: 'Bitte bestätige zuerst deine E-Mail-Adresse, bevor du bestellen kannst.',
         }, { status: 403 });
       }
+      customer_id = user.id;
+      customer_email = user.email ?? customer_email;
+      // The name on the order is the one the customer keeps in Profil
+      // (customers.name), not the sign-up metadata — never rewritten.
+      const { data: profile } = await admin
+        .from('customers')
+        .select('name, stripe_customer_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      customer_name = profile?.name?.trim() || customer_name || (user.user_metadata?.full_name as string | undefined) || '';
+      if (profile?.stripe_customer_id) stripeCustomerIdFromProfile = profile.stripe_customer_id;
+    }
+    if (!customer_email) {
+      return NextResponse.json({ error: 'Bitte gib deine E-Mail-Adresse an.' }, { status: 400 });
     }
 
     if (!fulfillment_date) {
@@ -226,20 +257,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create or retrieve Stripe customer
+    // Create or retrieve the Stripe customer — logged-in customers only, and
+    // only for the e-mail verified by the JWT above.
     let stripeCustomerId: string | undefined;
     if (customer_id) {
-      // Check if customer exists in Stripe
-      const existingCustomers = await getStripeClient().customers.list({ email: customer_email, limit: 1 });
-      if (existingCustomers.data.length > 0) {
-        stripeCustomerId = existingCustomers.data[0].id;
+      if (stripeCustomerIdFromProfile) {
+        stripeCustomerId = stripeCustomerIdFromProfile;
       } else {
-        const newCustomer = await getStripeClient().customers.create({
-          email: customer_email,
-          name: customer_name || undefined,
-          metadata: { supabase_id: customer_id || '' },
-        });
-        stripeCustomerId = newCustomer.id;
+        const existingCustomers = await getStripeClient().customers.list({ email: customer_email, limit: 1 });
+        if (existingCustomers.data.length > 0) {
+          stripeCustomerId = existingCustomers.data[0].id;
+        } else {
+          const newCustomer = await getStripeClient().customers.create({
+            email: customer_email,
+            name: customer_name || undefined,
+            metadata: { supabase_id: customer_id },
+          });
+          stripeCustomerId = newCustomer.id;
+        }
+        // Remember it so account deletion / the Abo engine find the same Stripe customer.
+        await getSupabaseAdmin()
+          .from('customers')
+          .update({ stripe_customer_id: stripeCustomerId })
+          .eq('id', customer_id)
+          .is('stripe_customer_id', null);
       }
     }
 

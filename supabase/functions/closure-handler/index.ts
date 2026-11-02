@@ -392,6 +392,33 @@ async function handleActive(): Promise<Response> {
   });
 }
 
+
+// ── Caller check (code review 02.11.2026, finding 4) ─────────
+// The gateway's verify_jwt only proves a valid project JWT — the PUBLIC anon
+// key passes it (verified live 02.11.2026). Mutating routes therefore check
+// the caller here: the runtime service key (edge-to-edge calls), the cron
+// secret (Vault, migration 024), or a signed-in user with customers.is_admin
+// (the website's admin routes forward the admin's own JWT; a service-key
+// comparison would fail there because the runtime-injected key value differs
+// from the one our servers hold).
+const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
+
+async function authorizeCaller(req: Request): Promise<Response | null> {
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!bearer) return jsonResponse({ error: "Unauthorized" }, 401);
+  if (CRON_SECRET.length > 0 && bearer === CRON_SECRET) return null;
+  if (SUPABASE_SERVICE_ROLE_KEY.length > 0 && bearer === SUPABASE_SERVICE_ROLE_KEY) return null;
+  const { data: { user }, error } = await supabase.auth.getUser(bearer);
+  if (error || !user) return jsonResponse({ error: "Unauthorized" }, 401);
+  const { data: caller } = await supabase
+    .from("customers")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!caller?.is_admin) return jsonResponse({ error: "Nicht autorisiert." }, 403);
+  return null;
+}
+
 // ═════════════════════════════════════════════════════════════
 // Request Router
 // ═════════════════════════════════════════════════════════════
@@ -416,13 +443,20 @@ async function handleRequest(req: Request): Promise<Response> {
     body = {};
   }
 
-  // Route on the last path segment
+  // Route on the last path segment. /active is a public read (banners);
+  // create/delete change every Abo and block checkout → caller check.
   switch (action) {
-    case "create":
+    case "create": {
+      const denied = await authorizeCaller(req);
+      if (denied) return denied;
       return await handleCreate(body as unknown as CreateClosureRequest);
+    }
 
-    case "delete":
+    case "delete": {
+      const denied = await authorizeCaller(req);
+      if (denied) return denied;
       return await handleDelete(body as unknown as DeleteClosureRequest);
+    }
 
     case "active":
       return await handleActive();

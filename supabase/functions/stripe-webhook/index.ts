@@ -574,7 +574,9 @@ async function createOrderFromPaymentIntent(
       customer_id: md.customer_id ?? null,
       error: orderErr?.message ?? "unknown",
     });
-    return;
+    // 02.11.2026: throw so serve() answers 500 and Stripe redelivers (a plain
+    // return answered 200 and the paid order was lost for good).
+    throw new Error(`order insert failed for PI ${paymentIntent.id}: ${orderErr?.message ?? "unknown"}`);
   }
 
   // 2. Order items.
@@ -590,6 +592,12 @@ async function createOrderFromPaymentIntent(
       `[stripe-webhook] Failed to insert order_items for order ${order.id}:`,
       oiErr,
     );
+    // The order exists as pending without items. Throw → 500 → Stripe
+    // redelivers; the idempotency branch above then finds the pending order,
+    // but it would finish it WITHOUT items — so remove the empty shell first
+    // and let the retry recreate order + items together.
+    await supabase.from("orders").delete().eq("id", order.id).eq("payment_status", "pending");
+    throw new Error(`order_items insert failed for order ${order.id}: ${oiErr.message}`);
   }
 
   await finalizePaidOrder(order.id as string, paymentIntent, md, totalCents, discountId, discountCents);

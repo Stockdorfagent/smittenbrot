@@ -28,12 +28,14 @@ export async function POST(req: NextRequest) {
     // Find or create Stripe customer
     let stripeCustomerId: string | null = null;
 
-    // Check if customer exists in DB
+    // The caller's own profile row — by id, not by e-mail (02.11.2026): an
+    // e-mail lookup would let a forged customers.email on another row pick up
+    // or receive this customer's Stripe customer id.
     const { data: customer } = await supabase
       .from('customers')
       .select('stripe_customer_id')
-      .eq('email', email)
-      .single();
+      .eq('id', auth.user.id)
+      .maybeSingle();
 
     if (customer?.stripe_customer_id) {
       stripeCustomerId = customer.stripe_customer_id;
@@ -46,11 +48,11 @@ export async function POST(req: NextRequest) {
         const newCustomer = await getStripeClient().customers.create({ email });
         stripeCustomerId = newCustomer.id;
       }
-      // Save to DB
+      // Save to DB (own row only)
       await supabase
         .from('customers')
         .update({ stripe_customer_id: stripeCustomerId })
-        .eq('email', email);
+        .eq('id', auth.user.id);
     }
 
     // Create SetupIntent

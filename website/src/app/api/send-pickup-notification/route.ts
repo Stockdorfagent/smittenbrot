@@ -93,11 +93,16 @@ export async function POST(req: NextRequest) {
 
     const dispatchUrl =
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/notification-dispatch/send-pickup-ready`;
+    // The admin's OWN JWT is forwarded (02.11.2026): notification-dispatch now
+    // checks its caller (service key, cron secret or an admin user). Not the
+    // service key — the runtime-injected key value differs from ours, so key
+    // equality fails across environments (see admin/subscriptions).
+    const callerToken = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
     const res = await fetch(dispatchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        Authorization: `Bearer ${callerToken}`,
       },
       body: JSON.stringify({
         order_ids: eligible,

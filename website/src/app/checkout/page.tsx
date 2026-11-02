@@ -254,9 +254,15 @@ function CheckoutForm() {
         throw new Error('Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Bestätigungslink gesendet.');
       }
 
+      // Logged-in customers identify themselves by their access token; the
+      // server takes id, e-mail and the Profil name from it. Guests send the
+      // e-mail/name typed into the form.
       const response = await fetch('/api/create-payment-intent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           items: state.items.map(item => ({
             product_id: item.productId,
@@ -266,8 +272,7 @@ function CheckoutForm() {
           pickup_location_id: state.pickupLocationId,
           fulfillment_date: pickupFor().date,
           customer_email: session?.user?.email || email,
-          customer_name: session?.user?.user_metadata?.full_name || name,
-          customer_id: session?.user?.id || null,
+          customer_name: name,
           discount_code: discountInfo?.code || null,
         }),
       });
