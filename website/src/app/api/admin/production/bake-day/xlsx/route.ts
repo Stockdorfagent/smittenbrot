@@ -45,9 +45,11 @@ export async function GET(req: NextRequest) {
       const ws = wb.addWorksheet(r.name.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
       ws.addRow([r.name, `v${r.version}`]).font = { bold: true, size: 14 };
       ws.addRow(['Products', r.products.map((p) => `${p.qty}× ${p.name}`).join(', ')]);
-      ws.addRow(['Total dough (g)', r1(r.total_dough_g), 'Σpct', r.sum_pct]);
+      // Rounded like the page: recipe percentages carry two decimals since v2-style
+      // recipes, so Σpct and the factor would otherwise print as 192.31000000000003.
+      ws.addRow(['Total dough (g)', r1(r.total_dough_g), 'Σpct', Math.round(r.sum_pct * 100) / 100]);
       ws.addRow(['Dough margin factor', r.dough_margin_factor, 'margin per batch (g)', r1(r.margin_g_per_batch)]);
-      ws.addRow(['Batches', r.batches, 'per batch (g)', r1(r.per_batch_dough_g), 'factor', r.factor]);
+      ws.addRow(['Batches', r.batches, 'per batch (g)', r1(r.per_batch_dough_g), 'factor', Math.round(r.factor * 10000) / 10000]);
       ws.addRow([]);
       ws.addRow(['Ingredient (per batch)', '%', 'g', 'Note']).font = { bold: true };
       for (const l of r.lines) ws.addRow([l.label, l.pct, r1(l.grams), l.source_units_rounded ? `${l.source_units_rounded} ${l.source_name}${l.byproduct ? ` → ${r1(l.byproduct.grams)} g ${l.byproduct.ingredient_name}` : ''}` : (l.adjusted ? `adjusted from ${l.original_pct} %` : '')]);

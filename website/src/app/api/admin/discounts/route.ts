@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import { requireAdmin } from '@/lib/apiAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     const auth = await requireAdmin(req);
     if ('response' in auth) return auth.response;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { global: { fetch: noStoreFetch },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireAdmin(req);
     if ('response' in auth) return auth.response;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { global: { fetch: noStoreFetch },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -165,7 +166,7 @@ export async function PUT(req: NextRequest) {
     const auth = await requireAdmin(req);
     if ('response' in auth) return auth.response;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { global: { fetch: noStoreFetch },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -245,7 +246,7 @@ export async function DELETE(req: NextRequest) {
     const auth = await requireAdmin(req);
     if ('response' in auth) return auth.response;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { global: { fetch: noStoreFetch },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

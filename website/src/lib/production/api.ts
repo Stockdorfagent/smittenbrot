@@ -4,10 +4,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import { requireAdmin } from '../apiAuth';
 
 export function serviceClient(): SupabaseClient {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { fetch: noStoreFetch }, auth: { persistSession: false } });
 }
 
 export async function withAdmin(req: NextRequest, fn: (db: SupabaseClient, adminEmail: string) => Promise<NextResponse>): Promise<NextResponse> {

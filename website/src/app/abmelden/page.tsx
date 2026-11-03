@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import Link from 'next/link';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 async function unsubscribe(customerId?: string, token?: string): Promise<'ok' | 'invalid'> {
   if (!customerId || !token) return 'invalid';
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, { global: { fetch: noStoreFetch },
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: customer, error } = await supabase

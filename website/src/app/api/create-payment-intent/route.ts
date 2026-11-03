@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import Stripe from 'stripe';
 
 const PAYPAL_ENABLED = process.env.PAYPAL_ENABLED === '1';
@@ -11,7 +12,8 @@ function getStripeClient() {
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { global: { fetch: noStoreFetch } }
   );
 }
 
@@ -92,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Backend capacity check ──
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { fetch: noStoreFetch },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

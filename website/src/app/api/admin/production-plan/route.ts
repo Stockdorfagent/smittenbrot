@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import ExcelJS from 'exceljs';
 import path from 'path';
 import { requireAdmin } from '@/lib/apiAuth';
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Bitte einen Abholtag wählen (YYYY-MM-DD).' }, { status: 400 });
   }
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { fetch: noStoreFetch } });
   const { data: orders, error } = await supabase
     .from('orders')
     .select('order_number, created_at, fulfillment_date, order_type, customer_name, customer_email, total_cents, discount_code, discount_cents, payment_method, status, payment_status, pickup_locations(name), order_items(quantity, unit_price_cents, products(name))')

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 import Stripe from 'stripe';
 import { requireAdmin } from '@/lib/apiAuth';
 import { buildPayoutExport, listPayoutsWithCheck } from '@/lib/payoutExport';
@@ -21,7 +22,7 @@ function getStripeClient() {
 }
 
 function getAdminSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { fetch: noStoreFetch } });
 }
 
 export async function GET(req: NextRequest) {

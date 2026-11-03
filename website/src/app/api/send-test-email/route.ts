@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { noStoreFetch } from '@/lib/serverFetch';
 
 const adminEmail = process.env.ADMIN_EMAIL || 'sophia@smittenbrot.de';
 
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { fetch: noStoreFetch } }
     );
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user || user.email !== adminEmail) {
