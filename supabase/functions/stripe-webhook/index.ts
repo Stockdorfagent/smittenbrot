@@ -636,15 +636,22 @@ async function finalizePaidOrder(
     paidUpdate.net_total_cents = netCents;
     paidUpdate.vat_total_cents = totalCents - netCents;
   }
-  const { error: paidErr } = await supabase
+  // Conditional flip: a second delivery of the same event that arrives while the
+  // first is between insert and this update used to flip the same order again
+  // and send the receipt, the admin alert and the discount_usage row twice
+  // (code review 02.11.2026, finding 34). Only the delivery that actually
+  // changes pending → paid continues.
+  const { data: flipped, error: paidErr } = await supabase
     .from("orders")
     .update(paidUpdate)
-    .eq("id", order.id);
+    .eq("id", order.id)
+    .eq("payment_status", "pending")
+    .select("id");
   if (paidErr) {
-    console.error(
-      `[stripe-webhook] Failed to mark created order ${order.id} paid:`,
-      paidErr,
-    );
+    throw new Error(`failed to mark created order ${order.id} paid: ${paidErr.message}`);
+  }
+  if (!flipped || flipped.length === 0) {
+    console.log(`[stripe-webhook] Order ${order.id} was already finalized by another delivery — skipping.`);
     return;
   }
 
@@ -745,20 +752,24 @@ async function handlePaymentIntentSucceeded(
     payment_status: "paid",
   };
 
-  const { error } = await supabase
+  // Conditional on the status we read (finding 34): a concurrent redelivery
+  // must not mark paid twice and send two receipts.
+  const { data: flipped, error } = await supabase
     .from("orders")
     .update({
       payment_status: "paid",
       payment_method: await paymentMethodOf(paymentIntent),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", order.id);
+    .eq("id", order.id)
+    .eq("payment_status", order.payment_status as string)
+    .select("id");
 
   if (error) {
-    console.error(
-      `[stripe-webhook] Failed to update order ${order.id} to paid:`,
-      error,
-    );
+    throw new Error(`failed to update order ${order.id} to paid: ${error.message}`);
+  }
+  if (!flipped || flipped.length === 0) {
+    console.log(`[stripe-webhook] Order ${order.id} already flipped by another delivery — skipping.`);
     return;
   }
 

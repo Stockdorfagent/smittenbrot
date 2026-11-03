@@ -491,6 +491,33 @@ export async function send_pickup_ready(
         continue;
       }
 
+      // 1b. Claim the announcement atomically (code review 02.11.2026, finding 31):
+      //     two admin tabs pressing "Abholbereit melden" at the same time both
+      //     read the order as open and both sent the e-mail. pickup_ready_at is
+      //     set here, conditionally on it being null — the second caller gets no
+      //     row back and skips. Released again below if nothing could be sent.
+      const { data: claimed, error: claimError } = await supabase
+        .from("orders")
+        .update({ pickup_ready_at: new Date().toISOString() })
+        .eq("id", orderId)
+        .is("pickup_ready_at", null)
+        .not("status", "in", '("cancelled","refunded")')
+        .select("id");
+      if (claimError) {
+        const msg = `Order ${orderId}: could not claim the announcement: ${claimError.message}`;
+        log("error", msg);
+        results.push({ orderId, success: false, error: msg });
+        allErrors.push(msg);
+        continue;
+      }
+      if (!claimed || claimed.length === 0) {
+        const msg = `Order ${orderId}: bereits gemeldet (oder storniert)`;
+        log("warn", msg);
+        results.push({ orderId, success: false, error: msg });
+        allErrors.push(msg);
+        continue;
+      }
+
       // 2. Get the pickup location details
       const pickupLocation = order.pickup_locations as unknown as {
         id: string;
@@ -607,20 +634,9 @@ export async function send_pickup_ready(
         );
       }
 
-      // 9. Mark the order as announced, so the app can show "Jetzt abholbereit"
-      //    on its own. This is the safety net for anyone whose notifications
-      //    are switched off: they see it the moment they open the app.
-      //    Best-effort — a failed stamp must not fail the notification.
-      const { error: stampError } = await supabase
-        .from("orders")
-        .update({ pickup_ready_at: new Date().toISOString() })
-        .eq("id", orderId)
-        .is("pickup_ready_at", null); // keep the FIRST announcement time
-      if (stampError) {
-        log("warn", `Could not stamp pickup_ready_at on order ${orderId}: ${stampError.message}`);
-      }
-
-      // 10. Log to notifications table
+      // 9. pickup_ready_at was stamped in the claim above (step 1b) — the app
+      //    shows "Jetzt abholbereit" from it. If NO channel reached the customer,
+      //    release the claim so the owner can simply press the button again.
       const hasError =
         emailResult?.success === false || pushResult?.success === false;
       // "delivered" = reached by at least one channel. A push that failed and
@@ -628,6 +644,17 @@ export async function send_pickup_ready(
       // the failure itself stays visible in `error`.
       const reached =
         emailResult?.success === true || pushResult?.success === true;
+      if (!reached) {
+        const { error: releaseError } = await supabase
+          .from("orders")
+          .update({ pickup_ready_at: null })
+          .eq("id", orderId);
+        if (releaseError) {
+          log("warn", `Could not release the announcement claim on order ${orderId}: ${releaseError.message}`);
+        }
+      }
+
+      // 10. Log to notifications table
 
       await supabase.from("notifications").insert({
         customer_id: order.customer_id,

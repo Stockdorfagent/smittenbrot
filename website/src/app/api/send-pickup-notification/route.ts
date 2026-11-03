@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: orders, error: loadError } = await supabase
       .from('orders')
-      .select('id, payment_status, status, customer_name')
+      .select('id, payment_status, status, customer_name, pickup_ready_at')
       .in('id', ids);
 
     if (loadError || !orders || orders.length === 0) {
@@ -70,6 +70,10 @@ export async function POST(req: NextRequest) {
         skipped.push({ name, reason: 'storniert' });
       } else if (order.status === 'fulfilled') {
         skipped.push({ name, reason: 'bereits erledigt' });
+      } else if (order.pickup_ready_at) {
+        // Announced already (the dispatch function claims this stamp atomically);
+        // use "Nur erledigen" to tick it off without a second e-mail.
+        skipped.push({ name, reason: 'bereits gemeldet' });
       } else if (order.payment_status !== 'paid') {
         skipped.push({ name, reason: 'nicht bezahlt — zuerst Zahlung als erhalten markieren' });
       } else {

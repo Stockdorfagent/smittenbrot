@@ -5,6 +5,37 @@ import { requireAdmin } from '@/lib/apiAuth';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+/** Positive integer or null; anything else is rejected by the caller. */
+function limitOrNull(v: unknown): number | null | 'invalid' {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : 'invalid';
+}
+
+/**
+ * "Gültig bis <Tag>" means the whole day: the form sends YYYY-MM-DD, and storing
+ * that as-is made the code expire at UTC midnight = the START of the chosen day
+ * in Berlin (code review 02.11.2026, finding 33). Returns the instant of 23:59:59
+ * Europe/Berlin on that day; a full timestamp is passed through unchanged.
+ */
+function expiryOrNull(v: unknown): string | null | 'invalid' {
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v !== 'string') return 'invalid';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return Number.isNaN(Date.parse(v)) ? 'invalid' : new Date(v).toISOString();
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  let t = Date.UTC(y, mo - 1, d, 23, 59, 59);
+  // Shift by Berlin's offset at that instant (+1 h winter, +2 h summer).
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(t));
+  const g = (k: string) => Number(parts.find((p) => p.type === k)?.value ?? '0');
+  const berlinWall = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'));
+  const offsetMs = berlinWall - Date.UTC(y, mo - 1, d, 23, 59);
+  t -= offsetMs;
+  return new Date(t).toISOString();
+}
+
 // GET: List all discounts with usage counts
 export async function GET(req: NextRequest) {
   try {
@@ -80,6 +111,15 @@ export async function POST(req: NextRequest) {
     if (type === 'percentage' && (value < 0 || value > 100)) {
       return NextResponse.json({ error: 'Prozentwert muss zwischen 0 und 100 liegen.' }, { status: 400 });
     }
+    const maxUses = limitOrNull(max_uses);
+    const maxUsesPerCustomer = limitOrNull(max_uses_per_customer);
+    if (maxUses === 'invalid' || maxUsesPerCustomer === 'invalid') {
+      return NextResponse.json({ error: 'Maximale Nutzungen müssen eine ganze Zahl größer 0 sein (oder leer).' }, { status: 400 });
+    }
+    const expiresAt = expiryOrNull(expires_at);
+    if (expiresAt === 'invalid') {
+      return NextResponse.json({ error: 'Ungültiges Ablaufdatum.' }, { status: 400 });
+    }
 
     // Check for duplicate code (case-insensitive)
     const { data: existing } = await supabase
@@ -99,9 +139,9 @@ export async function POST(req: NextRequest) {
         description: description || null,
         type,
         value,
-        max_uses: max_uses !== undefined && max_uses !== null ? max_uses : null,
-        max_uses_per_customer: max_uses_per_customer !== undefined && max_uses_per_customer !== null ? max_uses_per_customer : null,
-        expires_at: expires_at || null,
+        max_uses: maxUses,
+        max_uses_per_customer: maxUsesPerCustomer,
+        expires_at: expiresAt,
         active: active !== undefined ? active : true,
       })
       .select()
@@ -148,6 +188,15 @@ export async function PUT(req: NextRequest) {
     if (type === 'percentage' && (value < 0 || value > 100)) {
       return NextResponse.json({ error: 'Prozentwert muss zwischen 0 und 100 liegen.' }, { status: 400 });
     }
+    const maxUses = limitOrNull(max_uses);
+    const maxUsesPerCustomer = limitOrNull(max_uses_per_customer);
+    if (maxUses === 'invalid' || maxUsesPerCustomer === 'invalid') {
+      return NextResponse.json({ error: 'Maximale Nutzungen müssen eine ganze Zahl größer 0 sein (oder leer).' }, { status: 400 });
+    }
+    const expiresAt = expiryOrNull(expires_at);
+    if (expiresAt === 'invalid') {
+      return NextResponse.json({ error: 'Ungültiges Ablaufdatum.' }, { status: 400 });
+    }
 
     // Check for duplicate code (case-insensitive), excluding this discount
     const { data: existing } = await supabase
@@ -168,9 +217,9 @@ export async function PUT(req: NextRequest) {
         description: description || null,
         type,
         value,
-        max_uses: max_uses !== undefined && max_uses !== null ? max_uses : null,
-        max_uses_per_customer: max_uses_per_customer !== undefined && max_uses_per_customer !== null ? max_uses_per_customer : null,
-        expires_at: expires_at || null,
+        max_uses: maxUses,
+        max_uses_per_customer: maxUsesPerCustomer,
+        expires_at: expiresAt,
         active: active !== undefined ? active : true,
         updated_at: new Date().toISOString(),
       })
