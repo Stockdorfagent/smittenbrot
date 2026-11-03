@@ -244,7 +244,8 @@ export default function BakeDayPage() {
 
         {/* extra quantities editor */}
         <div className="mt-4 print:hidden border-t border-smitten-cream pt-3">
-          <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Extra quantities (freezer stock, test bake, own use)</p>
+          <p className="text-xs uppercase tracking-wider text-smitten-text/50 mb-2">Extra quantities — baked on top of all orders</p>
+          <p className="text-[11px] text-smitten-text/60 mb-2">Stock products (amaretti, baby brioche): pieces that go INTO the freezer. Other products: an extra piece you bake anyway (e.g. the third focaccia for the tin). Not for things that leave the freezer — a give-away or own use of a stock product is a one-off bake on the B2B page.</p>
           {extras.length > 0 && (
             <ul className="text-sm space-y-1 mb-2">
               {extras.map((e, i) => (
@@ -268,7 +269,7 @@ export default function BakeDayPage() {
               onClick={() => { setExtras((prev) => [...prev, { pr_product_id: newExtra.pr_product_id, qty: Number(newExtra.qty), reason: newExtra.reason || null }]); setNewExtra({ pr_product_id: '', qty: '', reason: 'Freezer stock' }); setDirty(true); }}
             >Add</button>
           </div>
-          <p className="text-[11px] text-smitten-text/50 mt-2">B2B and one-off orders are entered on the <Link href="/admin/production/b2b" className="underline">B2B page</Link>.</p>
+          <p className="text-[11px] text-smitten-text/50 mt-2">B2B orders and one-off bakes that are not for sale (give-away, test, own use, market) are entered on the <Link href="/admin/production/b2b" className="underline">B2B page</Link>; they count as taken out, never as shop orders.</p>
         </div>
       </Card>
 

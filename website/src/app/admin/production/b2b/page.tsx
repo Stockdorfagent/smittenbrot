@@ -257,7 +257,8 @@ export default function B2BPage() {
         );
       })}
 
-      <Card title="Other one-off bakes (market, test, own use)" className="mb-6">
+      <Card title="Not for sale — give-away, test bake, own use, market (one-off)" className="mb-6">
+        <p className="text-[11px] text-smitten-text/60 mb-2">Baked for a date without a paying order: on the bake sheet in the “Other” column with your label; a stock product is taken OUT of the freezer. Never part of the shop’s orders, exports or statistics.</p>
         {otherManual.length === 0 && <p className="text-sm text-smitten-text/50">No upcoming one-off bakes.</p>}
         <ul className="text-sm divide-y divide-smitten-cream">
           {otherManual.map((m) => (
