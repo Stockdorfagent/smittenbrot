@@ -78,6 +78,7 @@ export default function ProductsPage() {
 
   const recipeName = new Map(data.recipes.map((r) => [r.id, r.name]));
   const ingName = new Map(data.ingredients.map((i) => [i.id, i.name]));
+  const ingUnit = new Map(data.ingredients.map((i) => [i.id, i.unit]));
   const linkedShopIds = new Set(data.products.map((p) => p.product_id).filter(Boolean));
   const unlinkedShop = shop.filter((s) => !linkedShopIds.has(s.id));
   const doughs = data.recipes.filter((r) => r.kind === 'dough');
@@ -137,13 +138,13 @@ export default function ProductsPage() {
             <L label={`Pieces per unit${editing.channel === 'web' ? ' — taken from the shop\'s unit label (e.g. "10 Stück") unless you type another number' : ''}`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.pieces_per_unit} onChange={(e) => setEditing({ ...editing, pieces_per_unit: e.target.value })} /></L>
           </div>
           <div className="mt-3">
-            <p className="text-[11px] text-smitten-text/60 mb-1">Extras per piece (grams, outside the dough: deco, topping, coating)</p>
+            <p className="text-[11px] text-smitten-text/60 mb-1">Extras per piece, outside the dough (deco, topping, coating): grams — or, for a pcs ingredient such as Egg, pieces per piece (0.1 = one egg per 10 pieces; the bake day sums them and rounds up to whole eggs)</p>
             {editing.extras.map((e, i) => (
               <div key={i} className="flex items-center gap-2 mb-1">
                 <select className={smallInputCls} value={e.ingredient_id} onChange={(ev) => setEditing({ ...editing, extras: editing.extras.map((x, j) => j === i ? { ...x, ingredient_id: ev.target.value } : x) })}>
                   <option value="">choose…</option>{data.ingredients.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select>
-                <input className={`${smallInputCls} w-24`} type="number" step="any" min="0" value={e.grams} onChange={(ev) => setEditing({ ...editing, extras: editing.extras.map((x, j) => j === i ? { ...x, grams: ev.target.value } : x) })} /> <span className="text-xs text-smitten-text/50">g</span>
+                <input className={`${smallInputCls} w-24`} type="number" step="any" min="0" value={e.grams} onChange={(ev) => setEditing({ ...editing, extras: editing.extras.map((x, j) => j === i ? { ...x, grams: ev.target.value } : x) })} /> <span className="text-xs text-smitten-text/50">{ingUnit.get(e.ingredient_id) ?? 'g'}</span>
                 <button className="text-xs text-red-700 dark:text-red-400" onClick={() => setEditing({ ...editing, extras: editing.extras.filter((_, j) => j !== i) })}>✕</button>
               </div>
             ))}
@@ -172,7 +173,7 @@ export default function ProductsPage() {
                 <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? fmtG(Number(p.dough_per_unit_g)) : <StatusPill tone="red">not set</StatusPill>}</td>
                 <td className={tdNum}>{p.bake_loss_pct != null ? `${fmtSum(Number(p.bake_loss_pct))} %` : ''}</td>
                 <td className={td}>{p.production}{p.pieces_per_unit ? ` · ${p.pieces_per_unit} pcs/unit` : ''}</td>
-                <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${fmtG(Number(e.grams))} g`).join(', ')}</td>
+                <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${fmtG(Number(e.grams))} ${ingUnit.get(e.ingredient_id) ?? 'g'}`).join(', ')}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
                   <button className="text-sm text-smitten-text/70 hover:text-smitten-primary mr-2" onClick={() => { setEditing(toForm(p)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>edit</button>
                   <button className={btnDanger} onClick={() => remove(p)}>remove</button>

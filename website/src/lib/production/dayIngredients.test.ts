@@ -66,3 +66,12 @@ test('fmtAmount', () => {
   assert.equal(fmtAmount({ unit: 'g', amount: 36.4 }), '36 g');
   assert.equal(fmtAmount({ unit: 'pcs', amount: 12 }), '12 pcs');
 });
+
+test('pcs extras (egg wash) join the egg row and the day list rounds up to whole eggs', () => {
+  const t = dayIngredientTotals(sheet([block({
+    lines: [line('yolk', 'Egg yolk', 34, { source_units: 2, source_units_rounded: 2, source_name: 'Egg' })],
+    extras: [{ pr_product_id: 'x', product_name: 'Brioche', qty: 5, lines: [{ ingredient_id: 'egg', ingredient_name: 'Egg', unit: 'pcs', per_piece: 0.1, total: 0.5 }] }],
+  })]));
+  assert.deepEqual(t.map((x) => [x.name, x.unit, x.amount]), [['Egg', 'pcs', 2.5]]);
+  assert.equal(fmtAmount(t[0]), '3 pcs');
+});

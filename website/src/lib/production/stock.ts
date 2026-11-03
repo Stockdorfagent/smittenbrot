@@ -266,6 +266,10 @@ export function dayConsumption(sheet: BakeSheet, data: ProductionData): Map<stri
     for (const p of r.per_batch_items) add(p.ingredient_id, p.amount * mult);
     for (const e of r.extras) for (const l of e.lines) add(l.ingredient_id, l.total);
   }
+  // Pieces are bought whole: 5 brioches × 0.1 egg for the egg wash = 1 egg, not 0.5.
+  for (const [id, amount] of out) {
+    if (byId.get(id)?.unit === 'pcs' && amount > 0) out.set(id, Math.ceil(amount - 1e-9));
+  }
   return out;
 }
 

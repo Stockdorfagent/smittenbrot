@@ -82,6 +82,8 @@ export interface Recipe {
 
 export interface ExtraItem {
   ingredient_id: string;
+  /** Per piece, in the ingredient's unit: grams — or PIECES for a pcs ingredient
+   *  (Egg 0.1 = one egg per 10 pieces; the bake day rounds up to whole eggs). */
   grams: number; // per piece
 }
 

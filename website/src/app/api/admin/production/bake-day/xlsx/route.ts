@@ -62,8 +62,8 @@ export async function GET(req: NextRequest) {
       if (r.eggs_per_batch) ws.addRow(['Eggs per batch', null, r.eggs_per_batch]);
       for (const e of r.extras) {
         ws.addRow([]);
-        ws.addRow([`Extras ${e.product_name} ×${e.qty}`, 'per piece (g)', 'total (g)']).font = { bold: true };
-        for (const l of e.lines) ws.addRow([l.ingredient_name, l.per_piece, r1(l.total)]);
+        ws.addRow([`Extras ${e.product_name} ×${e.qty}`, 'per piece', 'total', 'unit']).font = { bold: true };
+        for (const l of e.lines) ws.addRow([l.ingredient_name, l.per_piece, l.unit === 'pcs' ? Math.ceil(l.total - 1e-9) : r1(l.total), l.unit === 'pcs' ? `pcs (${l.total} rounded up)` : 'g']);
       }
       ws.getColumn(1).width = 36; ws.getColumn(2).width = 12; ws.getColumn(3).width = 12; ws.getColumn(4).width = 60;
     }

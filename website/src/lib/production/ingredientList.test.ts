@@ -21,6 +21,9 @@ ing('Egg yolk', '**Eigelb**', ['Eier']); ing('Milk', '**Milch**', ['Milch']); in
 ing('Flaked almonds', '**Mandeln** gehobelt', ['Schalenfrüchte (Mandeln)']); ing('Pearl sugar', 'Hagelzucker', []); ing('Egg', '**Ei**', ['Eier'], null, 'pcs');
 ing('Olive oil', 'Olivenöl', []); ing('Olives', 'Oliven', [], 'Oliven, Wasser, Salz, Stabilisator (Eisen-II-gluconat)'); ing('Oregano', 'Oregano', []);
 ing('Almond extract', 'Bittermandelextrakt', null); ing('Almond flour', '**Mandelmehl**', ['Schalenfrüchte (Mandeln)']); ing('Egg white', '**Eiweiß**', ['Eier']);
+// yolk and white are taken from whole eggs (17 g + 33 g per egg) — gives a pcs "Egg" extra its weight
+Object.assign(ING.find((i) => i.id === 'ing-Egg yolk')!, { derived_from: 'ing-Egg', g_per_source_unit: 17 });
+Object.assign(ING.find((i) => i.id === 'ing-Egg white')!, { derived_from: 'ing-Egg', g_per_source_unit: 33 });
 
 const LL_WHEAT: Starter = { id: 'st-wheat', name: 'LL Wheat', maintenance_flour_ingredient_id: 'ing-Wheat flour T80/1050', stages: [
   { stage_no: 1, day_offset: -1, flour_parts: 2, water_parts: 1, seed_parts: 1, flour_from_recipe: true },
@@ -58,12 +61,14 @@ test('Stockdorf → Weizenmehl, Wasser, Salz, Acerolakirschpulver (compound in b
 });
 
 test('Brioche: starter water appears after the yeast (~2 % of flour); egg yolk as name_de; wheat+spelt → Weizen (inkl. Dinkel)', () => {
-  const g = generateIngredientList(product('Brioche', 'rec-Brioche', 265, [{ ingredient_id: 'ing-Flaked almonds', grams: 4 }, { ingredient_id: 'ing-Pearl sugar', grams: 4 }, { ingredient_id: 'ing-Egg', grams: 1 }]), DATA);
+  // egg wash = 0.1 egg per brioche (one egg for ten) → 0.1 × 50 g = 5 g, listed by that weight
+  const g = generateIngredientList(product('Brioche', 'rec-Brioche', 265, [{ ingredient_id: 'ing-Flaked almonds', grams: 4 }, { ingredient_id: 'ing-Pearl sugar', grams: 4 }, { ingredient_id: 'ing-Egg', grams: 0.1 }]), DATA);
   assert.deepEqual(g.blocked, []);
   const names = g.entries.map((e) => e.name_de);
   assert.ok(names.indexOf('Wasser') > names.indexOf('Hefe'), names.join(' > '));
   assert.ok(names.includes('**Eigelb**'));
-  assert.ok(names.indexOf('**Ei**') > names.indexOf('Rum'));          // 1 g egg wash sorts near the end
+  assert.ok(Math.abs(g.entries.find((e) => e.name_de === '**Ei**')!.grams - 5) < 1e-9);
+  assert.ok(names.indexOf('**Ei**') < names.indexOf('Rum'));          // 5 g egg wash sorts before the rum (1 % ≈ 1.3 g)
   assert.deepEqual(g.allergens, ['Weizen (inkl. Dinkel)', 'Milch', 'Eier', 'Schalenfrüchte (Mandeln)']);
   assert.ok(g.text.startsWith('**Weizen**mehl, **Milch**, **Butter**'));
 });
@@ -89,4 +94,16 @@ test('allergen merging and markers', () => {
   assert.equal(markersToCaps('**Weizen**mehl, **Ei**, Salz'), 'WEIZENmehl, EI, Salz');
   const d = diffLists('Weizenmehl, Wasser, Salz, Oliven, Oliven', '**Weizen**mehl, Wasser, Salz, Oliven (Oliven, Wasser)');
   assert.deepEqual(d.added, ['Oliven (Oliven, Wasser)']); assert.deepEqual(d.removed, ['Oliven', 'Oliven']); assert.equal(d.same, false);
+});
+
+test('pcs extras: Egg 0.1 per piece weighs 0.1 × (yolk 17 g + white 33 g) = 5 g in the customer list', () => {
+  const egg: Ingredient = { id: 'ing-Egg2', name: 'Egg2', unit: 'pcs', name_de: 'Ei', allergens: ['Eier'], components_de: null, derived_from: null, g_per_source_unit: null, notes: null, track_stock: false, track_bbf: false, reorder_level: null, made_from_recipe_id: null };
+  const yolk: Ingredient = { ...egg, id: 'ing-Yolk2', name: 'Yolk2', unit: 'g', name_de: 'Eigelb', derived_from: 'ing-Egg2', g_per_source_unit: 17 };
+  const white: Ingredient = { ...egg, id: 'ing-White2', name: 'White2', unit: 'g', name_de: 'Eiweiß', derived_from: 'ing-Egg2', g_per_source_unit: 33 };
+  const d: ProductionData = { ...DATA, ingredients: [...DATA.ingredients, egg, yolk, white] };
+  const g = generateIngredientList(product('Stockdorf Sourdough', 'rec-Stockdorf', 850, [{ ingredient_id: 'ing-Egg2', grams: 0.1 }]), d);
+  assert.deepEqual(g.blocked, []);
+  const ei = g.entries.find((e) => e.name_de === 'Ei')!;
+  assert.ok(Math.abs(ei.grams - 5) < 1e-9);
+  assert.ok(g.allergens.includes('Eier'));
 });

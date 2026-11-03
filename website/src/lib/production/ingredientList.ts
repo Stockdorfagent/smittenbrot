@@ -119,7 +119,16 @@ export function generateIngredientList(product: ProductLink, data: ProductionDat
   else expandRecipe(acc, recipe, Number(product.dough_per_unit_g), data, ingredients, starters, [recipe.id]);
   for (const e of product.extras ?? []) {
     const ing = ingredients.get(e.ingredient_id);
-    if (ing) add(acc, ing, Number(e.grams)); else acc.blocked.add('Unknown ingredient in the extras.');
+    if (!ing) { acc.blocked.add('Unknown ingredient in the extras.'); continue; }
+    if (ing.unit === 'pcs') {
+      // Pieces per piece (Egg 0.1 for the egg wash): the weight of one unit comes from
+      // its derived ingredients (egg yolk 17 g + egg white 33 g = 50 g per egg).
+      const perUnit = data.ingredients.filter((d) => d.derived_from === ing.id).reduce((n, d) => n + Number(d.g_per_source_unit || 0), 0);
+      if (!(perUnit > 0)) { acc.blocked.add(`${ing.name}: a pcs ingredient in the extras needs derived ingredients with "g per unit", so its weight is known.`); continue; }
+      add(acc, ing, Number(e.grams) * perUnit);
+    } else {
+      add(acc, ing, Number(e.grams));
+    }
   }
   const entries = [...acc.grams.entries()]
     .map(([name_de, grams]) => ({ name_de, grams, components_de: acc.meta.get(name_de)?.components_de ?? null, allergens: acc.meta.get(name_de)?.allergens ?? [] }))

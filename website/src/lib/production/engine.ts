@@ -354,7 +354,10 @@ function extrasFor(ctx: Ctx, product: ProductLink, qty: number): ExtrasBlock | n
     qty,
     lines: product.extras.map((e) => {
       const ing = ctx.ingredients.get(e.ingredient_id);
-      return { ingredient_id: e.ingredient_id, ingredient_name: ing?.name ?? 'unknown', unit: 'g', per_piece: Number(e.grams), total: Number(e.grams) * qty };
+      // Unit follows the ingredient (owner 03.11.2026, brioche egg wash): a pcs
+      // ingredient's extra is pieces per piece (Egg 0.1), summed per bake day and
+      // rounded up to whole units in the day list and the stock booking.
+      return { ingredient_id: e.ingredient_id, ingredient_name: ing?.name ?? 'unknown', unit: ing?.unit ?? 'g', per_piece: Number(e.grams), total: Number(e.grams) * qty };
     }),
   };
 }

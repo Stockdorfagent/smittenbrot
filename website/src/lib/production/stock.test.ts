@@ -229,3 +229,16 @@ test('planBatch: used amounts override the recipe (drying loss: 100 g pods → 7
   assert.match(planBatch('powder', 70, d, prices, [{ ingredient_id: 'sugar', amount: 1 }]).error!, /not in the recipe/);
   assert.match(planBatch('powder', 70, d, prices, [{ ingredient_id: 'pods', amount: -1 }]).error!, /≥ 0/);
 });
+
+test('day consumption: pcs extras (egg wash 0.1 egg per brioche) are summed over the day and rounded up to whole eggs', () => {
+  const block = (qty: number): BakeSheet['recipes'][0] => ({
+    recipe_id: 'r', name: 'Brioche', version: 1, products: [], total_dough_g: 0, sum_pct: 0, dough_margin_factor: 0, margin_g_per_batch: 0, batches: 1, max_batch_g: null, per_batch_dough_g: 0, factor: 1, batch_total_g: 0,
+    lines: [], subs: [], starters: [], per_batch_items: [], eggs_per_batch: 0, adjustments_applied: 0,
+    extras: [{ pr_product_id: 'prod', product_name: 'Brioche', qty, lines: [{ ingredient_id: 'egg', ingredient_name: 'Egg', unit: 'pcs', per_piece: 0.1, total: 0.1 * qty }, { ingredient_id: 'sesame', ingredient_name: 'Sesame', unit: 'g', per_piece: 4, total: 4 * qty }] }],
+  });
+  const sheet = (qty: number): BakeSheet => ({ date: '2026-11-04', warnings: [], products: [], stock_products: [], starters: [], totals: { eggs: 0 }, versions: {}, recipes: [block(qty)] });
+  assert.equal(dayConsumption(sheet(2), data).get('egg'), 1);    // 0.2 → 1 egg
+  assert.equal(dayConsumption(sheet(10), data).get('egg'), 1);   // 1.0 → 1 egg
+  assert.equal(dayConsumption(sheet(11), data).get('egg'), 2);   // 1.1 → 2 eggs
+  assert.equal(dayConsumption(sheet(11), data).get('sesame'), 44); // grams stay exact
+});

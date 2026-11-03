@@ -196,8 +196,9 @@ test('Brioche 1 pc, margin 0.1: factor 1.418, T550 135, milk 61, butter 30, tota
   assert.equal(b.per_batch_items[0].amount, 1);          // egg wash
   assert.equal(b.eggs_per_batch, 3);
   assert.equal(sheet.totals.eggs, 3);
-  // brioche extras (Egg=1 g per piece) are listed, never costed/stocked
+  // brioche extras: a pcs ingredient's extra is pieces per piece (fixture: Egg 1 per piece)
   assert.equal(b.extras[0].lines[0].total, 1);
+  assert.equal(b.extras[0].lines[0].unit, 'pcs');
 });
 
 // ---------- §1.6 starter chains (margin 0) ----------

@@ -402,7 +402,9 @@ function RecipeCard({ r, starterInSub, adjustments, frozen, onAdjust, onSaveVers
           {r.extras.length > 0 && (
             <div>
               {r.extras.map((e) => (
-                <p key={e.pr_product_id}><span className="font-medium">{e.product_name} ×{e.qty}:</span> {e.lines.map((l) => `${l.ingredient_name} ${fmtG(l.total)} g`).join(', ')}</p>
+                <p key={e.pr_product_id}><span className="font-medium">{e.product_name} ×{e.qty}:</span> {e.lines.map((l) => l.unit === 'pcs'
+                  ? `${l.ingredient_name} ${l.total.toLocaleString('de-DE', { maximumFractionDigits: 2 })} pcs (→ ${Math.ceil(l.total - 1e-9)} whole, summed over the day)`
+                  : `${l.ingredient_name} ${fmtG(l.total)} g`).join(', ')}</p>
               ))}
             </div>
           )}
