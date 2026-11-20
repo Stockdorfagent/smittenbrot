@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice, formatPriceWithUnit } from '@/lib/types';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickup, isOfferedOn } from '@/lib/pickup';
 import { useClosures } from '@/context/ClosureContext';
 import Link from 'next/link';
 
@@ -22,10 +22,11 @@ export default function HomePage() {
         .in('cycle', ['permanent', 'week_a', 'week_b'])
         .order('sort_order', { ascending: true });
       if (error) console.error('[homepage] fetch error:', error);
-      if (data) setProducts(data);
+      // "Wieder ab" products stay off the teaser until the next pickup date reaches their date.
+      if (data) setProducts(data.filter((p) => isOfferedOn(p, getNextPickup(new Date(), closures).date)));
     }
-    fetchProducts();
-  }, []);
+    if (closuresLoaded) fetchProducts();
+  }, [closuresLoaded, closures]);
 
   // Closed bake days (Schließzeiten) are skipped; wait for them so the
   // date does not flash a closed day first.

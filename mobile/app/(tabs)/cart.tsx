@@ -55,9 +55,9 @@ export default function CartScreen() {
     const ids = items.map((i) => i.product_id);
     if (ids.length === 0) { setProductDays({}); return; }
     (async () => {
-      const { data } = await supabase.from('products').select('id, cycle, available_wed, available_sat').in('id', ids);
+      const { data } = await supabase.from('products').select('id, cycle, available_wed, available_sat, available_from').in('id', ids);
       const days: Record<string, ProductDayAvailability> = {};
-      for (const p of data ?? []) days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat };
+      for (const p of data ?? []) days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat, available_from: p.available_from };
       setProductDays(days);
       const { data: wc } = await supabase.from('week_cycle').select('current_week').order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (wc?.current_week === 'A' || wc?.current_week === 'B') setCurrentWeek(wc.current_week);

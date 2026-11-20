@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickup, isOfferedOn, formatPickupDateDe } from '@/lib/pickup';
 import { useClosures } from '@/context/ClosureContext';
 import { fetchSoldOut } from '@/lib/soldOut';
 import Link from 'next/link';
@@ -63,6 +63,9 @@ export default function ProductDetailPage() {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, closuresLoaded, pickup.date]);
+
+  // "Wieder ab": a direct link to a product that is not offered on the next pickup date.
+  const notYet = product ? !isOfferedOn(product, pickup.date) : false;
 
   const handleQuantityChange = (val: number) => {
     if (val < 1) return;
@@ -153,7 +156,7 @@ export default function ProductDetailPage() {
             </p>
           </div>
 
-          <div className="mt-4" hidden={soldOut}>
+          <div className="mt-4" hidden={soldOut || notYet}>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleQuantityChange(quantity - 1)}
@@ -191,7 +194,11 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {soldOut ? (
+          {notYet ? (
+            <div className="mt-6 w-full bg-smitten-cream text-smitten-secondary py-3 rounded-full font-medium text-center">
+              Wieder ab {formatPickupDateDe(product.available_from!)}
+            </div>
+          ) : soldOut ? (
             <div className="mt-6 w-full bg-smitten-cream text-smitten-secondary py-3 rounded-full font-medium text-center">
               Für {pickup.label} ausverkauft
             </div>

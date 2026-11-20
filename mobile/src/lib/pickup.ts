@@ -205,6 +205,8 @@ export interface ProductDayAvailability {
   cycle: 'permanent' | 'week_a' | 'week_b' | 'hidden';
   available_wed: boolean;
   available_sat: boolean;
+  /** "Wieder ab": not offered for pickup dates before this YYYY-MM-DD. */
+  available_from?: string | null;
 }
 
 /** True when the product is in the range on that pickup day and in that week. */
@@ -214,7 +216,13 @@ export function isProductAvailableOn(p: ProductDayAvailability, pickup: NextPick
   if (pickup.day === 'saturday' && !p.available_sat) return false;
   if (p.cycle === 'week_a' && weekForPickup !== 'A') return false;
   if (p.cycle === 'week_b' && weekForPickup !== 'B') return false;
+  if (!isOfferedOn(p, pickup.date)) return false;
   return true;
+}
+
+/** "Wieder ab" rule alone: offered on the pickup date unless available_from lies after it. */
+export function isOfferedOn(p: { available_from?: string | null }, pickupDateISO: string): boolean {
+  return !p.available_from || p.available_from <= pickupDateISO;
 }
 
 /**

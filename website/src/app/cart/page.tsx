@@ -74,13 +74,13 @@ export default function CartPage() {
     const ids = state.items.map(i => i.productId);
     if (ids.length === 0) { setImages({}); return; }
     (async () => {
-      const { data } = await supabase.from('products').select('id, cover_image_url, cycle, available_wed, available_sat').in('id', ids);
+      const { data } = await supabase.from('products').select('id, cover_image_url, cycle, available_wed, available_sat, available_from').in('id', ids);
       if (data) {
         const map: Record<string, string> = {};
         const days: Record<string, ProductDayAvailability> = {};
         for (const p of data) {
           if (p.cover_image_url) map[p.id] = p.cover_image_url as string;
-          days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat };
+          days[p.id] = { cycle: p.cycle, available_wed: p.available_wed, available_sat: p.available_sat, available_from: p.available_from };
         }
         setImages(map);
         setProductDays(days);

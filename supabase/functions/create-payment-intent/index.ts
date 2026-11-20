@@ -124,12 +124,20 @@ serve(async (req: Request): Promise<Response> => {
     const dayName = dow === 6 ? "Samstag" : "Mittwoch";
     const ids = items.map((i) => i.product_id).join(",");
     const pr = await fetch(
-      `${SUPABASE_URL}/rest/v1/products?id=in.(${ids})&select=name,available_wed,available_sat`,
+      `${SUPABASE_URL}/rest/v1/products?id=in.(${ids})&select=name,available_wed,available_sat,available_from`,
       { headers: { ...svcHeaders, apikey: SUPABASE_SERVICE_ROLE_KEY } },
     );
-    const prods = pr.ok ? (await pr.json()) as { name: string; available_wed: boolean; available_sat: boolean }[] : [];
+    const prods = pr.ok
+      ? (await pr.json()) as { name: string; available_wed: boolean; available_sat: boolean; available_from: string | null }[]
+      : [];
     const off = prods.find((p) => !p[dayCol]);
     if (off) return json({ error: `${off.name} gibt es am ${dayName} nicht.` }, 400);
+    // "Wieder ab" (migration 046): not before that date.
+    const notYet = prods.find((p) => p.available_from && p.available_from > fulfillmentDate);
+    if (notYet) {
+      const [y, m, d] = String(notYet.available_from).split("-");
+      return json({ error: `${notYet.name} gibt es erst wieder ab ${d}.${m}.${y}.` }, 400);
+    }
   }
 
   // ── 0b. The pickup date itself must still be open (code review 02.11.2026, finding 8) ──

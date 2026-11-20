@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getNextPickup, getNextPickupFor, nextSubscriptionRun, announcedClosure, closureBannerText,
-  firstOpenPickupAfter, isClosedOn,
+  firstOpenPickupAfter, isClosedOn, isOfferedOn, isProductAvailableOn,
 } from './pickup.ts';
 import type { ClosureRange } from './pickup.ts';
 
@@ -82,4 +82,14 @@ test('nextSubscriptionRun skips closed pickups', () => {
   const both = nextSubscriptionRun('both', fri20, [closure]);
   assert.equal(both.pickupDate, '2026-12-02');
   assert.equal(nextSubscriptionRun('wednesday', fri20).pickupDate, '2026-11-25');
+});
+
+test('"wieder ab": hidden before the date, offered from the date on, also inside isProductAvailableOn', () => {
+  const p = { cycle: 'permanent' as const, available_wed: true, available_sat: true, available_from: '2026-12-05' };
+  assert.equal(isOfferedOn(p, '2026-12-02'), false);
+  assert.equal(isOfferedOn(p, '2026-12-05'), true);
+  assert.equal(isOfferedOn({ available_from: null }, '2026-12-02'), true);
+  const wed = getNextPickup(fri20, [closure]); // 02.12.
+  assert.equal(isProductAvailableOn(p, wed, 'A'), false);
+  assert.equal(isProductAvailableOn({ ...p, available_from: null }, wed, 'A'), true);
 });

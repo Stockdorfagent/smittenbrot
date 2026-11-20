@@ -8,6 +8,8 @@ export interface Product {
   cycle: 'permanent' | 'week_a' | 'week_b' | 'hidden';
   available_wed: boolean;
   available_sat: boolean;
+  /** Not offered for pickup dates before this YYYY-MM-DD ("wieder ab"). NULL = always. */
+  available_from?: string | null;
   subscribable: boolean;
   active: boolean;
   cover_image_url: string | null;

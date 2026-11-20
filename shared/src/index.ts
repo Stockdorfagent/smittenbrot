@@ -39,6 +39,7 @@ export interface Product {
   cycle: ProductCycle;
   available_wed: boolean;
   available_sat: boolean;
+  available_from?: string | null; // not offered before this date ("wieder ab")
   active: boolean;
   cover_image_url: string | null;
   images: string[];

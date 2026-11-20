@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
       // never trust a price sent by the client.
       const { data: product } = await supabase
         .from('products')
-        .select('id, name, capacity, price_cents, available_wed, available_sat, active')
+        .select('id, name, capacity, price_cents, available_wed, available_sat, available_from, active')
         .eq('id', item.product_id)
         .single();
 
@@ -172,6 +172,11 @@ export async function POST(req: NextRequest) {
       }
       if (!product[dayCol]) {
         return NextResponse.json({ error: `${product.name} gibt es am ${dayName} nicht.` }, { status: 400 });
+      }
+      // "Wieder ab" (migration 046): not before that date.
+      if (product.available_from && product.available_from > fulfillment_date) {
+        const [y, m, d] = String(product.available_from).split('-');
+        return NextResponse.json({ error: `${product.name} gibt es erst wieder ab ${d}.${m}.${y}.` }, { status: 400 });
       }
       priceMap[product.id] = { price_cents: product.price_cents, name: product.name };
       subtotalCents += product.price_cents * requested;

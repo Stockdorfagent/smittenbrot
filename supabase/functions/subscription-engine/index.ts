@@ -844,6 +844,7 @@ async function buildSubscriptionDraft(
         cycle,
         subscribable,
         active,
+        available_from,
         ${pickupDayColumn}
       )
     `)
@@ -859,11 +860,14 @@ async function buildSubscriptionDraft(
       cycle: string;
       subscribable: boolean;
       active: boolean;
+      available_from: string | null;
       [key: string]: unknown;
     };
     if (!p[pickupDayColumn]) continue;
     if (p.subscribable === false) continue;
     if (p.active === false) continue;
+    // "Wieder ab" (migration 046): the Abo gets the rest of its basket on such a day (owner, 20.11.2026).
+    if (p.available_from && p.available_from > fulfillmentDate) continue;
     if (p.cycle === "hidden") continue;
     if (p.cycle === "week_a" && currentWeek !== "A") continue;
     if (p.cycle === "week_b" && currentWeek !== "B") continue;

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useClosures } from '@/context/ClosureContext';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickup, isOfferedOn } from '@/lib/pickup';
 import { isReadyForPickup } from '@/lib/orderStatus';
 import { loadPickedUp } from '@/lib/pickedUp';
 import { Button } from '@/components/Button';
@@ -123,6 +123,7 @@ export default function HomeScreen() {
 
     const filtered = (allProducts ?? []).filter((p) => {
       if (p.cycle === 'hidden') return false;
+      if (!isOfferedOn(p, pickup.date)) return false; // "wieder ab" a later date
       if (pickup.day === 'wednesday' && !p.available_wed) return false;
       if (pickup.day === 'saturday' && !p.available_sat) return false;
       if (p.cycle === 'week_a' && cycle?.current_week !== 'A') return false;

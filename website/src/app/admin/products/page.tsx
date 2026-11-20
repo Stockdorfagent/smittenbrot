@@ -37,6 +37,7 @@ export default function AdminProductsPage() {
     short_label: '',
     available_wed: true,
     available_sat: true,
+    available_from: '',
     subscribable: true,
     active: false,
   });
@@ -179,6 +180,7 @@ export default function AdminProductsPage() {
         display_group: editForm.display_group ?? 'classic',
         available_wed: editForm.available_wed,
         available_sat: editForm.available_sat,
+        available_from: editForm.available_from || null,
         subscribable: editForm.display_group === 'special' ? false : editForm.subscribable,
         active: editForm.active,
       })
@@ -265,6 +267,7 @@ export default function AdminProductsPage() {
         display_group: newForm.display_group,
         available_wed: newForm.available_wed,
         available_sat: newForm.available_sat,
+        available_from: newForm.available_from || null,
         subscribable: newForm.display_group === 'special' ? false : newForm.subscribable,
         active: newForm.active,
       })
@@ -285,7 +288,7 @@ export default function AdminProductsPage() {
       if (urls.length > 0) await supabase.from('products').update({ cover_image_url: urls[0], images: urls }).eq('id', data.id);
     }
     setCreating(false);
-    setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', unit_label: '', short_label: '', available_wed: true, available_sat: true, subscribable: true, active: false });
+    setNewForm({ name: '', description: '', weight: '', ingredients: '', allergens: '', price_cents: 0, capacity: 10, cycle: 'permanent', display_group: 'classic', unit_label: '', short_label: '', available_wed: true, available_sat: true, available_from: '', subscribable: true, active: false });
     setNewPhotos([]);
     loadProducts();
     } finally {
@@ -401,6 +404,12 @@ export default function AdminProductsPage() {
             <input type="file" accept="image/*" multiple onChange={e => setNewPhotos(Array.from(e.target.files ?? []))}
               className="w-full text-sm text-smitten-text/70" />
             {newPhotos.length > 0 && <p className="text-xs text-smitten-text/60 mt-1">Ausgewählt: {newPhotos.map((f) => f.name).join(', ')} (das erste wird das Titelbild)</p>}
+          </div>
+          <div>
+            <label className="block text-xs text-smitten-text/60 mb-1">Wieder ab (optional)</label>
+            <input type="date" value={newForm.available_from} onChange={e => setNewForm({...newForm, available_from: e.target.value})}
+              className="px-3 py-2 rounded-lg border border-smitten-cream text-sm" />
+            <p className="text-xs text-smitten-text/50 mt-1">Vor diesem Abholtag nicht im Sortiment (Shop, App, Abo). Leer = immer.</p>
           </div>
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newForm.available_wed} onChange={e => setNewForm({...newForm, available_wed: e.target.checked})} className="rounded" /> Mittwoch</label>
@@ -609,6 +618,16 @@ export default function AdminProductsPage() {
                     </div>
                   )}
                 </div>
+                <div>
+                  <label className="block text-xs text-smitten-text/60 mb-1">Wieder ab (optional)</label>
+                  <input
+                    type="date"
+                    value={editForm.available_from ?? ''}
+                    onChange={(e) => setEditForm({ ...editForm, available_from: e.target.value || null })}
+                    className="px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
+                  />
+                  <p className="text-xs text-smitten-text/50 mt-1">Vor diesem Abholtag nicht im Sortiment (Shop, App, Abo). Leer = immer.</p>
+                </div>
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm text-smitten-text">
                     <input
@@ -701,6 +720,7 @@ export default function AdminProductsPage() {
                     <p className="text-xs text-smitten-text/40 mt-0.5">
                       {formatPrice(product.price_cents)} · Kapazität: {product.capacity} · Reihenfolge: {product.sort_order} · {cycleLabels[product.cycle] || product.cycle} · {displayGroupLabels[product.display_group] ?? product.display_group}
                       · {product.available_wed ? 'Mi' : ''} {product.available_sat ? 'Sa' : ''}
+                      {product.available_from && <> · <span className="text-smitten-primary">wieder ab {product.available_from.split('-').reverse().join('.')}</span></>}
                     </p>
                     <ProductionStatus link={prodLinks.get(product.id)} list={listStatus.get(product.id)} loaded={prodLinks.size > 0} />
                   </div>

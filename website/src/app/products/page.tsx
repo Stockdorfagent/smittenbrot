@@ -5,7 +5,7 @@ import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPriceWithUnit } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
-import { getNextPickup } from '@/lib/pickup';
+import { getNextPickup, isOfferedOn } from '@/lib/pickup';
 import { useClosures } from '@/context/ClosureContext';
 import { fetchSoldOut } from '@/lib/soldOut';
 import { groupProducts } from '@/lib/productGroups';
@@ -53,6 +53,7 @@ export default function ProductsPage() {
       const { data } = await query.order('sort_order', { ascending: true });
       if (data) {
         const filtered = data.filter(p => {
+          if (!isOfferedOn(p, pickup.date)) return false; // "wieder ab" a later date
           if (p.cycle === 'permanent') return true;
           if (p.cycle === 'week_a') return weekCycle === 'A';
           if (p.cycle === 'week_b') return weekCycle === 'B';
