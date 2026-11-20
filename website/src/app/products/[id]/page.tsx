@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Product, formatPrice } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { fetchSoldOut } from '@/lib/soldOut';
 import Link from 'next/link';
 
@@ -24,9 +25,12 @@ export default function ProductDetailPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [soldOut, setSoldOut] = useState(false);
 
-  const pickup = getNextPickup();
+  // Closed bake days (Schließzeiten) are skipped, like on the shop page.
+  const { closures, loaded: closuresLoaded } = useClosures();
+  const pickup = getNextPickup(new Date(), closures);
 
   useEffect(() => {
+    if (!closuresLoaded) return;
     async function fetchData() {
       // /products/<slug> is the canonical address; old /products/<uuid> links
       // (emails, bookmarks) keep working and are redirected to the slug.
@@ -53,11 +57,12 @@ export default function ProductDetailPage() {
         .single();
       if (cycleData) setWeekCycle(cycleData.current_week);
 
-      const soldOutMap = await fetchSoldOut([id], getNextPickup().date);
+      const soldOutMap = await fetchSoldOut([id], pickup.date);
       setSoldOut(!!soldOutMap[id]);
     }
     fetchData();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, closuresLoaded, pickup.date]);
 
   const handleQuantityChange = (val: number) => {
     if (val < 1) return;

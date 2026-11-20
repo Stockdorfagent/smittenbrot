@@ -9,6 +9,7 @@ import AboExplainer, { ReminderHint } from '@/components/AboExplainer';
 import { useRouter } from 'next/navigation';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getStripe } from '@/lib/stripeClient';
+import { useClosures } from '@/context/ClosureContext';
 
 
 /**
@@ -106,6 +107,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SubscriptionsPage() {
+  // Closed bake days (Schließzeiten) are skipped by the engine; the run label follows.
+  const { closures } = useClosures();
   const [user, setUser] = useState<unknown>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -424,7 +427,7 @@ export default function SubscriptionsPage() {
                 {/* When the next order is placed and paid (nothing exists before 20:00) */}
                 {sub.status === 'active' && (
                   <p className="mt-1 text-xs text-smitten-text/60">
-                    Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day).label}
+                    Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day, new Date(), closures).label}
                   </p>
                 )}
 

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
+import { ClosureProvider } from '@/context/ClosureContext';
 import { useNotificationRouting } from '@/lib/notificationRouting';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Component, type ReactNode } from 'react';
@@ -78,6 +79,7 @@ function RootNavigator() {
         merchantIdentifier="merchant.de.smittenbrot.app"
       >
         <AuthProvider>
+          <ClosureProvider>
           <CartProvider>
             <StatusBar style={isDark ? "light" : "dark"} />
             <NotificationRouter />
@@ -140,6 +142,7 @@ function RootNavigator() {
           />
             </Stack>
           </CartProvider>
+          </ClosureProvider>
         </AuthProvider>
       </StripeProvider>
     </>

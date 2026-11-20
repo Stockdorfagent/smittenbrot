@@ -172,13 +172,50 @@ function berlinHour(): number {
  * first with its cutoff still open. The Mon/Thu crons then keep generating one
  * order per day from there on.
  */
-function getNextDateForSubscription(
+async function getNextDateForSubscription(
   pickupDay: "wednesday" | "saturday" | "both",
-): string {
-  if (pickupDay !== "both") return getNextDateForPickupDay(pickupDay);
-  const wed = getNextDateForPickupDay("wednesday");
-  const sat = getNextDateForPickupDay("saturday");
+): Promise<string> {
+  const closures = await loadClosures();
+  if (pickupDay !== "both") return getNextDateForPickupDay(pickupDay, closures);
+  const wed = getNextDateForPickupDay("wednesday", closures);
+  const sat = getNextDateForPickupDay("saturday", closures);
   return wed <= sat ? wed : sat;
+}
+
+// ── Schließzeiten (admin → Schließzeiten) ────────────────────
+// A closure = no production from start_date to end_date inclusive. Since
+// 20.11.2026 the engine treats closed bake days like the shop does: they are
+// skipped when a date is derived, and no reminder, order or charge happens for
+// them. Before, only the active Abos were paused when the closure was CREATED,
+// which missed an Abo that was paused at that moment and resumed inside the
+// closure (it would have been charged for a day with no bread).
+
+interface ClosureRange { start_date: string; end_date: string }
+
+let closuresCache: { at: number; rows: ClosureRange[] } | null = null;
+
+/** Closures that have not ended yet; cached for 60 s within the isolate. */
+async function loadClosures(): Promise<ClosureRange[]> {
+  if (closuresCache && Date.now() - closuresCache.at < 60_000) return closuresCache.rows;
+  const { data, error } = await supabase
+    .from("closures")
+    .select("start_date, end_date")
+    .gte("end_date", todayInTz());
+  if (error) {
+    console.error("[subscription-engine] Failed to load closures:", error);
+    return closuresCache?.rows ?? [];
+  }
+  closuresCache = { at: Date.now(), rows: (data ?? []) as ClosureRange[] };
+  return closuresCache.rows;
+}
+
+function isClosedDate(dateStr: string, closures: ClosureRange[]): boolean {
+  return closures.some((c) => c.start_date <= dateStr && dateStr <= c.end_date);
+}
+
+/** True when the bake day lies inside a Schließzeit (fresh read, 60 s cache). */
+async function isClosedDay(dateStr: string): Promise<boolean> {
+  return isClosedDate(dateStr, await loadClosures());
 }
 
 /** Which product-availability column applies to a concrete date. */
@@ -187,15 +224,20 @@ function availabilityColumnForDate(dateStr: string): "available_wed" | "availabl
   return dow === 6 ? "available_sat" : "available_wed";
 }
 
-function getNextDateForPickupDay(pickupDay: "wednesday" | "saturday"): string {
+function getNextDateForPickupDay(
+  pickupDay: "wednesday" | "saturday",
+  closures: ClosureRange[] = [],
+): string {
   const targetDow = pickupDay === "wednesday" ? 3 : 6;
   const now = new Date();
   const nowWall = berlinWallClock(now);
-  for (let i = 0; i <= 21; i++) {
+  // 70 days: long enough to look past a multi-week closure.
+  for (let i = 0; i <= 70; i++) {
     const cand = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     const candStr = formatDateInTz(cand);
     const candDow = new Date(candStr + "T12:00:00Z").getUTCDay();
     if (candDow !== targetDow) continue;
+    if (isClosedDate(candStr, closures)) continue;
     const [y, m, d] = candStr.split("-").map(Number);
     const cutoff = new Date(Date.UTC(y, m - 1, d));
     cutoff.setUTCDate(cutoff.getUTCDate() - 2);
@@ -534,6 +576,7 @@ async function getDefaultPaymentMethod(
 async function process12pmReminders(): Promise<{
   processed: number;
   errors: string[];
+  closed?: string;
 }> {
   const fulfillmentDate = getNextFulfillmentDate();
   const dow = currentDayOfWeek();
@@ -548,6 +591,12 @@ async function process12pmReminders(): Promise<{
   console.log(
     `[subscription-engine] process12pmReminders: fulfillmentDate=${fulfillmentDate}, pickupDay=${pickupDayColumn}`,
   );
+
+  // Closed bake day (Schließzeit) → no reminder: nothing is ordered or charged for it.
+  if (await isClosedDay(fulfillmentDate)) {
+    console.log(`[subscription-engine] process12pmReminders: ${fulfillmentDate} is a closure day, skipping.`);
+    return { processed: 0, errors: [], closed: fulfillmentDate };
+  }
 
   // Get all active subscriptions (not paused, not cancelled)
   const { data: subscriptions, error: subError } = await supabase
@@ -689,7 +738,7 @@ async function processOrderReminders(dayOverride?: string): Promise<{
   }
   const flagColumn = day === "wednesday" ? "reminder_wednesday" : "reminder_saturday";
   const fulfillmentDate = dayOverride
-    ? getNextDateForPickupDay(day as "wednesday" | "saturday")
+    ? getNextDateForPickupDay(day as "wednesday" | "saturday", await loadClosures())
     : getNextFulfillmentDate();
 
   // Closed bake day → no reminder (there is nothing to order for).
@@ -1005,7 +1054,7 @@ async function chargeSubscriptionAmount(
  */
 type PlaceResult =
   | { outcome: "placed"; orderId: string; totalCents: number; items: DraftItem[] }
-  | { outcome: "skipped"; reason: "not_active" | "paused" | "already_placed" | "no_items"; orderId: string | null }
+  | { outcome: "skipped"; reason: "not_active" | "paused" | "already_placed" | "no_items" | "closed"; orderId: string | null }
   | { outcome: "would_place"; totalCents: number; items: DraftItem[] }
   | { outcome: "payment_failed"; reason: string }
   | { outcome: "error"; error: string };
@@ -1036,6 +1085,11 @@ async function placeAndChargeSubscriptionOrder(
   if (sub.status !== "active") return { outcome: "skipped", reason: "not_active", orderId: null };
   if (sub.paused_until && (sub.paused_until as string) >= fulfillmentDate) {
     return { outcome: "skipped", reason: "paused", orderId: null };
+  }
+  // Schließzeit backstop: never place or charge for a closed bake day, whoever
+  // asked (scheduled run, resume, manual re-run).
+  if (await isClosedDay(fulfillmentDate)) {
+    return { outcome: "skipped", reason: "closed", orderId: null };
   }
   const customer = sub.customers as unknown as {
     id: string;
@@ -1238,7 +1292,7 @@ type PlaceNowResult = {
   fulfillment_date: string | null;
   order_id: string | null;
   total_cents: number | null;
-  reason?: "run_pending" | "not_active" | "paused" | "already_placed" | "no_items" | "payment_failed";
+  reason?: "run_pending" | "not_active" | "paused" | "already_placed" | "no_items" | "closed" | "payment_failed";
   error: string | null;
 };
 
@@ -1250,7 +1304,7 @@ async function placeNowIfRunPassed(subscriptionId: string): Promise<PlaceNowResu
     .maybeSingle();
   if (!sub) return { placed_now: false, fulfillment_date: null, order_id: null, total_cents: null, error: "Subscription not found" };
 
-  const fulfillmentDate = getNextDateForSubscription((sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday");
+  const fulfillmentDate = await getNextDateForSubscription((sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday");
   const [y, m, d] = fulfillmentDate.split("-").map(Number);
   const orderDay = new Date(Date.UTC(y, m - 1, d));
   orderDay.setUTCDate(orderDay.getUTCDate() - 2);
@@ -1296,6 +1350,7 @@ async function process8pmOrderPlacement(options?: {
   paymentsFailed: number;
   skippedSubscriptions: number;
   errors: string[];
+  closed?: boolean;
   dryRun?: boolean;
   plan?: unknown[];
 }> {
@@ -1304,7 +1359,7 @@ async function process8pmOrderPlacement(options?: {
   const runDay: "wednesday" | "saturday" =
     options?.dayOverride ?? (dow === 1 ? "wednesday" : "saturday");
   const fulfillmentDate = options?.dayOverride
-    ? getNextDateForPickupDay(options.dayOverride)
+    ? getNextDateForPickupDay(options.dayOverride, await loadClosures())
     : getNextFulfillmentDate();
   const currentWeek = await getCurrentWeekType();
 
@@ -1312,6 +1367,17 @@ async function process8pmOrderPlacement(options?: {
     `[subscription-engine] process8pmOrderPlacement: ` +
       `fulfillmentDate=${fulfillmentDate}, week=${currentWeek}, day=${runDay}${dryRun ? " (DRY RUN)" : ""}`,
   );
+
+  // Closed bake day (Schließzeit) → no orders, no charges. The next open
+  // pickup gets its own run two days before it.
+  if (await isClosedDay(fulfillmentDate)) {
+    console.log(`[subscription-engine] process8pmOrderPlacement: ${fulfillmentDate} is a closure day, skipping.`);
+    const closedResult = {
+      fulfillmentDate, week: currentWeek, ordersCreated: 0, paymentsFailed: 0, skippedSubscriptions: 0,
+      errors: [] as string[], closed: true,
+    };
+    return dryRun ? { ...closedResult, dryRun, plan: [] } : closedResult;
+  }
 
   const { data: subscriptions, error: subError } = await supabase
     .from("subscriptions")
@@ -1626,7 +1692,7 @@ type PreviewResult = {
   items: { product_id: string; name: string; quantity: number; unit_price_cents: number }[];
   total_cents: number;
   order_id: string | null;
-  reason?: "not_active" | "paused" | "no_items_this_week" | "already_placed";
+  reason?: "not_active" | "paused" | "no_items_this_week" | "already_placed" | "closed";
   error: string | null;
 };
 
@@ -1659,9 +1725,10 @@ async function previewSubscriptionOrder(
   }
 
   const subPickupDay = (sub.pickup_day as "wednesday" | "saturday" | "both") ?? "wednesday";
-  const fulfillmentDate = options?.fulfillmentDate ?? getNextDateForSubscription(subPickupDay);
+  const fulfillmentDate = options?.fulfillmentDate ?? await getNextDateForSubscription(subPickupDay);
 
   if (sub.status !== "active") return none("not_active", null, fulfillmentDate);
+  if (await isClosedDay(fulfillmentDate)) return none("closed", null, fulfillmentDate);
   if (sub.paused_until && (sub.paused_until as string) >= fulfillmentDate) {
     return none("paused", null, fulfillmentDate);
   }

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Product, formatPriceWithUnit } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { getNextPickup } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { fetchSoldOut } from '@/lib/soldOut';
 import { groupProducts } from '@/lib/productGroups';
 import Link from 'next/link';
@@ -17,7 +18,10 @@ export default function ProductsPage() {
   const [soldOut, setSoldOut] = useState<Record<string, boolean>>({});
   const { addItem } = useCart();
 
-  const pickup = getNextPickup();
+  // Closed bake days (Schließzeiten) are skipped: during a Backpause the shop
+  // offers the first bake day after it. Products load once the closures are known.
+  const { closures, loaded: closuresLoaded } = useClosures();
+  const pickup = getNextPickup(new Date(), closures);
 
   useEffect(() => {
     async function fetchData() {
@@ -33,6 +37,7 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
+    if (!closuresLoaded) return;
     async function fetchProducts() {
       let query = supabase
         .from('products')
@@ -60,7 +65,7 @@ export default function ProductsPage() {
       }
     }
     fetchProducts();
-  }, [pickup.day, pickup.date, weekCycle]);
+  }, [closuresLoaded, pickup.day, pickup.date, weekCycle]);
 
   const handleAdd = (product: Product) => {
     addItem({
@@ -79,9 +84,11 @@ export default function ProductsPage() {
       <h1 className="text-3xl font-bold text-smitten-text">
         Sortiment
       </h1>
-      <p className="mt-2 text-sm text-smitten-secondary">
-        Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
-      </p>
+      {closuresLoaded && (
+        <p className="mt-2 text-sm text-smitten-secondary">
+          Jetzt bestellen für <strong className="text-smitten-text font-semibold">{pickup.label}</strong> · {pickup.cutoffLabel}
+        </p>
+      )}
 
       {/* Sections (Klassiker / Diese Woche / Extras): display grouping only —
           `products` is already filtered for the pickup day and week, so an empty section

@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { getNextPickupFor } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { Button } from '@/components/Button';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
@@ -22,6 +23,8 @@ export default function CheckoutScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { items, pickup_location_id, totalCents, clearCart } = useCart();
+  // Closed bake days (Schließzeiten) are skipped; the server refuses one anyway.
+  const { closures } = useClosures();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [loading, setLoading] = useState(false);
   // Discount code (owner 25.09.2026: the app had no field, codes worked on the
@@ -47,7 +50,7 @@ export default function CheckoutScreen() {
           code,
           email: user.email,
           items: items.map((i) => ({ price_cents: i.unit_price_cents, quantity: i.quantity })),
-          fulfillment_date: getNextPickupFor(loc ?? null).date,
+          fulfillment_date: getNextPickupFor(loc ?? null, new Date(), closures).date,
         }),
       });
       const d = await res.json();
@@ -81,7 +84,7 @@ export default function CheckoutScreen() {
         .select('available_wed, available_sat')
         .eq('id', pickup_location_id)
         .maybeSingle();
-      const fulfillmentDate = getNextPickupFor(loc ?? null).date;
+      const fulfillmentDate = getNextPickupFor(loc ?? null, new Date(), closures).date;
 
       // 1. Create the PaymentIntent + pending order server-side. The server
       //    recomputes the price from the DB and checks capacity — the client

@@ -5,6 +5,7 @@ import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 import { PickupLocation, formatPrice } from '@/lib/types';
 import { getNextPickupFor, weekTypeForPickup, isProductAvailableOn, ProductDayAvailability } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -23,7 +24,9 @@ export default function CartPage() {
   // The pickup date follows the chosen location (owner, 24.09.2026): a
   // Wednesday-only location picked on a Thursday means next Wednesday.
   const selectedLocation = locations.find(l => l.id === state.pickupLocationId) ?? null;
-  const pickup = getNextPickupFor(selectedLocation);
+  // Closed bake days (Schließzeiten) are skipped, like in the shop.
+  const { closures } = useClosures();
+  const pickup = getNextPickupFor(selectedLocation, new Date(), closures);
   const weekForPickup = weekTypeForPickup(currentWeek, pickup.date);
   const unavailable = state.items.filter(i => {
     const pd = productDays[i.productId];

@@ -6,6 +6,7 @@ import { theme } from '@/lib/theme';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getNextPickup } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 
@@ -32,7 +33,8 @@ export default function AdminBakeday() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
-  const pickup = getNextPickup();
+  const { closures } = useClosures();
+  const pickup = getNextPickup(new Date(), closures);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -8,6 +8,7 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useClosures } from '@/context/ClosureContext';
 import { Button } from '@/components/Button';
 import type { Subscription, SubscriptionItem, Product, PickupLocation } from '@/lib/types';
 import { SUBSCRIPTION_STATUS_LABELS } from '@/lib/types';
@@ -74,6 +75,8 @@ function AboExplainer() {
 }
 
 export default function SubscriptionsScreen() {
+  // Closed bake days (Schließzeiten) are skipped by the engine; the run label follows.
+  const { closures } = useClosures();
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -313,7 +316,7 @@ export default function SubscriptionsScreen() {
               </Text>
               {sub.status === 'active' && (
                 <Text style={styles.subNextRun}>
-                  Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day).label}
+                  Nächste Bestellung: {nextSubscriptionRun(sub.pickup_day, new Date(), closures).label}
                 </Text>
               )}
 

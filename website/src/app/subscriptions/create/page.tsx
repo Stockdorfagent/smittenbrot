@@ -8,7 +8,8 @@ import { User } from '@supabase/supabase-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import Link from 'next/link';
 import { getStripe } from '@/lib/stripeClient';
-import { nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
+import { nextSubscriptionRun, formatPickupDateDe, getNextPickup } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 
 const DAY_LABELS: Record<'wednesday' | 'saturday' | 'both', string> = {
   wednesday: 'Mittwoch',
@@ -64,7 +65,9 @@ function SubscriptionCreateForm() {
   const [success, setSuccess] = useState(false);
   const [successNote, setSuccessNote] = useState('');
 
-  const pickup = getNextPickup();
+  // Closed bake days (Schließzeiten) are skipped, like in the shop.
+  const { closures } = useClosures();
+  const pickup = getNextPickup(new Date(), closures);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -260,7 +263,7 @@ function SubscriptionCreateForm() {
       }
     } catch { /* fall back to the schedule text */ }
     if (!note) {
-      const run = nextSubscriptionRun(pickupDay);
+      const run = nextSubscriptionRun(pickupDay, new Date(), closures);
       note = `Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}. Mittags bekommst du vorher eine Erinnerung.`;
     }
     setSuccessNote(note);
@@ -600,18 +603,4 @@ function SetupForm({ onSaved }: { onSaved: () => Promise<void> }) {
 
 export default function SubscriptionCreatePage() {
   return <SubscriptionCreateForm />;
-}
-
-function getNextPickup(): { label: string; cutoffLabel: string } {
-  const now = new Date();
-  const berlin = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-  const day = berlin.getDay();
-  const hours = berlin.getHours();
-  const minutes = berlin.getMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  const cutoffMinutes = 22 * 60;
-  if (day === 1 && totalMinutes < cutoffMinutes) return { label: 'Mittwoch', cutoffLabel: 'Bestellschluss: heute 22:00' };
-  if ((day === 1 && totalMinutes >= cutoffMinutes) || day === 2 || day === 3) return { label: 'Samstag', cutoffLabel: 'Bestellschluss: Donnerstag 22:00' };
-  if (day === 4 && totalMinutes < cutoffMinutes) return { label: 'Samstag', cutoffLabel: 'Bestellschluss: heute 22:00' };
-  return { label: 'Mittwoch', cutoffLabel: 'Bestellschluss: Montag 22:00' };
 }

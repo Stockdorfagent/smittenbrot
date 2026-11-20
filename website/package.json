@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:production": "node --experimental-strip-types --test src/lib/production/*.test.ts",
-    "test:payouts": "node --experimental-strip-types --test src/lib/payoutSplit.test.ts"
+    "test:payouts": "node --experimental-strip-types --test src/lib/payoutSplit.test.ts",
+    "test:pickup": "node --experimental-strip-types --test src/lib/pickup.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

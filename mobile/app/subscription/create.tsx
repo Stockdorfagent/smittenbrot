@@ -18,6 +18,7 @@ import { useTheme } from '@/context/ThemeContext';
 import type { ThemeColors } from '@/lib/theme';
 import { paymentSheetAppearance } from '@/lib/stripeAppearance';
 import { nextSubscriptionRun, formatPickupDateDe } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 
 type Step = 'location' | 'pickup_day' | 'products' | 'review';
 
@@ -37,6 +38,8 @@ const DAY_LABELS: Record<PickupDay, string> = {
 };
 
 export default function SubscriptionCreateScreen() {
+  // Closed bake days (Schließzeiten) are skipped by the engine; the run label follows.
+  const { closures } = useClosures();
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -313,11 +316,11 @@ export default function SubscriptionCreateScreen() {
         } else if (r.reason === 'payment_failed') {
           message = `Deine Dauerbestellung wurde angelegt, aber die Zahlung für die Bestellung${r.fulfillment_date ? ` für ${formatPickupDateDe(r.fulfillment_date)}` : ''} ist fehlgeschlagen${r.error ? ` (${r.error})` : ''}. Bitte prüfe deine Zahlungsmethode und setze die Dauerbestellung fort.`;
         } else {
-          const run = nextSubscriptionRun(pickupDay);
+          const run = nextSubscriptionRun(pickupDay, new Date(), closures);
           message = `Deine Dauerbestellung ist aktiv. Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}.`;
         }
       } catch {
-        const run = nextSubscriptionRun(pickupDay);
+        const run = nextSubscriptionRun(pickupDay, new Date(), closures);
         message = `Deine Dauerbestellung ist aktiv. Deine erste Bestellung wird ${run.label.replace(' · Abholung ', ' aufgegeben und bezahlt – Abholung ')}.`;
       }
       Alert.alert(

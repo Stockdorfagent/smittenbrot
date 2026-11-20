@@ -8,6 +8,25 @@ export interface NextPickup {
 }
 
 /**
+ * A Schließzeit (admin → Schließzeiten): no production from start_date to
+ * end_date inclusive. Pickup days inside a closure are skipped everywhere a
+ * date is derived (shop, cart, checkout, Abo run label) — the server-side
+ * checks in create-payment-intent and the subscription engine are the
+ * backstop. Since 20.11.2026; before, only the checkout refused the date.
+ */
+export interface ClosureRange {
+  start_date: string; // YYYY-MM-DD
+  end_date: string;   // YYYY-MM-DD, >= start_date
+  banner_text_de?: string | null;
+  reason?: string | null;
+}
+
+/** True when the calendar date lies inside any closure. */
+export function isClosedOn(dateISO: string, closures: readonly ClosureRange[]): boolean {
+  return closures.some((c) => c.start_date <= dateISO && dateISO <= c.end_date);
+}
+
+/**
  * A Date whose LOCAL fields represent the Europe/Berlin wall-clock time, so
  * getDay()/getHours()/getDate() reflect Berlin regardless of the runtime's
  * own timezone. All pickup math below stays in this single frame.
@@ -48,8 +67,8 @@ export function berlinDatePlusDays(days: number, now: Date = new Date()): string
  * checkout so all of them assign identical dates. The server re-validates.
  * Computed in Europe/Berlin so it is correct irrespective of device timezone.
  */
-export function getNextPickup(now: Date = new Date()): NextPickup {
-  return getNextPickupFor(null, now);
+export function getNextPickup(now: Date = new Date(), closures: readonly ClosureRange[] = []): NextPickup {
+  return getNextPickupFor(null, now, closures);
 }
 
 /** The weekdays a pickup location serves (pickup_locations.available_wed/_sat). */
@@ -65,59 +84,134 @@ export interface PickupDays {
  * Thursday simply orders for the next Wednesday — no error, no fallback to
  * another location. `null` (no location yet) = the default twice-weekly rule.
  * A location with neither day set is treated like the default rather than
- * producing no date at all.
+ * producing no date at all. Pickup days inside a closure are skipped, so
+ * during a Backpause the shop simply offers the first bake day after it.
  */
-export function getNextPickupFor(loc: PickupDays | null | undefined, now: Date = new Date()): NextPickup {
+export function getNextPickupFor(
+  loc: PickupDays | null | undefined,
+  now: Date = new Date(),
+  closures: readonly ClosureRange[] = [],
+): NextPickup {
   const b = berlinNow(now);
   const wed = loc ? loc.available_wed : true;
   const sat = loc ? loc.available_sat : true;
   const allowWed = wed || (!wed && !sat);
   const allowSat = sat || (!wed && !sat);
 
-  const candidates: { day: PickupDay; date: Date }[] = [];
-  for (let i = 0; i < 21; i++) {
+  // 70 days: long enough to look past a multi-week closure. The fallback
+  // (nothing open at all) is the plain calendar rule, which the server then
+  // refuses — better than no date.
+  const candidates: { day: PickupDay; date: Date; iso: string }[] = [];
+  for (let i = 0; i < 70; i++) {
     const d = new Date(b);
     d.setHours(0, 0, 0, 0);
     d.setDate(b.getDate() + i);
     const dow = d.getDay();
-    if (dow === 3 && allowWed) candidates.push({ day: 'wednesday', date: d });
-    if (dow === 6 && allowSat) candidates.push({ day: 'saturday', date: d });
+    const iso = toISODate(d);
+    if (dow === 3 && allowWed) candidates.push({ day: 'wednesday', date: d, iso });
+    if (dow === 6 && allowSat) candidates.push({ day: 'saturday', date: d, iso });
   }
 
-  let chosen = candidates[0];
-  for (const c of candidates) {
+  const cutoffOpen = (c: { date: Date }) => {
     const cutoff = new Date(c.date);
     cutoff.setDate(c.date.getDate() - 2);
     cutoff.setHours(22, 0, 0, 0);
-    if (b < cutoff) {
-      chosen = c;
-      break;
-    }
-  }
+    return b < cutoff;
+  };
+  const chosen =
+    candidates.find((c) => cutoffOpen(c) && !isClosedOn(c.iso, closures)) ??
+    candidates.find(cutoffOpen) ??
+    candidates[0];
 
-  const date =
-    `${chosen.date.getFullYear()}-` +
-    `${String(chosen.date.getMonth() + 1).padStart(2, '0')}-` +
-    `${String(chosen.date.getDate()).padStart(2, '0')}`;
+  const date = chosen.iso;
   const label = chosen.date.toLocaleDateString('de-DE', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
 
-  // Cutoff = two days before the pickup, at 22:00 Berlin.
+  // Cutoff = two days before the pickup, at 22:00 Berlin. A weekday alone is
+  // ambiguous once the pickup is more than a week away (a closure skipped the
+  // nearer one), so from 7 days out the cutoff carries its date.
   const cutoffDate = new Date(chosen.date);
   cutoffDate.setDate(chosen.date.getDate() - 2);
-  const isToday =
-    cutoffDate.getFullYear() === b.getFullYear() &&
-    cutoffDate.getMonth() === b.getMonth() &&
-    cutoffDate.getDate() === b.getDate();
+  const todayStart = new Date(b);
+  todayStart.setHours(0, 0, 0, 0);
+  const daysAhead = Math.round((cutoffDate.getTime() - todayStart.getTime()) / 86400000);
   const cutoffWeekday = cutoffDate.toLocaleDateString('de-DE', { weekday: 'long' });
-  const cutoffLabel = isToday
+  const cutoffLabel = daysAhead === 0
     ? 'Bestellschluss: heute 22:00 Uhr'
-    : `Bestellschluss: ${cutoffWeekday}, 22:00 Uhr`;
+    : daysAhead >= 7
+      ? `Bestellschluss: ${cutoffWeekday}, ${ddmm(cutoffDate)}, 22:00 Uhr`
+      : `Bestellschluss: ${cutoffWeekday}, 22:00 Uhr`;
 
   return { day: chosen.day, date, label, cutoffLabel };
+}
+
+/** YYYY-MM-DD from a Date's LOCAL fields (the Berlin frame used above). */
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "30.11." from a Date's local fields. */
+function ddmm(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+}
+
+/** "30.11." from YYYY-MM-DD. */
+function ddmmISO(iso: string): string {
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+}
+
+// ── Closure banner ──────────────────────────────────────────────────────────
+
+/** The banner announces a closure this many days before it starts. */
+export const CLOSURE_ANNOUNCE_DAYS = 14;
+
+/**
+ * The closure the site-wide banner should show right now: one that has not
+ * ended and starts within CLOSURE_ANNOUNCE_DAYS (or is already running). The
+ * soonest one when several qualify. `null` = no banner.
+ */
+export function announcedClosure(closures: readonly ClosureRange[], todayISO: string): ClosureRange | null {
+  const [y, m, d] = todayISO.split('-').map(Number);
+  const horizon = new Date(Date.UTC(y, m - 1, d + CLOSURE_ANNOUNCE_DAYS)).toISOString().slice(0, 10);
+  const due = closures
+    .filter((c) => c.end_date >= todayISO && c.start_date <= horizon)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  return due[0] ?? null;
+}
+
+/**
+ * First Wednesday/Saturday after `dateISO` that is not inside a closure, as
+ * YYYY-MM-DD (cutoffs ignored: this names the next bake day, not what can be
+ * ordered right now).
+ */
+export function firstOpenPickupAfter(dateISO: string, closures: readonly ClosureRange[]): string {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  for (let i = 1; i <= 70; i++) {
+    const t = new Date(Date.UTC(y, m - 1, d + i));
+    const dow = t.getUTCDay();
+    if (dow !== 3 && dow !== 6) continue;
+    const iso = t.toISOString().slice(0, 10);
+    if (!isClosedOn(iso, closures)) return iso;
+  }
+  return dateISO;
+}
+
+/**
+ * The banner text: the owner's own text when set, otherwise a generated one
+ * naming the dates and the first bake day after the closure, e.g.
+ * "Vom 25.11. bis 01.12. backen wir nicht. Nächster Abholtag: Mittwoch, 02.12."
+ */
+export function closureBannerText(c: ClosureRange, closures: readonly ClosureRange[]): string {
+  const own = (c.banner_text_de ?? '').trim();
+  if (own) return own;
+  const next = formatPickupDateDe(firstOpenPickupAfter(c.end_date, closures));
+  const when = c.start_date === c.end_date
+    ? `Am ${ddmmISO(c.start_date)} backen wir nicht.`
+    : `Vom ${ddmmISO(c.start_date)} bis ${ddmmISO(c.end_date)} backen wir nicht.`;
+  return `${when} Nächster Abholtag: ${next}`;
 }
 
 /**
@@ -176,6 +270,7 @@ export interface NextSubscriptionRun {
 export function nextSubscriptionRun(
   pickupDay: 'wednesday' | 'saturday' | 'both' | null | undefined,
   now: Date = new Date(),
+  closures: readonly ClosureRange[] = [],
 ): NextSubscriptionRun {
   const b = berlinNow(now);
   const wantWed = pickupDay !== 'saturday';
@@ -186,18 +281,21 @@ export function nextSubscriptionRun(
     `${d.toLocaleDateString('de-DE', { weekday: 'long' })}, ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
 
   let first: { order: Date; pickup: Date } | null = null;
-  for (let i = 0; i < 21 && !first; i++) {
+  for (let i = 0; i < 70 && !first; i++) {
     const pickup = new Date(b);
     pickup.setHours(0, 0, 0, 0);
     pickup.setDate(b.getDate() + i);
     const dow = pickup.getDay();
     if (!((dow === 3 && wantWed) || (dow === 6 && wantSat))) continue;
+    // The engine skips closed bake days (no order, no charge), so the next
+    // run is the first OPEN pickup's order day.
+    if (isClosedOn(iso(pickup), closures)) continue;
     const order = new Date(pickup);
     order.setDate(pickup.getDate() - 2);
     order.setHours(20, 0, 0, 0);
     if (b < order) first = { order, pickup };
   }
-  // 21 days always contain a matching weekday; the fallback only satisfies the type.
+  // 70 days always contain an open matching weekday; the fallback only satisfies the type.
   const chosen = first ?? { order: b, pickup: b };
   const sameDay = iso(chosen.order) === iso(b);
   return {

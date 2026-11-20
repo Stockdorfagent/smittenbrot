@@ -8,6 +8,7 @@ import { formatPrice as fmt } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useClosures } from '@/context/ClosureContext';
 import { getNextPickupFor, weekTypeForPickup, isProductAvailableOn, ProductDayAvailability } from '@/lib/pickup';
 import { Button } from '@/components/Button';
 import { QuantitySelector } from '@/components/QuantitySelector';
@@ -34,7 +35,9 @@ export default function CartScreen() {
   // "nicht im Sortiment" and disabled checkout whenever that read failed.
   const [currentWeek, setCurrentWeek] = useState<'A' | 'B' | null>(null);
   const selectedForDate = locations.find((l) => l.id === pickup_location_id) ?? null;
-  const pickup = getNextPickupFor(selectedForDate);
+  // Closed bake days (Schließzeiten) are skipped, like on the start screen.
+  const { closures } = useClosures();
+  const pickup = getNextPickupFor(selectedForDate, new Date(), closures);
   const weekForPickup = currentWeek ? weekTypeForPickup(currentWeek, pickup.date) : null;
   const unavailable = items
     .filter((i) => {

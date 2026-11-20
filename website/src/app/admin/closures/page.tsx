@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AdminLoading } from '@/components/admin/AdminLoading';
 import { StatusPill } from '@/components/admin/StatusPill';
-import { berlinTodayISO } from '@/lib/pickup';
+import { berlinTodayISO, closureBannerText, CLOSURE_ANNOUNCE_DAYS } from '@/lib/pickup';
 
 interface Closure {
   id: string;
@@ -106,7 +106,9 @@ export default function AdminClosuresPage() {
         <div className="mt-6 bg-smitten-surface rounded-xl p-5 border border-smitten-cream space-y-4">
           <h2 className="font-display font-bold text-smitten-text">Schließzeit anlegen</h2>
           <p className="text-sm text-smitten-text/60">
-            {subCount} aktive Abonnements sind betroffen und werden automatisch pausiert.
+            Abholtage in der Schließzeit werden im Shop, in der App und bei den Dauerbestellungen übersprungen
+            (keine Bestellung, keine Abbuchung). {subCount} aktive Dauerbestellungen erhalten eine Nachricht.
+            Der Banner erscheint {CLOSURE_ANNOUNCE_DAYS} Tage vor dem Start und bleibt bis zum Ende.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -139,12 +141,16 @@ export default function AdminClosuresPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-smitten-text/60 mb-1">Banner-Text (Deutsch)</label>
+            <label className="block text-xs text-smitten-text/60 mb-1">Banner-Text (optional)</label>
             <textarea
               value={addForm.banner_text_de}
               onChange={(e) => setAddForm({ ...addForm, banner_text_de: e.target.value })}
               rows={2}
-              placeholder="Während unseres Urlaubs findet keine Produktion statt."
+              placeholder={
+                addForm.start_date && addForm.end_date && addForm.end_date >= addForm.start_date
+                  ? closureBannerText({ start_date: addForm.start_date, end_date: addForm.end_date }, closures)
+                  : 'Leer lassen = automatischer Text mit den Daten und dem nächsten Backtag.'
+              }
               className="w-full px-3 py-2 rounded-lg border border-smitten-cream text-sm focus:outline-none focus:ring-2 focus:ring-smitten-accent"
             />
           </div>
@@ -201,7 +207,7 @@ export default function AdminClosuresPage() {
                         <p className="text-xs text-smitten-text/60 mt-0.5">{closure.reason}</p>
                       )}
                       <p className="text-xs text-smitten-text/40 mt-0.5">
-                        Banner: {closure.banner_text_de}
+                        Banner: {closureBannerText(closure, closures)}
                       </p>
                     </div>
                     <button

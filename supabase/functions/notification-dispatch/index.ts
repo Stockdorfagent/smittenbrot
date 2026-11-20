@@ -947,11 +947,18 @@ const NOTIFICATION_TEMPLATES: Record<
       ? `Dein Abo ist bis ${formatDe(d.resume_date)} pausiert und wird danach automatisch fortgesetzt.`
       : "Dein Abo ist pausiert.",
   }),
-  closure_notice: () => ({
+  closure_notice: (d) => ({
     title: "Backpause bei Smittenbrot",
+    // Dates travel with the request (closure-handler /create). Without them
+    // the sentence still stands on its own.
     body:
-      "Während unserer Schließzeit findet keine Produktion statt. " +
-      "Betroffene Abos werden automatisch pausiert und danach fortgesetzt.",
+      (d.start_date && d.end_date
+        ? d.start_date === d.end_date
+          ? `Am ${formatDe(d.start_date)} backen wir nicht. `
+          : `Vom ${formatDe(d.start_date)} bis ${formatDe(d.end_date)} backen wir nicht. `
+        : "Während unserer Schließzeit findet keine Produktion statt. ") +
+      "Deine Dauerbestellung setzt in dieser Zeit aus und läuft danach automatisch weiter." +
+      (d.next_pickup ? ` Nächster Abholtag: ${formatDe(d.next_pickup)}.` : ""),
   }),
 };
 

@@ -5,11 +5,13 @@ import { splitDescription } from '@/lib/productInfo';
 import { supabase } from '@/lib/supabase';
 import { Product, formatPrice, formatPriceWithUnit } from '@/lib/types';
 import { getNextPickup } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import Link from 'next/link';
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [pickup, setPickup] = useState<{ label: string; cutoffLabel: string } | null>(null);
+  const { closures, loaded: closuresLoaded } = useClosures();
 
   useEffect(() => {
     async function fetchProducts() {
@@ -25,10 +27,13 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
+  // Closed bake days (Schließzeiten) are skipped; wait for them so the
+  // date does not flash a closed day first.
   useEffect(() => {
-    const p = getNextPickup();
+    if (!closuresLoaded) return;
+    const p = getNextPickup(new Date(), closures);
     setPickup({ label: p.label, cutoffLabel: p.cutoffLabel });
-  }, []);
+  }, [closuresLoaded, closures]);
 
   return (
     <div>

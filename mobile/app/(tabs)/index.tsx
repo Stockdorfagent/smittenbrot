@@ -6,6 +6,7 @@ import { theme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import { useClosures } from '@/context/ClosureContext';
 import { getNextPickup } from '@/lib/pickup';
 import { isReadyForPickup } from '@/lib/orderStatus';
 import { loadPickedUp } from '@/lib/pickedUp';
@@ -50,7 +51,9 @@ export default function HomeScreen() {
 
   // Recomputed on every load (focus / pull-to-refresh): after the 22:00 cutoff the
   // start screen must move to the next pickup like cart and checkout do.
-  const [pickup, setPickup] = useState(() => getNextPickup());
+  // Closed bake days (Schließzeiten) are skipped; fetchData re-reads them first.
+  const { closures, loaded: closuresLoaded, refresh: refreshClosures } = useClosures();
+  const [pickup, setPickup] = useState(() => getNextPickup(new Date(), closures));
 
   /**
    * One card, one line per upcoming pickup.
@@ -107,7 +110,7 @@ export default function HomeScreen() {
     : 'Deine Dauerbestellungen';
 
   const fetchData = useCallback(async () => {
-    const pickup = getNextPickup();
+    const pickup = getNextPickup(new Date(), await refreshClosures());
     setPickup(pickup);
     setPickedUp(await loadPickedUp());
     const { data: cycle } = await supabase.from('week_cycle').select('*').maybeSingle<WeekCycle>();
@@ -195,7 +198,7 @@ export default function HomeScreen() {
       setUpcomingOrders([]);
       setShowAllPickups(false);
     }
-  }, [user]);
+  }, [user, refreshClosures]);
 
   // Refetch every time the tab regains focus (e.g. after placing/cancelling
   // an order elsewhere), not just on first mount.
@@ -260,8 +263,12 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.pickupInfo}>
-          <Text style={styles.pickupInfoText}>Jetzt bestellen für {pickup.label}</Text>
-          <Text style={styles.pickupInfoDate}>{pickup.cutoffLabel}</Text>
+          {closuresLoaded && (
+            <>
+              <Text style={styles.pickupInfoText}>Jetzt bestellen für {pickup.label}</Text>
+              <Text style={styles.pickupInfoDate}>{pickup.cutoffLabel}</Text>
+            </>
+          )}
         </View>
 
         {(visiblePickups.length > 0 || subNotices.length > 0) && (

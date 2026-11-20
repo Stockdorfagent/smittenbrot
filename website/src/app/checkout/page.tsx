@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { formatPrice } from '@/lib/types';
 import { getNextPickupFor, PickupDays } from '@/lib/pickup';
+import { useClosures } from '@/context/ClosureContext';
 import { supabase, invokeEdgeFunction } from '@/lib/supabase';
 import type { StripeElementsOptions } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -149,7 +150,9 @@ function CheckoutForm() {
   const [pickupLine, setPickupLine] = useState('');
   // The chosen location's weekdays decide the pickup date (owner, 24.09.2026).
   const [pickupLoc, setPickupLoc] = useState<PickupDays | null>(null);
-  const pickupFor = () => getNextPickupFor(pickupLoc);
+  // Closed bake days (Schließzeiten) are skipped; the server refuses one anyway.
+  const { closures } = useClosures();
+  const pickupFor = () => getNextPickupFor(pickupLoc, new Date(), closures);
   const [pickupInstructions, setPickupInstructions] = useState('');
 
   // Discount state
@@ -175,9 +178,9 @@ function CheckoutForm() {
   }, []);
 
   useEffect(() => {
-    const p = getNextPickupFor(pickupLoc);
+    const p = getNextPickupFor(pickupLoc, new Date(), closures);
     setPickupLine(`Abholung: ${p.label} · ${p.cutoffLabel}`);
-  }, [pickupLoc]);
+  }, [pickupLoc, closures]);
 
   // Load the selected location's weekdays (they decide the pickup date) and its
   // pickup instructions (shown on success).

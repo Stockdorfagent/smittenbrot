@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
       return action === 'create'
         ? NextResponse.json({
             id: body.closure_id,
-            subscriptions_paused: body.subscriptions_paused ?? 0,
+            subscribers_notified: body.subscribers_notified ?? 0,
             ...(body.warning ? { warning: body.warning } : {}),
           })
-        : NextResponse.json({ success: true, subscriptions_resumed: body.subscriptions_resumed ?? 0 });
+        : NextResponse.json({ success: true });
     }
 
     if (action === 'active') {
