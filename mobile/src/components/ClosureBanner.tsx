@@ -32,14 +32,16 @@ export function ClosureBanner() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  // Brand red with white text in BOTH modes, like the website's banner. The
+  // strip colours (black / dark grey) made it vanish in dark mode (owner, 20.11.2026).
   banner: {
-    backgroundColor: colors.strip,
+    backgroundColor: colors.primary,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
   },
   text: {
     fontSize: theme.fontSize.sm,
-    color: colors.onStrip,
+    color: colors.white,
     textAlign: 'center',
     fontWeight: '500',
   },
