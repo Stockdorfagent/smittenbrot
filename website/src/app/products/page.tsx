@@ -151,7 +151,7 @@ export default function ProductsPage() {
                   disabled={addingId === product.id}
                   className={`mt-4 w-full px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
                     addingId === product.id
-                      ? 'bg-smitten-text text-white scale-[0.98]'
+                      ? 'bg-smitten-accent text-smitten-on-accent scale-[0.98]'
                       : 'bg-smitten-accent text-smitten-on-accent hover:bg-smitten-accent/90'
                   }`}
                 >

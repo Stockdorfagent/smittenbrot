@@ -180,7 +180,7 @@ export default function HomePage() {
         </p>
         <Link
           href="/subscriptions"
-          className="mt-7 inline-block bg-smitten-text text-white px-8 py-3.5 rounded-full font-semibold hover:bg-smitten-text/90 transition-colors"
+          className="mt-7 inline-block bg-smitten-accent text-smitten-on-accent px-8 py-3.5 rounded-full font-semibold hover:bg-smitten-accent/90 transition-colors"
         >
           Mehr erfahren
         </Link>
