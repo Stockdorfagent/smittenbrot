@@ -137,7 +137,7 @@ export default function AdminProductsPage() {
 
     if (affectedOrders.size > 0) {
       setWarning(
-        `Achtung: Dieses Produkt befindet sich in ${affectedOrders.size} offenen Bestellungen.`,
+        `Achtung: Dieses Produkt befindet sich in ${affectedOrders.size} offenen Bestellungen. Diese bleiben bestehen – nur neue Bestellungen sind dann nicht mehr möglich.`,
       );
       return false;
     }
@@ -197,16 +197,16 @@ export default function AdminProductsPage() {
     loadProducts();
   }
 
-  async function handleDisable(productId: string, disableAll: boolean) {
-    const updates: Partial<Product> = { active: false };
-    if (!disableAll) {
-      // future only: keep active but mark as hidden cycle
-      updates.cycle = 'hidden';
-    }
-
+  // Deactivating only stops NEW orders; placed orders are never touched here.
+  // Until 20.11.2026 the dialog's second button ("Nur für zukünftige
+  // Bestellungen deaktivieren") ALSO set cycle = 'hidden' on top of
+  // active = false, and that cycle survived re-activation — three products
+  // (Stockdorf Sourdough, Brioche, Vollkorn Apple Crumble) silently stayed
+  // out of the shop with "Zyklus: Versteckt". The cycle is left alone now.
+  async function handleDisable(productId: string) {
     const { error } = await supabase
       .from('products')
-      .update(updates)
+      .update({ active: false })
       .eq('id', productId);
 
     if (error) {
@@ -221,16 +221,10 @@ export default function AdminProductsPage() {
   async function emergencyDisable(product: Product) {
     const ok = await checkDisableWarning(product.id);
     if (!ok) {
-      setWarningAction(() => (mode: string) => {
-        if (mode === 'future') {
-          handleDisable(product.id, false);
-        } else if (mode === 'all') {
-          handleDisable(product.id, true);
-        }
-      });
+      setWarningAction(() => () => { handleDisable(product.id); });
       return;
     }
-    await handleDisable(product.id, true);
+    await handleDisable(product.id);
   }
 
   async function uploadPhoto(file: File, productId: string): Promise<string | null> {
@@ -436,29 +430,14 @@ export default function AdminProductsPage() {
           <div className="mt-3 flex items-center gap-2">
             <button
               onClick={() => {
-                if (warningAction) {
-                  if (editingId) (warningAction as () => Promise<void>)();
-                  else (warningAction as (mode: string) => void)('all');
-                }
+                if (warningAction) (warningAction as () => void | Promise<void>)();
                 setWarning(null);
                 setWarningAction(null);
               }}
               className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-colors"
             >
-              Trotzdem speichern
+              {editingId ? 'Trotzdem speichern' : 'Trotzdem deaktivieren'}
             </button>
-            {!editingId && (
-              <button
-                onClick={() => {
-                  if (warningAction) (warningAction as (mode: string) => void)('future');
-                  setWarning(null);
-                  setWarningAction(null);
-                }}
-                className="px-3 py-1.5 bg-smitten-surface border border-amber-300 text-amber-700 text-xs rounded-lg hover:bg-amber-50 transition-colors"
-              >
-                Nur für zukünftige Bestellungen deaktivieren
-              </button>
-            )}
             <button
               onClick={() => {
                 setWarning(null);
