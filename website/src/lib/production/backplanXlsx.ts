@@ -24,6 +24,7 @@ import { dayIngredientTotals, fmtAmount } from './dayIngredients';
 import { formatDateEN } from './bakeDays';
 import { paymentMethodLabel, orderStatusAdminLabels } from '../adminLabels';
 import type { ProductQty, SubBlock } from './types';
+import { formatMinutes } from './recipeSteps';
 
 const ORDER_HEADERS = ['Bestellnummer', 'Bestelldatum', 'Abholtag', 'Typ', 'Name', 'Produkt', 'Menge', 'Einzelpreis_Cent', 'Gesamtpreis_Bestellung_Cent', 'Rabattcode', 'Rabatt_Cent', 'Zahlungsart', 'Status', 'Zahlung', 'Abholort'];
 
@@ -169,9 +170,20 @@ export async function buildBackplan(db: SupabaseClient, date: string): Promise<{
       bold(ws.addRow([`Extras ${e.product_name} ×${e.qty}`, 'per piece', 'total', 'unit']));
       for (const l of e.lines) ws.addRow([l.ingredient_name, l.per_piece, l.unit === 'pcs' ? Math.ceil(l.total - 1e-9) : r1(l.total), l.unit === 'pcs' ? `pcs (${l.total} rounded up)` : 'g']);
     }
+    const steps = data.recipes.find((x) => x.id === r.recipe_id)?.steps;
     ws.addRow([]);
-    bold(ws.addRow(['Steps', '', '', '', 'Time', 'Notes']));
-    for (let i = 0; i < 12; i++) ws.addRow([`${i + 1}.`]);
+    if (steps && steps.method.length) {
+      bold(ws.addRow(['Method', 'Duration / value', '', 'Detail', 'Time', 'Notes']));
+      for (const m of steps.method) ws.addRow([m.label, m.value, '', m.detail]);
+    } else {
+      bold(ws.addRow(['Steps (none saved yet — add them on the recipe page)', '', '', '', 'Time', 'Notes']));
+      for (let i = 0; i < 12; i++) ws.addRow([`${i + 1}.`]);
+    }
+    if (steps && steps.planning.length) {
+      ws.addRow([]);
+      bold(ws.addRow(['Planning', 'Duration', 'Minutes', 'Free for other work?', 'Start', 'Notes']));
+      for (const p of steps.planning) ws.addRow([p.task, p.duration, formatMinutes(p.min_minutes, p.max_minutes), p.hands_free ? 'yes' : 'no']);
+    }
   }
 
   // ── Starters ──

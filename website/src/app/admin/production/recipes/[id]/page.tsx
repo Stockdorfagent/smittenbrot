@@ -9,7 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { Card, Field, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, inputCls, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, fmtDec, fmtG, fmtPct, fmtSum, loadData } from '@/lib/production/client';
 import { previewForBaseAmount, previewForPieces, sumPct, validateRecipe } from '@/lib/production/engine';
-import type { ProductionData, Recipe, RecipeItem } from '@/lib/production/types';
+import type { ProductionData, Recipe, RecipeItem, RecipeSteps } from '@/lib/production/types';
+import { EMPTY_STEPS, formatMinutes, normalizeSteps } from '@/lib/production/recipeSteps';
 
 type Draft = Omit<Recipe, 'items'> & { items: (RecipeItem & { key: string })[] };
 
@@ -31,6 +32,9 @@ export default function RecipeEditorPage() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [versions, setVersions] = useState<{ version_no: number; note: string | null; created_at: string }[]>([]);
+  const [steps, setSteps] = useState<RecipeSteps>(EMPTY_STEPS);
+  const [stepsDirty, setStepsDirty] = useState(false);
+  const [stepsBusy, setStepsBusy] = useState(false);
   // preview
   const [previewProduct, setPreviewProduct] = useState('');
   const [previewPieces, setPreviewPieces] = useState('2');
@@ -46,6 +50,7 @@ export default function RecipeEditorPage() {
       const r = d.recipes.find((x) => x.id === id);
       if (!r) { setError('Recipe not found.'); return; }
       setDraft({ ...r, items: r.items.map((it) => ({ ...it, key: newKey() })) });
+      setSteps(normalizeSteps(r.steps)); setStepsDirty(false);
       const firstProduct = d.products.find((p) => p.recipe_id === r.id);
       if (firstProduct) setPreviewProduct(firstProduct.id);
       const base = r.base_ingredient_id ?? r.items.find((it) => it.type === 'ingredient' && Number(it.pct) === 100)?.ingredient_id ?? r.items.find((it) => it.type === 'ingredient')?.ingredient_id ?? '';
@@ -86,6 +91,28 @@ export default function RecipeEditorPage() {
       [items[i], items[j]] = [items[j], items[i]];
       return { ...d, items };
     });
+  }
+
+  const editSteps = (next: RecipeSteps) => { setSteps(next); setStepsDirty(true); };
+  async function saveSteps() {
+    if (!draft || draft.id === 'new') return;
+    setStepsBusy(true);
+    try {
+      const r = await adminFetch<{ steps: RecipeSteps }>('/api/admin/production/recipes/steps', { body: { id: draft.id, steps } });
+      setSteps(r.steps); setStepsDirty(false); showToast('Steps saved.', 'success');
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setStepsBusy(false); }
+  }
+  async function importSteps(file: File) {
+    setStepsBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const fd = new FormData(); fd.append('file', file);
+      const res = await fetch('/api/admin/production/recipes/steps/import', { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token ?? ''}` }, body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.statusText);
+      editSteps(normalizeSteps(j.steps));
+      showToast(`Read ${j.steps?.method?.length ?? 0} method rows and ${j.steps?.planning?.length ?? 0} planning rows${j.name ? ` from "${j.name}"` : ''} — check, then Save steps.`, 'success');
+    } catch (e) { showToast(e instanceof Error ? e.message : String(e)); } finally { setStepsBusy(false); }
   }
 
   async function save() {
@@ -232,6 +259,44 @@ export default function RecipeEditorPage() {
           </Card>
 
           {errors.length > 0 && <Notice tone="error"><ul className="list-disc pl-4">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Notice>}
+
+          <Card title={<span>Steps <span className="text-xs font-normal text-smitten-text/50">method + planning · printed on the Backplan</span></span>}>
+            {draft.id === 'new' ? <p className="text-xs text-smitten-text/50">Save the recipe first, then add its steps.</p> : (
+              <>
+                <p className="text-xs text-smitten-text/50 mb-2">Import your Excel (A1 = recipe name, a &quot;Werkwijze&quot; block with label · duration/value · detail, a &quot;Planning&quot; block with Task · Duration · Available for other task?) or type the rows here. &quot;1@30, 1@60&quot; = one stretch &amp; fold at 30 and 60 minutes. Saved separately from the recipe lines: no new version.</p>
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <label className={btnSecondary}><input type="file" accept=".xlsx" className="hidden" disabled={stepsBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) importSteps(f); e.target.value = ''; }} />Import from Excel…</label>
+                  <button className={btnPrimary} disabled={stepsBusy || !stepsDirty} onClick={saveSteps}>Save steps</button>
+                  {stepsDirty && <span className="text-xs text-amber-700 dark:text-amber-300">unsaved</span>}
+                </div>
+                <p className="text-xs font-medium mb-1">Method</p>
+                <table className="w-full mb-2"><thead><tr><th className={th}>Step</th><th className={th}>Duration / value</th><th className={th}>Detail</th><th className={th}></th></tr></thead><tbody>
+                  {steps.method.map((m, i) => (
+                    <tr key={i} className="border-t border-smitten-cream">
+                      <td className="py-1 pr-1"><input className={`${smallInputCls} w-full`} value={m.label} onChange={(e) => editSteps({ ...steps, method: steps.method.map((x, j) => j === i ? { ...x, label: e.target.value } : x) })} /></td>
+                      <td className="py-1 pr-1"><input className={`${smallInputCls} w-full`} value={m.value} onChange={(e) => editSteps({ ...steps, method: steps.method.map((x, j) => j === i ? { ...x, value: e.target.value } : x) })} /></td>
+                      <td className="py-1 pr-1"><input className={`${smallInputCls} w-full`} value={m.detail} onChange={(e) => editSteps({ ...steps, method: steps.method.map((x, j) => j === i ? { ...x, detail: e.target.value } : x) })} /></td>
+                      <td className="py-1 text-right"><button className="text-xs text-red-700 dark:text-red-400" onClick={() => editSteps({ ...steps, method: steps.method.filter((_, j) => j !== i) })}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody></table>
+                <button className={btnSecondary} onClick={() => editSteps({ ...steps, method: [...steps.method, { label: '', value: '', detail: '' }] })}>+ method row</button>
+                <p className="text-xs font-medium mt-4 mb-1">Planning <span className="font-normal text-smitten-text/50">(durations feed the bake-day planner later; &quot;free&quot; = you can do something else meanwhile)</span></p>
+                <table className="w-full mb-2"><thead><tr><th className={th}>Task</th><th className={th}>Duration</th><th className={th}>= minutes</th><th className={th}>Free?</th><th className={th}></th></tr></thead><tbody>
+                  {steps.planning.map((p, i) => (
+                    <tr key={i} className="border-t border-smitten-cream">
+                      <td className="py-1 pr-1"><input className={`${smallInputCls} w-full`} value={p.task} onChange={(e) => editSteps({ ...steps, planning: steps.planning.map((x, j) => j === i ? { ...x, task: e.target.value } : x) })} /></td>
+                      <td className="py-1 pr-1"><input className={`${smallInputCls} w-full`} value={p.duration} placeholder="15min, 1h30, 8-12uur, 0:40-0:50" onChange={(e) => editSteps(normalizeSteps({ ...steps, planning: steps.planning.map((x, j) => j === i ? { ...x, duration: e.target.value, min_minutes: undefined, max_minutes: undefined } : x) }))} /></td>
+                      <td className="py-1 pr-1 text-xs text-smitten-text/60 whitespace-nowrap">{formatMinutes(p.min_minutes, p.max_minutes) || (p.duration ? '?' : '')}</td>
+                      <td className="py-1 pr-1 text-center"><input type="checkbox" checked={p.hands_free} onChange={(e) => editSteps({ ...steps, planning: steps.planning.map((x, j) => j === i ? { ...x, hands_free: e.target.checked } : x) })} /></td>
+                      <td className="py-1 text-right"><button className="text-xs text-red-700 dark:text-red-400" onClick={() => editSteps({ ...steps, planning: steps.planning.filter((_, j) => j !== i) })}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody></table>
+                <button className={btnSecondary} onClick={() => editSteps({ ...steps, planning: [...steps.planning, { task: '', duration: '', min_minutes: null, max_minutes: null, hands_free: false }] })}>+ planning row</button>
+              </>
+            )}
+          </Card>
 
           <Card title="Save">
             <Field label="Version note (optional)" hint='E.g. "flour absorbs less water".'>

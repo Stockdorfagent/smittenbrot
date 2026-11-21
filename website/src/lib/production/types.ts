@@ -66,6 +66,11 @@ export interface PerBatchItem {
   amount: number; // in the ingredient's unit, once per actual batch
 }
 
+/** Recipe steps (owner 21.11.2026): method rows + planning table, see lib/production/recipeSteps.ts. */
+export interface MethodStep { label: string; value: string; detail: string }
+export interface PlanTask { task: string; duration: string; min_minutes: number | null; max_minutes: number | null; hands_free: boolean }
+export interface RecipeSteps { method: MethodStep[]; planning: PlanTask[] }
+
 export interface Recipe {
   id: string;
   name: string;
@@ -78,6 +83,8 @@ export interface Recipe {
   current_version: number;
   notes: string | null;
   items: RecipeItem[];
+  /** Method + planning; saved apart from the versioned recipe lines. */
+  steps?: RecipeSteps;
 }
 
 export interface ExtraItem {

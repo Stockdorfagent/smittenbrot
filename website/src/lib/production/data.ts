@@ -8,8 +8,9 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Adjustment, B2BClient, BakeSheet, DayOverride, Delivery, DeliveryLine, Demand, Ingredient, LedgerRow, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Supplier, SupplierItem, Starter, Batch } from './types';
+import type { Adjustment, B2BClient, BakeSheet, DayOverride, Delivery, DeliveryLine, Demand, Ingredient, LedgerRow, ManualOrder, ProductLink, ProductionData, Recipe, RecipeItem, StandingOrder, Supplier, SupplierItem, Starter, Batch, RecipeSteps } from './types';
 import type { ImportPlan } from './csvImport';
+import { normalizeSteps } from './recipeSteps.ts';
 import { computeBakeSheet } from './engine.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { b2bDemands, b2bDays, planB2BDay, type PlannedClient } from './b2b.ts';
@@ -57,7 +58,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     id: r.id, name: r.name, kind: r.kind, base_ingredient_id: r.base_ingredient_id,
     dough_margin_factor: numOrNull(r.dough_margin_factor), build_margin_pct: numOrNull(r.build_margin_pct), max_batch_g: numOrNull(r.max_batch_g),
     per_batch_items: (r.per_batch_items ?? []).map((p: { ingredient_id: string; amount: unknown }) => ({ ingredient_id: p.ingredient_id, amount: num(p.amount) })),
-    current_version: r.current_version, notes: r.notes,
+    current_version: r.current_version, notes: r.notes, steps: normalizeSteps(r.steps),
     items: (items.data ?? []).filter((x) => x.recipe_id === r.id).map((x): RecipeItem => ({
       id: x.id, position: x.position, type: x.type, ingredient_id: x.ingredient_id, sub_recipe_id: x.sub_recipe_id, starter_id: x.starter_id,
       final_flour_ingredient_id: x.final_flour_ingredient_id, pct: num(x.pct), label: x.label,
@@ -329,6 +330,12 @@ export interface RecipeInput {
   per_batch_items: { ingredient_id: string; amount: number }[];
   notes: string | null;
   items: { id?: string | null; position: number; type: 'ingredient' | 'sub' | 'starter'; ingredient_id: string | null; sub_recipe_id: string | null; starter_id: string | null; final_flour_ingredient_id: string | null; pct: number; label: string | null }[];
+}
+
+/** Steps (method + planning) are saved apart from the recipe lines: no new version. */
+export async function saveRecipeSteps(db: DB, id: string, steps: RecipeSteps): Promise<void> {
+  const { error } = await db.from('pr_recipes').update({ steps: normalizeSteps(steps), updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 /** Insert or update a recipe, replace its lines, and write the next version. */
