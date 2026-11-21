@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       bake_loss_pct: p.bake_loss_pct === null || p.bake_loss_pct === undefined || p.bake_loss_pct === '' ? null : Number(p.bake_loss_pct),
       extras: extras.map((e: { ingredient_id: string; grams: unknown }) => ({ ingredient_id: e.ingredient_id, grams: Number(e.grams) })),
       production: p.production, pieces_per_unit: pieces, pieces_from_shop: piecesFromShop, link_status, updated_at: new Date().toISOString(),
+      own_ingredients: p.channel === 'intern' && p.own_ingredients === true,
     };
     if (p.id) {
       const { error } = await db.from('pr_products').update(row).eq('id', p.id);

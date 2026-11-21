@@ -348,3 +348,15 @@ test('Own-ingredients B2B orders are flagged on the row', () => {
   const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 2), { ...demand('Brioche', 3, 'b2b'), reason: 'Café', own_ingredients: true }], DATA);
   assert.deepEqual(sheet.products[0].by_source, [{ source: 'web', qty: 2, reason: null }, { source: 'b2b', qty: 3, reason: 'Café', own_ingredients: true }]);
 });
+
+test('Own-ingredients internal product without recipe or raw mass: a quantity line, no warning, flagged on the row', () => {
+  const data = { ...DATA, products: [...DATA.products, { ...product('Hazelnut cookies', null as unknown as string, 0, { channel: 'intern', product_id: null, link_status: 'internal' }), own_ingredients: true }] };
+  const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 2), { ...demand('Hazelnut cookies', 12, 'b2b'), reason: 'Lumbono' }], data);
+  assert.deepEqual(sheet.warnings, []);
+  const row = sheet.products.find((p) => p.name === 'Hazelnut cookies')!;
+  assert.equal(row.qty, 12);
+  assert.equal(row.dough_g, 0);
+  assert.deepEqual(row.by_source, [{ source: 'b2b', qty: 12, reason: 'Lumbono', own_ingredients: true }]);
+  assert.equal(sheet.recipes.some((r) => r.products.some((p) => p.name === 'Hazelnut cookies')), false);
+  assert.deepEqual(sheet.products.map((p) => p.name), ['Brioche', 'Hazelnut cookies']);   // shop product first, internal after
+});

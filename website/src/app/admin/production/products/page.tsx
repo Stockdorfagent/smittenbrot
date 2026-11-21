@@ -11,15 +11,16 @@ import type { ProductLink, ProductionData } from '@/lib/production/types';
 
 type Form = {
   id?: string; channel: 'web' | 'intern'; product_id: string; name: string; recipe_id: string; dough_per_unit_g: string; bake_loss_pct: string;
-  production: 'orders' | 'stock'; pieces_per_unit: string; extras: { ingredient_id: string; grams: string }[];
+  production: 'orders' | 'stock'; pieces_per_unit: string; extras: { ingredient_id: string; grams: string }[]; own_ingredients: boolean;
 };
-const EMPTY: Form = { channel: 'web', product_id: '', name: '', recipe_id: '', dough_per_unit_g: '', bake_loss_pct: '', production: 'orders', pieces_per_unit: '', extras: [] };
+const EMPTY: Form = { channel: 'web', product_id: '', name: '', recipe_id: '', dough_per_unit_g: '', bake_loss_pct: '', production: 'orders', pieces_per_unit: '', extras: [], own_ingredients: false };
 
 function toForm(p: ProductLink): Form {
   return {
     id: p.id, channel: p.channel, product_id: p.product_id ?? '', name: p.name, recipe_id: p.recipe_id ?? '', dough_per_unit_g: Number(p.dough_per_unit_g) > 0 ? String(p.dough_per_unit_g) : '',
     bake_loss_pct: p.bake_loss_pct?.toString() ?? '', production: p.production, pieces_per_unit: p.pieces_per_unit?.toString() ?? '',
     extras: p.extras.map((e) => ({ ingredient_id: e.ingredient_id, grams: String(e.grams) })),
+    own_ingredients: !!p.own_ingredients,
   };
 }
 
@@ -55,6 +56,7 @@ export default function ProductsPage() {
             id: editing.id, channel: editing.channel, product_id: editing.channel === 'web' ? editing.product_id || null : null, name: editing.name,
             recipe_id: editing.recipe_id || null, dough_per_unit_g: editing.dough_per_unit_g, bake_loss_pct: editing.bake_loss_pct, production: editing.production,
             pieces_per_unit: editing.pieces_per_unit, extras: editing.extras.filter((e) => e.ingredient_id).map((e) => ({ ingredient_id: e.ingredient_id, grams: Number(e.grams) })),
+            own_ingredients: editing.channel === 'intern' && editing.own_ingredients,
           },
         },
       });
@@ -136,6 +138,9 @@ export default function ProductsPage() {
               </select>
             </L>
             <L label={`Pieces per unit${editing.channel === 'web' ? ' — taken from the shop\'s unit label (e.g. "10 Stück") unless you type another number' : ''}`}><input className={`${smallInputCls} w-full`} type="number" step="any" min="0" value={editing.pieces_per_unit} onChange={(e) => setEditing({ ...editing, pieces_per_unit: e.target.value })} /></L>
+            {editing.channel === 'intern' && (
+              <label className="flex items-start gap-2 text-sm md:col-span-2"><input type="checkbox" className="mt-1" checked={editing.own_ingredients} onChange={(e) => setEditing({ ...editing, own_ingredients: e.target.checked })} /><span>made from the client&apos;s ingredients — listed on the bake sheet so you don&apos;t forget it, nothing taken from stock, no ingredient cost. Recipe and raw mass are optional (with a recipe, the sheet still shows the amounts to mix).</span></label>
+            )}
           </div>
           <div className="mt-3">
             <p className="text-[11px] text-smitten-text/60 mb-1">Extras per piece, outside the dough (deco, topping, coating): grams — or, for a pcs ingredient such as Egg, pieces per piece (0.1 = one egg per 10 pieces; the bake day sums them and rounds up to whole eggs)</p>
@@ -168,9 +173,10 @@ export default function ProductsPage() {
                   {p.link_status === 'linked' && <StatusPill tone="green">shop</StatusPill>}
                   {p.link_status === 'pending' && <StatusPill tone="amber">pending</StatusPill>}
                   {p.link_status === 'internal' && <StatusPill tone="gray">internal</StatusPill>}
+                  {p.own_ingredients && <StatusPill tone="blue">client&apos;s ingredients</StatusPill>}
                 </td>
-                <td className={td}>{p.recipe_id ? recipeName.get(p.recipe_id) : <StatusPill tone="red">no recipe</StatusPill>}</td>
-                <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? fmtG(Number(p.dough_per_unit_g)) : <StatusPill tone="red">not set</StatusPill>}</td>
+                <td className={td}>{p.recipe_id ? recipeName.get(p.recipe_id) : p.own_ingredients ? <span className="text-xs text-smitten-text/50">optional</span> : <StatusPill tone="red">no recipe</StatusPill>}</td>
+                <td className={tdNum}>{Number(p.dough_per_unit_g) > 0 ? fmtG(Number(p.dough_per_unit_g)) : p.own_ingredients ? '' : <StatusPill tone="red">not set</StatusPill>}</td>
                 <td className={tdNum}>{p.bake_loss_pct != null ? `${fmtSum(Number(p.bake_loss_pct))} %` : ''}</td>
                 <td className={td}>{p.production}{p.pieces_per_unit ? ` · ${p.pieces_per_unit} pcs/unit` : ''}</td>
                 <td className={`${td} text-xs text-smitten-text/70`}>{p.extras.map((e) => `${ingName.get(e.ingredient_id) ?? '?'} ${fmtG(Number(e.grams))} ${ingUnit.get(e.ingredient_id) ?? 'g'}`).join(', ')}</td>

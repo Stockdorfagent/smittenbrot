@@ -391,18 +391,19 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
       ctx.warnings.push({ type: 'missing_recipe', text: `${d.qty}× ${d.product_name} – no recipe linked`, product_name: d.product_name, qty: d.qty });
       continue;
     }
-    if (!p.recipe_id && p.production === 'orders') {
+    const own = !!p.own_ingredients || !!d.own_ingredients;
+    if (!p.recipe_id && p.production === 'orders' && !p.own_ingredients) {
       ctx.warnings.push({ type: 'missing_recipe', text: `${d.qty}× ${d.product_name} – no recipe linked`, product_name: d.product_name, qty: d.qty, pr_product_id: p.id });
       continue;
     }
-    if (!(Number(p.dough_per_unit_g) > 0)) {
+    if (!(Number(p.dough_per_unit_g) > 0) && !p.own_ingredients) {
       // auto-created from the shop (migration 041): the owner has not set the raw mass per unit yet
       ctx.warnings.push({ type: 'missing_weight', text: `${d.qty}× ${d.product_name} – raw mass per unit not set`, product_name: d.product_name, qty: d.qty, pr_product_id: p.id });
       continue;
     }
     const row = qtyByProduct.get(p.id) ?? { pr_product_id: p.id, name: p.name, qty: 0, by_source: [], dough_per_unit_g: Number(p.dough_per_unit_g), dough_g: 0 };
     row.qty += d.qty;
-    row.by_source.push({ source: d.source, qty: d.qty, reason: d.reason ?? null, ...(d.own_ingredients ? { own_ingredients: true } : {}) });
+    row.by_source.push({ source: d.source, qty: d.qty, reason: d.reason ?? null, ...(own ? { own_ingredients: true } : {}) });
     row.dough_g = row.qty * row.dough_per_unit_g;
     qtyByProduct.set(p.id, row);
   }
@@ -433,6 +434,7 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
       batchRow = { ...row, qty: q, by_source: intoFreezer, dough_g: q * row.dough_per_unit_g };
     }
     if (!p.recipe_id) {
+      if (p.own_ingredients) { batchRows.push(batchRow); continue; }   // client's ingredients, no recipe: a quantity line only
       ctx.warnings.push({ type: 'missing_recipe', text: `${batchRow.qty}× ${p.name} – no recipe linked`, product_name: p.name, qty: batchRow.qty, pr_product_id: p.id });
       continue;
     }

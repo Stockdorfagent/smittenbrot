@@ -205,13 +205,13 @@ export default function BakeDayPage() {
               const cell = (src: Demand['source']) => { const n = sum(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
               return (
                 <tr key={p.pr_product_id} className="border-t border-smitten-cream">
-                  <td className={td}>{p.name}</td>
+                  <td className={td}>{p.name}{products.find((x) => x.id === p.pr_product_id)?.own_ingredients && <span className="block text-[11px] text-smitten-text/50">client&apos;s ingredients · not from stock</span>}</td>
                   <td className={tdNum}>{sum('web') || ''}</td>
                   <td className={tdNum}>{cell('b2b')}</td>
                   <td className={tdNum}>{cell('manual')}</td>
                   <td className={tdNum}>{cell('extra')}</td>
                   <td className={`${tdNum} font-medium`}>{p.qty}</td>
-                  <td className={tdNum}>{fmtG(p.dough_g)} g</td>
+                  <td className={tdNum}>{p.dough_g > 0 ? `${fmtG(p.dough_g)} g` : ''}</td>
                 </tr>
               );
             })}

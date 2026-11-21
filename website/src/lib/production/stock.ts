@@ -107,6 +107,7 @@ export interface ProductCost {
   goods_cents: number; delivery_cents: number; total_cents: number;
   missing: string[];            // ingredient names without a price
   blocked: string | null;       // no recipe / raw mass not set
+  own_ingredients?: boolean;    // client's ingredients: no cost of ours
 }
 
 /** Grams (or pcs) of every ingredient for ONE unit sold, keyed by ingredient id; derived ingredients charged as their source. */
@@ -156,6 +157,7 @@ export function perUnitAmounts(product: ProductLink, data: ProductionData): { am
 }
 
 export function productCost(product: ProductLink, data: ProductionData, prices: Map<string, IngredientPrice>): ProductCost {
+  if (product.own_ingredients) return { pr_product_id: product.id, name: product.name, channel: product.channel, lines: [], goods_cents: 0, delivery_cents: 0, total_cents: 0, missing: [], blocked: null, own_ingredients: true };
   const byId = new Map(data.ingredients.map((i) => [i.id, i]));
   const { amounts, blocked } = perUnitAmounts(product, data);
   const lines: CostLine[] = [];

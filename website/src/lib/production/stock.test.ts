@@ -260,3 +260,8 @@ test('day consumption: a client that brings its own ingredients — its dough sh
   assert.equal(c.get('sesame'), 15);
   assert.equal(c.get('egg'), 1);
 });
+
+test('productCost: an own-ingredients product costs 0 and is marked', () => {
+  const c = productCost({ id: 'hc', product_id: null, name: 'Hazelnut cookies', channel: 'intern', recipe_id: null, dough_per_unit_g: 0, bake_loss_pct: null, extras: [], production: 'orders', pieces_per_unit: null, pieces_from_shop: false, link_status: 'internal', b2b_net_price_cents: 150, own_ingredients: true }, data, new Map());
+  assert.equal(c.total_cents, 0); assert.equal(c.blocked, null); assert.equal(c.own_ingredients, true);
+});

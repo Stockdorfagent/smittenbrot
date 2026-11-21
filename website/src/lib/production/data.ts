@@ -70,6 +70,7 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     b2b_net_price_cents: p.b2b_net_price_cents === null || p.b2b_net_price_cents === undefined ? null : Number(p.b2b_net_price_cents),
     shop_group: p.product_id ? ((shop.get(p.product_id)?.display_group as ProductLink['shop_group']) ?? null) : null,
     shop_sort: p.product_id ? numOrNull(shop.get(p.product_id)?.sort_order) : null,
+    own_ingredients: !!p.own_ingredients,
   }));
   const s = settings.data;
   return {

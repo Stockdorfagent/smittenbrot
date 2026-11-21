@@ -105,6 +105,9 @@ export interface ProductLink {
   /** Shop display group + position (owner 21.11.2026: the bake sheet lists products in shop order — Klassiker, Diese Woche, Extras — then B2B-only products). */
   shop_group?: 'classic' | 'weekly' | 'special' | null;
   shop_sort?: number | null;
+  /** B2B-only product baked from the client's ingredients (owner 21.11.2026: Lumbono hazelnut cookies, quiches):
+   *  listed on the bake sheet so it is not forgotten, nothing from stock, no ingredient cost; recipe and raw mass optional. */
+  own_ingredients?: boolean;
 }
 
 export interface Settings {
