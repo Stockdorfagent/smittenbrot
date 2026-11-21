@@ -259,12 +259,26 @@ export function dayConsumption(sheet: BakeSheet, data: ProductionData): Map<stri
   };
   const addSub = (b: SubBlock, mult: number) => { addLines(b.lines, mult); b.subs.forEach((c) => addSub(c, mult)); };
   for (const r of sheet.recipes) {
-    const mult = r.batches;
+    // A B2B client that brings its own ingredients (owner 21.11.2026): its share of the batch
+    // (its dough ÷ the recipe's dough) and its extras are not taken from stock. Per-batch items
+    // (egg wash) stay ours.
+    const exemptQty = new Map<string, number>();
+    let exemptDough = 0, totalDough = 0;
+    for (const p of r.products) {
+      const ex = p.by_source.filter((s) => s.own_ingredients).reduce((n, s) => n + s.qty, 0);
+      if (ex > 0) exemptQty.set(p.pr_product_id, ex);
+      exemptDough += ex * p.dough_per_unit_g; totalDough += p.dough_g;
+    }
+    const keep = totalDough > 0 ? Math.max(0, 1 - exemptDough / totalDough) : 1;
+    const mult = r.batches * keep;
     addLines(r.lines, mult);
     r.subs.forEach((b) => addSub(b, mult));
     for (const s of r.starters) { add(s.flour_ingredient_id, s.flour_g * mult); add(water, s.water_g * mult); }
-    for (const p of r.per_batch_items) add(p.ingredient_id, p.amount * mult);
-    for (const e of r.extras) for (const l of e.lines) add(l.ingredient_id, l.total);
+    for (const p of r.per_batch_items) add(p.ingredient_id, p.amount * r.batches);
+    for (const e of r.extras) {
+      const k = e.qty > 0 ? Math.max(0, 1 - (exemptQty.get(e.pr_product_id) ?? 0) / e.qty) : 1;
+      for (const l of e.lines) add(l.ingredient_id, l.total * k);
+    }
   }
   // Pieces are bought whole: 5 brioches × 0.1 egg for the egg wash = 1 egg, not 0.5.
   for (const [id, amount] of out) {

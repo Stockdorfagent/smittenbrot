@@ -242,3 +242,21 @@ test('day consumption: pcs extras (egg wash 0.1 egg per brioche) are summed over
   assert.equal(dayConsumption(sheet(11), data).get('egg'), 2);   // 1.1 → 2 eggs
   assert.equal(dayConsumption(sheet(11), data).get('sesame'), 44); // grams stay exact
 });
+
+test('day consumption: a client that brings its own ingredients — its dough share and its extras are not taken from stock, per-batch items are', () => {
+  // one batch: Loaf 3 pcs for the shop + 3 pcs for the café (own ingredients) = half the dough; sesame only on the loaves
+  const sheet: BakeSheet = { date: '2026-10-21', warnings: [], products: [], stock_products: [], starters: [], totals: { eggs: 0 }, versions: {}, recipes: [{
+    recipe_id: 'r', name: 'Dough', version: 1, total_dough_g: 3000, sum_pct: 0, dough_margin_factor: 0, margin_g_per_batch: 0, batches: 1, max_batch_g: null, per_batch_dough_g: 0, factor: 1, batch_total_g: 0,
+    products: [{ pr_product_id: 'prod', name: 'Loaf', qty: 6, dough_per_unit_g: 500, dough_g: 3000, by_source: [{ source: 'web', qty: 3 }, { source: 'b2b', qty: 3, reason: 'Café', own_ingredients: true }] }],
+    lines: [{ item_id: 'i1', label: 'Wheat flour', ingredient_id: 'flour', ingredient_name: 'Wheat flour', unit: 'g', pct: 100, grams: 2000 }],
+    subs: [], starters: [{ starter_id: 's', starter_name: 'LL', item_id: 'x', label: 'LL', in_dough_g: 100, final_build_g: 110, flour_ingredient_id: 'flour', flour_ingredient_name: 'Wheat flour', flour_g: 50, water_g: 50, seed_g: 10 }],
+    per_batch_items: [{ ingredient_id: 'egg', ingredient_name: 'Egg', unit: 'pcs', amount: 1 }],
+    extras: [{ pr_product_id: 'prod', product_name: 'Loaf', qty: 6, lines: [{ ingredient_id: 'sesame', ingredient_name: 'Sesame', unit: 'g', per_piece: 5, total: 30 }] }],
+    eggs_per_batch: 0, adjustments_applied: 0,
+  }] };
+  const c = dayConsumption(sheet, data);
+  assert.equal(c.get('flour'), 1000 + 25);
+  assert.equal(c.get('water'), 25);
+  assert.equal(c.get('sesame'), 15);
+  assert.equal(c.get('egg'), 1);
+});

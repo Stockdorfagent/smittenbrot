@@ -7,7 +7,7 @@ import { AdminLoading } from '@/components/admin/AdminLoading';
 import { showToast } from '@/components/admin/toast';
 import { Card, Notice, PageHeader, SubNav, btnPrimary, btnSecondary, smallInputCls, th, td, tdNum } from '@/components/admin/production/ui';
 import { adminFetch, adminDownload, fmtDec, fmtG, fmtPct, fmtSum } from '@/lib/production/client';
-import { computeBakeSheet } from '@/lib/production/engine';
+import { computeBakeSheet, compareShopOrder } from '@/lib/production/engine';
 import { b2bDemands } from '@/lib/production/b2b';
 import type { PlannedClient } from '@/lib/production/b2b';
 import type { FreezerStatus } from '@/lib/production/freezer';
@@ -201,7 +201,7 @@ export default function BakeDayPage() {
           <tbody>
             {sheet.products.filter((p) => products.find((x) => x.id === p.pr_product_id)?.production !== 'stock').map((p) => {
               const sum = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).reduce((n, s) => n + s.qty, 0);
-              const who = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).map((s) => s.reason).filter(Boolean).join(', ');
+              const who = (src: Demand['source']) => p.by_source.filter((s) => s.source === src).map((s) => s.reason ? `${s.reason}${s.own_ingredients ? ' (own ingredients, not from stock)' : ''}` : '').filter(Boolean).join(', ');
               const cell = (src: Demand['source']) => { const n = sum(src); return n ? <span>{n}{who(src) && <span className="block text-[11px] text-smitten-text/50">{who(src)}</span>}</span> : ''; };
               return (
                 <tr key={p.pr_product_id} className="border-t border-smitten-cream">
@@ -216,11 +216,11 @@ export default function BakeDayPage() {
               );
             })}
             {/* Stock products: one row each, counted in pieces (bags × pieces per bag). Web/B2B/Other come out of the freezer, Extra goes into it. */}
-            {products.filter((p) => p.production === 'stock').map((p) => {
+            {products.filter((p) => p.production === 'stock').sort(compareShopOrder).map((p) => {
               const per = p.pieces_per_unit ? Number(p.pieces_per_unit) : 1;
               const mine = demands.filter((d) => d.pr_product_id === p.id);
               const pieces = (src: Demand['source']) => mine.filter((d) => d.source === src).reduce((n, d) => n + d.qty * per, 0);
-              const who = (src: Demand['source']) => mine.filter((d) => d.source === src).map((d) => d.reason).filter(Boolean).join(', ');
+              const who = (src: Demand['source']) => mine.filter((d) => d.source === src).map((d) => d.reason ? `${d.reason}${d.own_ingredients ? ' (own ingredients)' : ''}` : '').filter(Boolean).join(', ');
               const out = pieces('web') + pieces('b2b') + pieces('manual');
               const made = pieces('extra');
               if (out === 0 && made === 0) return null;

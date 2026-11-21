@@ -51,7 +51,7 @@ export default function B2BPage() {
   const [b2b, setB2B] = useState<B2BResponse | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [clientForm, setClientForm] = useState<{ id?: string; name: string; notes: string; active: boolean } | null>(null);
+  const [clientForm, setClientForm] = useState<{ id?: string; name: string; notes: string; active: boolean; own_ingredients: boolean } | null>(null);
   const [standingForm, setStandingForm] = useState<StandingForm | null>(null);
   const [singleForm, setSingleForm] = useState<SingleForm | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm | null>(null);
@@ -91,7 +91,7 @@ export default function B2BPage() {
       <PageHeader
         title="B2B clients"
         subtitle="B2B orders are delivered, not picked up, so they can fall on any weekday — each date with B2B work gets its own bake sheet. Standing orders repeat every week on their weekday; a single order is for one date only; a change for one day (more, less, closed) adjusts the standing order on that date. Market, test and own-use bakes are at the bottom. The bake sheet only shows the resulting quantities."
-        actions={<button className={btnPrimary} onClick={() => setClientForm({ name: '', notes: '', active: true })}>New client</button>}
+        actions={<button className={btnPrimary} onClick={() => setClientForm({ name: '', notes: '', active: true, own_ingredients: false })}>New client</button>}
       />
       <SubNav current="/admin/production/b2b" />
 
@@ -101,6 +101,7 @@ export default function B2BPage() {
             <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Name</span><input className={`${smallInputCls} w-full`} value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} /></label>
             <label className="block"><span className="block text-[11px] text-smitten-text/60 mb-1">Notes (delivery time, contact …)</span><input className={`${smallInputCls} w-full`} value={clientForm.notes} onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })} /></label>
             <label className="flex items-end gap-2 text-sm pb-2"><input type="checkbox" checked={clientForm.active} onChange={(e) => setClientForm({ ...clientForm, active: e.target.checked })} /> active (inactive = nothing is planned)</label>
+            <label className="flex items-end gap-2 text-sm pb-2 md:col-span-2"><input type="checkbox" checked={clientForm.own_ingredients} onChange={(e) => setClientForm({ ...clientForm, own_ingredients: e.target.checked })} /> brings its own ingredients — its orders are on the bake sheet, but nothing is taken from stock when the day is booked</label>
           </div>
           <div className="mt-3 flex gap-2">
             <button className={btnPrimary} disabled={busy || !clientForm.name.trim()} onClick={() => act({ action: 'save_client', client: clientForm }, 'Client saved.')}>Save</button>
@@ -114,9 +115,9 @@ export default function B2BPage() {
       {b2b.clients.map((c) => {
         const mine = b2b.standing.filter((s) => s.client_id === c.id).sort((a, b) => a.weekday - b.weekday);
         return (
-          <Card key={c.id} className="mb-6" title={<span>{c.name} {!c.active && <StatusPill tone="gray">inactive</StatusPill>}{c.notes && <span className="text-xs font-normal text-smitten-text/50"> · {c.notes}</span>}</span>}
+          <Card key={c.id} className="mb-6" title={<span>{c.name} {!c.active && <StatusPill tone="gray">inactive</StatusPill>}{c.own_ingredients && <StatusPill tone="blue">own ingredients</StatusPill>}{c.notes && <span className="text-xs font-normal text-smitten-text/50"> · {c.notes}</span>}</span>}
             right={<div className="flex gap-2">
-              <button className="text-sm text-smitten-text/70 hover:text-smitten-primary" onClick={() => setClientForm({ id: c.id, name: c.name, notes: c.notes ?? '', active: c.active })}>edit</button>
+              <button className="text-sm text-smitten-text/70 hover:text-smitten-primary" onClick={() => setClientForm({ id: c.id, name: c.name, notes: c.notes ?? '', active: c.active, own_ingredients: !!c.own_ingredients })}>edit</button>
               <button className={btnDanger} onClick={() => { if (confirm(`Delete client "${c.name}" and all its standing orders?`)) act({ action: 'delete_client', id: c.id }, 'Client deleted.'); }}>delete</button>
             </div>}>
             <table className="w-full">

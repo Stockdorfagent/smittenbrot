@@ -102,6 +102,9 @@ export interface ProductLink {
   link_status: 'linked' | 'pending' | 'internal';
   /** Step 3: net price on the B2B price list (Lumbono), per unit sold; null = not sold B2B. */
   b2b_net_price_cents: number | null;
+  /** Shop display group + position (owner 21.11.2026: the bake sheet lists products in shop order — Klassiker, Diese Woche, Extras — then B2B-only products). */
+  shop_group?: 'classic' | 'weekly' | 'special' | null;
+  shop_sort?: number | null;
 }
 
 export interface Settings {
@@ -118,6 +121,8 @@ export interface Demand {
   /** web = shop orders; b2b = standing/one-off B2B; manual = market/test/own; extra = made for the freezer. */
   source: 'web' | 'b2b' | 'manual' | 'extra';
   reason?: string | null;
+  /** B2B client brings its own ingredients (owner 21.11.2026): baked and listed like any order, but not taken from stock. */
+  own_ingredients?: boolean;
 }
 
 /** One-off percentage override for one bake day only. */
@@ -197,7 +202,7 @@ export interface ProductQty {
   pr_product_id: string;
   name: string;
   qty: number;                  // all sources
-  by_source: { source: Demand['source']; qty: number; reason?: string | null }[];
+  by_source: { source: Demand['source']; qty: number; reason?: string | null; own_ingredients?: boolean }[];
   dough_per_unit_g: number;
   dough_g: number;
 }
@@ -277,7 +282,7 @@ export interface BakeSheet {
 
 // ---------- step 2: B2B ----------
 
-export interface B2BClient { id: string; name: string; notes: string | null; active: boolean }
+export interface B2BClient { id: string; name: string; notes: string | null; active: boolean; /** supplies the ingredients itself → no stock consumption */ own_ingredients?: boolean }
 export interface OrderItem { pr_product_id: string; qty: number }
 export interface StandingOrder { id: string; client_id: string; weekday: number; items: OrderItem[]; valid_from: string | null; valid_to: string | null; active: boolean; notes: string | null }
 export interface DayOverride { id: string; client_id: string; date: string; skip: boolean; items: OrderItem[] | null; note: string | null }

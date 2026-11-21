@@ -35,6 +35,10 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     db.from('pr_settings').select('*').eq('id', 1).maybeSingle(),
   ]);
   for (const r of [ing, st, stages, rec, items, prod, settings]) if (r.error) throw new Error(r.error.message);
+  // shop position of linked products (display group + sort order), for the bake sheet's product order
+  const { data: shopRows, error: shopErr } = await db.from('products').select('id, display_group, sort_order');
+  if (shopErr) throw new Error(shopErr.message);
+  const shop = new Map((shopRows ?? []).map((p) => [p.id as string, p]));
 
   const ingredients: Ingredient[] = (ing.data ?? []).map((r) => ({
     id: r.id, name: r.name, unit: r.unit, name_de: r.name_de, allergens: r.allergens, components_de: r.components_de,
@@ -64,6 +68,8 @@ export async function loadProductionData(db: DB): Promise<ProductionData> {
     bake_loss_pct: numOrNull(p.bake_loss_pct), extras: (p.extras ?? []).map((e: { ingredient_id: string; grams: unknown }) => ({ ingredient_id: e.ingredient_id, grams: num(e.grams) })),
     production: p.production, pieces_per_unit: numOrNull(p.pieces_per_unit), pieces_from_shop: !!p.pieces_from_shop, link_status: p.link_status,
     b2b_net_price_cents: p.b2b_net_price_cents === null || p.b2b_net_price_cents === undefined ? null : Number(p.b2b_net_price_cents),
+    shop_group: p.product_id ? ((shop.get(p.product_id)?.display_group as ProductLink['shop_group']) ?? null) : null,
+    shop_sort: p.product_id ? numOrNull(shop.get(p.product_id)?.sort_order) : null,
   }));
   const s = settings.data;
   return {
@@ -119,7 +125,7 @@ export async function loadB2B(db: DB): Promise<B2BData> {
   if (c.error) throw new Error(c.error.message);
   if (s.error) throw new Error(s.error.message);
   return {
-    clients: (c.data ?? []).map((x) => ({ id: x.id, name: x.name, notes: x.notes, active: !!x.active })),
+    clients: (c.data ?? []).map((x) => ({ id: x.id, name: x.name, notes: x.notes, active: !!x.active, own_ingredients: !!x.own_ingredients })),
     standing: (s.data ?? []).map((x) => ({ id: x.id, client_id: x.client_id, weekday: x.weekday, items: items(x.items), valid_from: x.valid_from, valid_to: x.valid_to, active: !!x.active, notes: x.notes })),
   };
 }

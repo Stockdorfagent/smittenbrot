@@ -282,7 +282,7 @@ test('Stock product: web orders from the freezer, extra quantities INTO the free
   const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 1), { ...demand('Baby-Brioche Lumbono', 6, 'extra'), reason: 'Freezer stock' }, { ...demand('Baby-Brioche Lumbono', 2, 'b2b'), reason: 'Lumbono' }, demand('Amaretti Classici', 2)], data);
   const b = sheet.recipes.find((r) => r.name === 'Brioche')!;
   close(b.total_dough_g, 265 + 6 * 50, 1e-9);
-  assert.deepEqual(b.products.map((p) => [p.name, p.qty]), [['Baby-Brioche Lumbono', 6], ['Brioche', 1]]);
+  assert.deepEqual(b.products.map((p) => [p.name, p.qty]), [['Brioche', 1], ['Baby-Brioche Lumbono', 6]]);   // shop products first, internal ones after
   // web and B2B orders of a stock product are delivered from the freezer, never baked from orders
   assert.deepEqual(sheet.stock_products.map((s) => [s.name, s.qty]), [['Amaretti Classici', 2], ['Baby-Brioche Lumbono', 2]]);
   assert.equal(sheet.products.some((p) => p.name === 'Amaretti Classici'), false);
@@ -326,4 +326,25 @@ test('Validation: circular sub-recipes and sub margin misuse are reported', () =
   assert.ok(errors.some((e) => e.startsWith('Circular')), errors.join('; '));
   assert.ok(errors.some((e) => e.includes('dough_margin_factor')), errors.join('; '));
   assert.equal(validateRecipe(STOCKDORF, DATA).length, 0);
+});
+
+test('Product order follows the shop: Klassiker, Diese Woche, Extras by sort order, then B2B-only products; recipes follow their first product', () => {
+  const data = { ...DATA, products: [
+    { ...product('Brioche', 'rec-Brioche', 265), shop_group: 'classic' as const, shop_sort: 2 },
+    { ...product('Focaccia', 'rec-Brioche', 300), shop_group: 'special' as const, shop_sort: 1 },
+    { ...product('Weekly loaf', 'rec-Brioche', 500), shop_group: 'weekly' as const, shop_sort: 9 },
+    { ...product('Stockdorf Sourdough', 'rec-Brioche', 800), shop_group: 'classic' as const, shop_sort: 1 },
+    product('Pizza dough', 'rec-Brioche', 250, { channel: 'intern', product_id: null, link_status: 'internal' }),
+  ] };
+  const demands = [demand('Pizza dough', 50, 'b2b'), demand('Focaccia', 40), demand('Weekly loaf', 30), demand('Brioche', 20), demand('Stockdorf Sourdough', 1), { ...demand('Stockdorf Sourdough', 5, 'b2b'), reason: 'netzeffekt' }];
+  const sheet = computeBakeSheet('2026-10-14', demands, data);
+  assert.deepEqual(sheet.products.map((p) => [p.name, p.qty]), [['Stockdorf Sourdough', 6], ['Brioche', 20], ['Weekly loaf', 30], ['Focaccia', 40], ['Pizza dough', 50]]);
+  assert.deepEqual(sheet.recipes[0].products.map((p) => p.name), ['Stockdorf Sourdough', 'Brioche', 'Weekly loaf', 'Focaccia', 'Pizza dough']);
+  // the B2B order of a shop product is part of that product's row
+  assert.deepEqual(sheet.products[0].by_source.map((s) => [s.source, s.qty]), [['web', 1], ['b2b', 5]]);
+});
+
+test('Own-ingredients B2B orders are flagged on the row', () => {
+  const sheet = computeBakeSheet('2026-10-14', [demand('Brioche', 2), { ...demand('Brioche', 3, 'b2b'), reason: 'Café', own_ingredients: true }], DATA);
+  assert.deepEqual(sheet.products[0].by_source, [{ source: 'web', qty: 2, reason: null }, { source: 'b2b', qty: 3, reason: 'Café', own_ingredients: true }]);
 });

@@ -88,16 +88,18 @@ function clean(items: OrderItem[]): OrderItem[] {
 export function b2bDemands(plan: { planned: PlannedClient[]; manual: ManualOrder[] }, products: ProductLink[], clients: B2BClient[]): Demand[] {
   const byId = new Map(products.map((p) => [p.id, p]));
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
+  const ownIngredients = new Map(clients.map((c) => [c.id, !!c.own_ingredients]));
   const out: Demand[] = [];
   for (const p of plan.planned) {
     for (const it of p.items) {
-      out.push({ pr_product_id: byId.has(it.pr_product_id) ? it.pr_product_id : null, product_name: byId.get(it.pr_product_id)?.name ?? 'unknown product', qty: it.qty, source: 'b2b', reason: p.client.name });
+      out.push({ pr_product_id: byId.has(it.pr_product_id) ? it.pr_product_id : null, product_name: byId.get(it.pr_product_id)?.name ?? 'unknown product', qty: it.qty, source: 'b2b', reason: p.client.name, ...(p.client.own_ingredients ? { own_ingredients: true } : {}) });
     }
   }
   for (const m of plan.manual) {
     const label = m.type === 'b2b' ? (m.client_id ? clientName.get(m.client_id) ?? 'B2B' : m.label || 'B2B') : (m.label ? `${m.type}: ${m.label}` : m.type);
+    const own = m.type === 'b2b' && !!m.client_id && ownIngredients.get(m.client_id) === true;
     for (const it of clean(m.items)) {
-      out.push({ pr_product_id: byId.has(it.pr_product_id) ? it.pr_product_id : null, product_name: byId.get(it.pr_product_id)?.name ?? 'unknown product', qty: it.qty, source: m.type === 'b2b' ? 'b2b' : 'manual', reason: label });
+      out.push({ pr_product_id: byId.has(it.pr_product_id) ? it.pr_product_id : null, product_name: byId.get(it.pr_product_id)?.name ?? 'unknown product', qty: it.qty, source: m.type === 'b2b' ? 'b2b' : 'manual', reason: label, ...(own ? { own_ingredients: true } : {}) });
     }
   }
   return out;

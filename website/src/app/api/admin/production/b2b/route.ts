@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 /**
  * GET  /api/admin/production/b2b[?since=YYYY-MM-DD]   → { clients, standing, upcoming_manual, upcoming_overrides }  (from today, or from `since`)
  * POST /api/admin/production/b2b  { action, ... }
- *   save_client     { client: { id?, name, notes, active } }
+ *   save_client     { client: { id?, name, notes, active, own_ingredients } }
  *   delete_client   { id }                       (cascades standing orders, overrides; one-offs keep their label)
  *   save_standing   { standing: { id?, client_id, weekday, items, valid_from, valid_to, active, notes } }
  *   delete_standing { id }
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       case 'save_client': {
         const c = body.client ?? {};
         if (typeof c.name !== 'string' || !c.name.trim()) return bad('Client name is required.');
-        const row = { name: c.name.trim(), notes: (c.notes ?? '').trim() || null, active: c.active !== false, updated_at: now };
+        const row = { name: c.name.trim(), notes: (c.notes ?? '').trim() || null, active: c.active !== false, own_ingredients: c.own_ingredients === true, updated_at: now };
         if (c.id) {
           const { error } = await db.from('pr_b2b_clients').update(row).eq('id', c.id);
           if (error) throw new Error(error.message);

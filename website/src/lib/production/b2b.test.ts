@@ -87,3 +87,11 @@ test('b2bDays: standing Wednesdays + a Thursday single order, skipped day exclud
   assert.deepEqual(b2bDays('2026-10-19', '2026-11-04', clients, standing, overrides, manual), ['2026-10-21', '2026-10-29', '2026-11-04']);
   assert.deepEqual(b2bDays('2026-10-29', '2026-10-28', clients, standing, overrides, manual), []);
 });
+
+test('demands of a client with own ingredients carry the flag (standing and single orders), others do not', () => {
+  const cafe: B2BClient = { ...lumbono, id: 'c2', name: 'Café', own_ingredients: true };
+  const so: StandingOrder[] = [...standing, { id: 'so-cafe', client_id: 'c2', weekday: 3, items: [{ pr_product_id: 'foc', qty: 4 }], valid_from: null, valid_to: null, active: true, notes: null }];
+  const manual: ManualOrder[] = [{ id: 'm9', date: '2026-10-21', type: 'b2b', client_id: 'c2', label: null, items: [{ pr_product_id: 'pizza', qty: 1 }], notes: null }];
+  const d = b2bDemands(planB2BDay('2026-10-21', [lumbono, cafe], so, [], manual), products, [lumbono, cafe]);
+  assert.deepEqual(d.map((x) => [x.reason, x.qty, x.own_ingredients ?? false]), [['Café', 4, true], ['Lumbono', 10, false], ['Lumbono', 2, false], ['Café', 1, true]]);   // planned clients by name, then single orders
+});

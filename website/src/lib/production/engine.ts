@@ -344,6 +344,20 @@ function buildStarterSchedules(ctx: Ctx, date: string, needs: { recipe_name: str
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// ---------- product order (owner 21.11.2026) ----------
+// The bake sheet lists products as the shop does: Klassiker, Diese Woche, Extras (each by the
+// shop's sort order), then the B2B-only / internal products by name. A B2B order of a shop
+// product (netzeffekt: Stockdorf Sourdough) is part of that product's row, never a row of its own.
+const GROUP_RANK: Record<string, number> = { classic: 0, weekly: 1, special: 2 };
+export type ShopRank = [number, number, string];
+export function shopRank(p: ProductLink | undefined | null): ShopRank {
+  if (!p) return [9, 0, ''];
+  if (p.channel === 'web' && p.product_id) return [GROUP_RANK[p.shop_group ?? 'classic'] ?? 0, p.shop_sort ?? 0, p.name];
+  return [3, 0, p.name];
+}
+export function compareRank(a: ShopRank, b: ShopRank): number { return a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]); }
+export function compareShopOrder(a: ProductLink | undefined | null, b: ProductLink | undefined | null): number { return compareRank(shopRank(a), shopRank(b)); }
+
 // ---------- extras ----------
 
 function extrasFor(ctx: Ctx, product: ProductLink, qty: number): ExtrasBlock | null {
@@ -388,7 +402,7 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
     }
     const row = qtyByProduct.get(p.id) ?? { pr_product_id: p.id, name: p.name, qty: 0, by_source: [], dough_per_unit_g: Number(p.dough_per_unit_g), dough_g: 0 };
     row.qty += d.qty;
-    row.by_source.push({ source: d.source, qty: d.qty, reason: d.reason ?? null });
+    row.by_source.push({ source: d.source, qty: d.qty, reason: d.reason ?? null, ...(d.own_ingredients ? { own_ingredients: true } : {}) });
     row.dough_g = row.qty * row.dough_per_unit_g;
     qtyByProduct.set(p.id, row);
   }
@@ -442,7 +456,7 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
     const core = expandDough(ctx, recipe, total);
     const block: RecipeBlock = {
       ...core,
-      products: rows.sort((a, b) => b.qty - a.qty),
+      products: rows.sort((a, b) => compareShopOrder(products.get(a.pr_product_id), products.get(b.pr_product_id))),
       extras: rows.map((r) => extrasFor(ctx, products.get(r.pr_product_id)!, r.qty)).filter((x): x is ExtrasBlock => !!x),
     };
     recipeBlocks.push(block);
@@ -451,7 +465,9 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
     block.subs.forEach(collectVersions);
     for (const need of block.starters) starterNeeds.push({ recipe_name: recipe.name, need, batches: block.batches });
   }
-  recipeBlocks.sort((a, b) => b.total_dough_g - a.total_dough_g);
+  // recipes follow their first product in shop order; same rank → the bigger batch first
+  const blockRank = (b: RecipeBlock) => b.products.map((p) => shopRank(products.get(p.pr_product_id))).sort(compareRank)[0] ?? shopRank(undefined);
+  recipeBlocks.sort((a, b) => compareRank(blockRank(a), blockRank(b)) || b.total_dough_g - a.total_dough_g);
 
   // 4. starters
   const starters = buildStarterSchedules(ctx, date, starterNeeds);
@@ -460,8 +476,8 @@ export function computeBakeSheet(date: string, demands: Demand[], data: Producti
   return {
     date,
     warnings: ctx.warnings,
-    products: batchRows.sort((a, b) => b.qty - a.qty),
-    stock_products: stockLines.sort((a, b) => a.name.localeCompare(b.name)),
+    products: batchRows.sort((a, b) => compareShopOrder(products.get(a.pr_product_id), products.get(b.pr_product_id))),
+    stock_products: stockLines.sort((a, b) => compareShopOrder(products.get(a.pr_product_id), products.get(b.pr_product_id))),
     recipes: recipeBlocks,
     starters,
     totals: { eggs },
