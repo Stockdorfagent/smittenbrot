@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAdmin, bad } from '@/lib/production/api';
 import { loadProductionData, loadStockRaw } from '@/lib/production/data';
 import { INVOICE_MIMES, readInvoice, type InvoiceMime } from '@/lib/production/invoiceRead';
-import { matchInvoice } from '@/lib/production/invoiceMatch';
+import { matchInvoice, markDuplicate } from '@/lib/production/invoiceMatch';
 import { berlinTodayISO } from '@/lib/production/bakeDays';
 
 export const runtime = 'nodejs';
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
     const [extracted, data, raw] = await Promise.all([readInvoice(bytes, mime), loadProductionData(db), loadStockRaw(db)]);
     const draft = matchInvoice(extracted, data, raw.suppliers, raw.supplier_items, today);
+    markDuplicate(draft, raw.deliveries);   // same supplier + invoice number already saved → hint in the form
     return NextResponse.json({ draft, extracted, file_path: `${BUCKET}/${path}` });
   });
 }

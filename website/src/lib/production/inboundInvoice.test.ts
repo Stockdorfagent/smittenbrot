@@ -21,3 +21,11 @@ test('summaryText lists drafts, checks and errors in German', () => {
   assert.match(t, /foto\.jpg: konnte nicht gelesen werden \(larger than 15 MB\)/);
   assert.match(t, /an Papierkram weitergeleitet/);
 });
+
+test('summaryText marks possible duplicates and says nothing was forwarded', () => {
+  const t = summaryText([
+    { filename: 'rechnung.pdf', draft_id: 'd2', supplier: 'Mühlenhof', lines: 3, to_check: [], error: null, duplicate: true },
+  ], 'Fwd: Rechnung', false);
+  assert.match(t, /rechnung\.pdf: MÖGLICHES DUPLIKAT \(Rechnungsnummer schon vorhanden, nicht an Papierkram weitergeleitet\) – Entwurf angelegt – Mühlenhof, 3 Positionen/);
+  assert.match(t, /Nichts an Papierkram weitergeleitet \(nur mögliche Duplikate\)\./);
+});

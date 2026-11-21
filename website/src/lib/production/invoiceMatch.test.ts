@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchInvoice, tokens, toUnit, type ExtractedInvoice } from './invoiceMatch.ts';
+import { matchInvoice, tokens, toUnit, type ExtractedInvoice, markDuplicate } from './invoiceMatch.ts';
 import type { Ingredient, ProductionData } from './types';
 
 const ing = (id: string, name: string, name_de: string | null, extra: Partial<Ingredient> = {}): Ingredient =>
@@ -73,4 +73,23 @@ test('unknown supplier → note with the name; missing date → today; 1050 beat
   assert.equal(m.date, '2026-10-29');
   assert.equal(m.delivery_fee_cents, 500);
   assert.equal(m.lines[0].ingredient_id, 't80');
+});
+
+test('markDuplicate flags the same invoice number for the same supplier only', () => {
+  const deliveries = [
+    { id: 'd1', supplier_id: 's1', invoice_no: 'RE 2026-117', date: '2026-11-17', status: 'confirmed' },
+    { id: 'd2', supplier_id: 's2', invoice_no: '4711', date: '2026-11-10', status: 'draft' },
+  ];
+  const base = { supplier_name: null, date: '2026-11-21', delivery_fee_cents: 0, lines: [], notes: ['x'] };
+  const dup = { ...base, supplier_id: 's1', invoice_no: 're2026-117', notes: ['x'] };      // case + spaces ignored
+  assert.equal(markDuplicate(dup, deliveries)?.id, 'd1');
+  assert.match(dup.notes[0], /^Possible duplicate: invoice no\. re2026-117 already exists as a booked delivery of 17\.11\.2026/);
+  assert.equal(dup.notes[1], 'x');
+  const other = { ...base, supplier_id: 's1', invoice_no: '4711', notes: [] };               // same number, other supplier
+  assert.equal(markDuplicate(other, deliveries), null);
+  assert.equal(other.notes.length, 0);
+  assert.equal(markDuplicate({ ...base, supplier_id: null, invoice_no: '4711', notes: [] }, deliveries), null);   // supplier unknown
+  assert.equal(markDuplicate({ ...base, supplier_id: 's2', invoice_no: null, notes: [] }, deliveries), null);     // no number
+  const draftDup = { ...base, supplier_id: 's2', invoice_no: '4711', notes: [] };
+  assert.match(markDuplicate(draftDup, deliveries) ? draftDup.notes[0] : '', /as a draft delivery of 10\.11\.2026/);
 });

@@ -136,3 +136,25 @@ export function matchInvoice(x: ExtractedInvoice, data: ProductionData, supplier
   if (lines.length === 0) notes.push('No product lines found on the invoice.');
   return { supplier_id: supplier?.id ?? null, supplier_name: supName || null, date: x.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(x.invoice_date) ? x.invoice_date : today, invoice_no: x.invoice_no, delivery_fee_cents: Math.max(0, Math.round(fee)), lines, notes };
 }
+
+// ---------- duplicate check (same supplier + invoice number already saved) ----------
+export interface ExistingDelivery { id: string; supplier_id: string | null; invoice_no: string | null; date: string; status: string }
+
+const normInvoiceNo = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+
+/** The saved delivery (draft or booked) that carries the same invoice number for the same supplier, if any.
+ *  An invoice without a number, or whose supplier is still unknown, is never flagged. */
+export function findDuplicate(draft: { supplier_id: string | null; invoice_no: string | null }, deliveries: readonly ExistingDelivery[]): ExistingDelivery | null {
+  const no = draft.invoice_no ? normInvoiceNo(draft.invoice_no) : '';
+  if (!no || !draft.supplier_id) return null;
+  return deliveries.find((d) => d.supplier_id === draft.supplier_id && d.invoice_no && normInvoiceNo(d.invoice_no) === no) ?? null;
+}
+
+const dmy = (iso: string) => /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : iso;
+
+/** Adds a "possible duplicate" note to the draft when the invoice number already exists for that supplier. */
+export function markDuplicate(draft: MatchedInvoice, deliveries: readonly ExistingDelivery[]): ExistingDelivery | null {
+  const dup = findDuplicate(draft, deliveries);
+  if (dup) draft.notes.unshift(`Possible duplicate: invoice no. ${draft.invoice_no} already exists as a ${dup.status === 'confirmed' ? 'booked' : 'draft'} delivery of ${dmy(dup.date)} — check before saving.`);
+  return dup;
+}

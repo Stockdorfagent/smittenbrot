@@ -14,7 +14,7 @@ import { simpleParser } from 'mailparser';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadProductionData, loadStockRaw, saveDraftDelivery } from './data.ts';
 import { INVOICE_MIMES, readInvoice, type InvoiceMime } from './invoiceRead.ts';
-import { matchInvoice, type MatchedInvoice } from './invoiceMatch.ts';
+import { matchInvoice, markDuplicate, type MatchedInvoice } from './invoiceMatch.ts';
 import { berlinTodayISO } from './bakeDays.ts';
 import { sendMail, type MailAttachment } from '../brevo.ts';
 
@@ -23,15 +23,16 @@ export function senderAllowed(from: string, allowed: string): boolean {
   return allowed.split(/[,;\s]+/).map((a) => a.trim().toLowerCase()).filter(Boolean).includes(addr);
 }
 
-export interface ProcessedAttachment { filename: string; draft_id: string | null; supplier: string | null; lines: number; to_check: string[]; error: string | null }
+export interface ProcessedAttachment { filename: string; draft_id: string | null; supplier: string | null; lines: number; to_check: string[]; error: string | null; duplicate?: boolean }
 
 export function summaryText(items: ProcessedAttachment[], subject: string, forwarded: boolean): string {
   const lines = [`Deine Weiterleitung „${subject}“ ist angekommen.`, ''];
   for (const it of items) {
     if (it.error) { lines.push(`${it.filename}: konnte nicht gelesen werden (${it.error}).`); continue; }
-    lines.push(`${it.filename}: Entwurf angelegt – ${it.supplier ?? 'Lieferant unklar'}, ${it.lines} Position${it.lines === 1 ? '' : 'en'}${it.to_check.length ? `, prüfen: ${it.to_check.join(' ')}` : ''}`);
+    lines.push(`${it.filename}: ${it.duplicate ? 'MÖGLICHES DUPLIKAT (Rechnungsnummer schon vorhanden, nicht an Papierkram weitergeleitet) – ' : ''}Entwurf angelegt – ${it.supplier ?? 'Lieferant unklar'}, ${it.lines} Position${it.lines === 1 ? '' : 'en'}${it.to_check.length ? `, prüfen: ${it.to_check.join(' ')}` : ''}`);
   }
-  lines.push('', 'Buchen: Production → Stock → Open drafts.', forwarded ? 'Der Beleg wurde an Papierkram weitergeleitet.' : 'Nicht an Papierkram weitergeleitet (keine Adresse hinterlegt).');
+  const nonDup = items.filter((it) => !it.error && !it.duplicate);
+  lines.push('', 'Buchen: Production → Stock → Open drafts.', forwarded ? 'Der Beleg wurde an Papierkram weitergeleitet.' : nonDup.length === 0 && items.some((it) => it.duplicate) ? 'Nichts an Papierkram weitergeleitet (nur mögliche Duplikate).' : 'Nicht an Papierkram weitergeleitet (keine Adresse hinterlegt).');
   return lines.join('\n');
 }
 
@@ -50,7 +51,6 @@ export async function processInboundMail(db: SupabaseClient, mail: InboundMail):
     results.push(item);
     try {
       if (a.bytes.length > 15 * 1024 * 1024) throw new Error('larger than 15 MB');
-      forward.push({ name: a.filename, content: Buffer.from(a.bytes).toString('base64') });
       const ext = a.mime === 'application/pdf' ? 'pdf' : a.mime.split('/')[1];
       const path = `${today.slice(0, 4)}/${today}_${mail.id.replace(/[^\w]/g, '').slice(0, 12)}_${i + 1}.${ext}`;
       const { error: upErr } = await db.storage.from('invoices').upload(path, a.bytes, { contentType: a.mime, upsert: true });
@@ -62,12 +62,18 @@ export async function processInboundMail(db: SupabaseClient, mail: InboundMail):
         if (error) throw new Error(error.message);
         supplierId = s.id;
       }
+      // same supplier + invoice number already saved → draft is still created (marked), but not forwarded a second time
+      draft.supplier_id = supplierId;
+      const dup = markDuplicate(draft, raw.deliveries);
+      if (dup) item.duplicate = true;
+      else forward.push({ name: a.filename, content: Buffer.from(a.bytes).toString('base64') });
       const hints = draft.notes.filter((n) => !n.includes('is new'));
       item.draft_id = await saveDraftDelivery(db, {
         supplier_id: supplierId, date: draft.date, invoice_no: draft.invoice_no, delivery_fee_cents: draft.delivery_fee_cents,
         notes: [`From e-mail: ${mail.subject}`, ...hints].join(' · ').slice(0, 500), file_path: `invoices/${path}`, source: 'email',
         lines: draft.lines.map((l) => ({ ingredient_id: l.ingredient_id, item_text: l.item_text, qty: l.qty, pack_amount: l.pack_amount ?? 1, price_cents: l.price_cents, bbf: l.bbf })),
       });
+      raw.deliveries.unshift({ id: item.draft_id, supplier_id: supplierId, date: draft.date, invoice_no: draft.invoice_no, delivery_fee_cents: draft.delivery_fee_cents, status: 'draft', source: 'email', file_path: null, notes: null, confirmed_at: null, lines: [] });
       item.supplier = draft.supplier_name ?? raw.suppliers.find((s) => s.id === supplierId)?.name ?? null;
       item.lines = draft.lines.length;
       item.to_check = hints;
