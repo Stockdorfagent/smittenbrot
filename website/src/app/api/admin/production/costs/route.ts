@@ -14,12 +14,13 @@ export interface CostRow extends ProductCost {
 export interface PriceRow extends IngredientPrice { name: string; unit: 'g' | 'pcs'; supplier: string | null }
 
 /**
- * GET  /api/admin/production/costs → { products: CostRow[], prices: PriceRow[] }
+ * GET  /api/admin/production/costs → { products: CostRow[], prices: PriceRow[], own_ingredient_clients: string[] }
  * POST /api/admin/production/costs { action: 'set_b2b_price', pr_product_id, cents: number | null }
  */
 export async function GET(req: NextRequest) {
   return withAdmin(req, async (db) => {
-    const [data, raw, shop] = await Promise.all([loadProductionData(db), loadStockRaw(db), db.from('products').select('id, price_cents, active')]);
+    const [data, raw, shop, ownClients] = await Promise.all([loadProductionData(db), loadStockRaw(db), db.from('products').select('id, price_cents, active'), db.from('pr_b2b_clients').select('name').eq('own_ingredients', true).eq('active', true).order('name')]);
+    if (ownClients.error) throw new Error(ownClients.error.message);
     if (shop.error) throw new Error(shop.error.message);
     const shopPrice = new Map((shop.data ?? []).map((p) => [p.id, { cents: Number(p.price_cents), active: !!p.active }]));
     const prices = ingredientPrices(raw.deliveries, raw.batches);
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     const ingName = new Map(data.ingredients.map((i) => [i.id, i]));
     const priceRows: PriceRow[] = [...prices.values()].map((p) => ({ ...p, name: ingName.get(p.ingredient_id)?.name ?? '?', unit: ingName.get(p.ingredient_id)?.unit ?? 'g', supplier: p.source === 'batch' ? 'in-house' : p.supplier_id ? supplierName.get(p.supplier_id) ?? null : null }))
       .sort((a, b) => a.name.localeCompare(b.name));
-    return NextResponse.json({ products, prices: priceRows });
+    return NextResponse.json({ products, prices: priceRows, own_ingredient_clients: (ownClients.data ?? []).map((c) => c.name as string) });
   });
 }
 

@@ -10,7 +10,7 @@ import { adminFetch, fmtG } from '@/lib/production/client';
 import { parseEuro } from '@/lib/production/stock';
 import type { CostRow, PriceRow } from '@/app/api/admin/production/costs/route';
 
-interface CostsResponse { products: CostRow[]; prices: PriceRow[] }
+interface CostsResponse { products: CostRow[]; prices: PriceRow[]; own_ingredient_clients?: string[] }
 
 const eur = (cents: number) => `${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const pct = (n: number) => `${Math.round(n)} %`;
@@ -50,6 +50,7 @@ export default function CostsPage() {
       <PageHeader title="Costs" subtitle="Ingredient cost per unit sold, from the recipe and the latest delivery prices. Net prices without 7 % VAT. Dough margin and packaging not included." />
       <SubNav current="/admin/production/costs" />
 
+      {(res?.own_ingredient_clients?.length ?? 0) > 0 && <div className="mb-4"><Notice tone="info">{res!.own_ingredient_clients!.join(', ')} {res!.own_ingredient_clients!.length === 1 ? 'brings' : 'bring'} the ingredients: those orders cost you 0 in ingredients, so their whole B2B net price is margin. The table keeps the normal cost per product, because the same product can also go to clients who get your ingredients.</Notice></div>}
       {missing.length > 0 && <div className="mb-4"><Notice tone="warning">No price yet: {missing.join(', ')} — <Link href="/admin/production/stock" className="underline">book a delivery</Link>. Products using them show a cost without these.</Notice></div>}
 
       <Card title="Products" className="mb-6">
