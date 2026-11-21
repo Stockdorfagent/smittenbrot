@@ -53,3 +53,22 @@ test('normalizeSteps tolerates junk and recomputes minutes from the duration tex
   assert.deepEqual(s.planning, [{ task: 'Narijs', duration: '45min', min_minutes: 45, max_minutes: 45, hands_free: true }]);
   assert.deepEqual(normalizeSteps(null), { method: [], planning: [] });
 });
+
+test('parseStepsRows: header suffixes and two blocks per file (Ciabatta: vulling + ciabatta)', () => {
+  const rows: unknown[][] = [
+    ['Ciabatta'], [null, 'Werkwijze (vulling)'],
+    ['Bereiden', 'Meng olijfringen met oregano.', 'Meng olijfringen met oregano.'], [null, 'Voeg na het kneden toe.', 'Voeg na het kneden toe.'],
+    [], ['Planning (vulling)'], ['Task', 'Duration', 'Available for other task?'], ['Prepare', new Date(Date.UTC(1899, 11, 30, 0, 10)), 'no'],
+    [], [null, 'Werkwijze ciabattta', 'Werkwijze ciabattta'],
+    ['Mengen', '4min', 'water, bloem en top fournil', 'water, bloem en top fournil'], ['Verdelen', 424, 'gram per stuk', 'gram per stuk'],
+    [], ['Planning'], ['Task', 'Duration', 'Available for other task?'], ['Prepare', new Date(Date.UTC(1899, 11, 30, 0, 10)), 'no'], ['Bulkrijs II', '14:00-20:00', 'yes'],
+  ];
+  const r = parseStepsRows(rows);
+  assert.deepEqual(r.steps.method.map((m) => [m.label, m.value, m.detail]), [
+    ['Werkwijze (vulling)', '', ''], ['Bereiden', 'Meng olijfringen met oregano.', ''], ['', 'Voeg na het kneden toe.', ''],
+    ['Werkwijze ciabattta', '', ''], ['Mengen', '4min', 'water, bloem en top fournil'], ['Verdelen', '424', 'gram per stuk'],
+  ]);
+  assert.deepEqual(r.steps.planning.map((p) => [p.task, p.min_minutes, p.max_minutes, p.hands_free]), [
+    ['Prepare (vulling)', 10, 10, false], ['Prepare', 10, 10, false], ['Bulkrijs II', 840, 1200, true],
+  ]);
+});

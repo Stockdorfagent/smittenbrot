@@ -5,6 +5,8 @@
  *   A1            recipe name
  *   "Werkwijze"   then rows: label | duration or value | detail   (e.g. Bulkrijs | 90min | 22°C, 1@30, 1@60, 1@90)
  *   "Planning"    header Task | Duration | Available for other task?, then rows
+ *   Headers may carry a suffix ("Werkwijze (vulling)", "Werkwijze Stockdorf SD") and repeat:
+ *   several blocks per file (filling + dough) are read one after the other.
  *                 (duration = Excel time like 0:15, or text like "8-12uur", "0:40-0:50")
  *
  * Stored as JSON on pr_recipes.steps, printed on the Backplan, and later the basis for
@@ -91,18 +93,27 @@ export function parseStepsRows(rows: unknown[][]): { name: string; steps: Recipe
   let section: 'none' | 'method' | 'planning' = 'none';
   const method: MethodStep[] = [];
   const planning: PlanTask[] = [];
+  // A file may hold several blocks ("Werkwijze (vulling)" + "Werkwijze ciabatta", each with its own
+  // Planning): the header's suffix becomes a heading row in the method and a "(suffix)" on the tasks.
+  let suffix = '';
   for (const row of rows.slice(1)) {
     const a = str(row[0]), b = row[1], c = str(row[2]);
     const bs = str(b);
-    const head = (a || bs).toLowerCase();
+    const head = a || bs;
     if (!a && !bs && !c) continue;
-    if (/^(werkwijze|method|methode|schritte|steps)$/.test(head)) { section = 'method'; continue; }
-    if (/^(planning|planung|plan)$/.test(head)) { section = 'planning'; continue; }
-    if (section === 'planning' && /^(task|taak|aufgabe)$/.test(a.toLowerCase())) continue;   // header row
+    let m: RegExpExecArray | null;
+    if ((m = /^(werkwijze|method|methode|schritte|steps)\b\s*(.*)$/i.exec(head))) {
+      section = 'method'; suffix = m[2].replace(/^\(|\)$/g, '').trim();
+      if (suffix || method.length) method.push({ label: head, value: '', detail: '' });   // heading row (when there are several blocks), printed as written
+      continue;
+    }
+    if ((m = /^(planning|planung|plan)\b\s*(.*)$/i.exec(head))) { section = 'planning'; suffix = m[2].replace(/^\(|\)$/g, '').trim(); continue; }
+    if (section === 'planning' && /^(task|taak|aufgabe)$/i.test(a)) continue;   // header row
     if (section === 'method') method.push({ label: a, value: bs, detail: c === bs ? '' : c });   // a merged B:C cell repeats its value
     else if (section === 'planning') {
       const d = parseDuration(b);
-      planning.push({ task: a, duration: typeof b === 'number' || b instanceof Date ? formatMinutes(d.min, d.max) : bs, min_minutes: d.min, max_minutes: d.max, hands_free: YES.has(c.toLowerCase()) });
+      const task = suffix && a ? `${a} (${suffix})` : a;
+      planning.push({ task, duration: typeof b === 'number' || b instanceof Date ? formatMinutes(d.min, d.max) : bs, min_minutes: d.min, max_minutes: d.max, hands_free: YES.has(c.toLowerCase()) });
     }
   }
   return { name, steps: { method, planning } };
