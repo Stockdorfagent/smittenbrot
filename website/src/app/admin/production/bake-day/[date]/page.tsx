@@ -166,7 +166,7 @@ export default function BakeDayPage() {
         </>}
         actions={<>
           <button className={btnSecondary} onClick={() => window.print()}>Print</button>
-          <button className={btnSecondary} onClick={() => adminDownload(`/api/admin/production/bake-day/xlsx?date=${date}`, `${date}_bake-sheet.xlsx`).catch((e) => showToast(e.message))}>Excel</button>
+          <button className={btnSecondary} onClick={() => adminDownload(`/api/admin/production/bake-day/xlsx?date=${date}`, `${date}_backplan.xlsx`).catch((e) => showToast(e.message))} title="One Excel file for the day: Overview, Prep (evening before), one tab per recipe, Starters, Orders, Distribution — with empty Time / Notes columns">Backplan (Excel)</button>
           {res.frozen && <button className={btnSecondary} onClick={recompute} disabled={busy}>Recalculate</button>}
           {res.frozen && !dirty && (res.row.consumed_at
             ? <button className={btnSecondary} disabled={busy} title={`Stock booked ${new Date(res.row.consumed_at).toLocaleString('en-GB')}`} onClick={() => bookStock(false)}>Stock booked · undo</button>
