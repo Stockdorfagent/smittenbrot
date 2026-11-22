@@ -1,6 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { reminderDates } from './reminderDates';
+import type { ClosureRange } from './pickup';
 
 /**
  * Personal order reminders — repeating weekly LOCAL notifications scheduled on
@@ -12,6 +14,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * cut-offs — Monday for the Wednesday pickup and Thursday for the Saturday one.
  * (Subscribers already get an automatic reminder at midday on ordering days,
  * so this is mainly for everyone else.)
+ *
+ * Since 22.11.2026 they are not one repeating weekly trigger but single dated
+ * notifications for the next REMINDER_WEEKS weeks (lib/reminderDates.ts), so a
+ * Schließzeit is left out instead of reminding people to order for a day
+ * nobody bakes. ClosureContext reschedules them every time it reads the
+ * closures (app start, start-screen focus).
  */
 
 const STORAGE_KEY = 'orderReminderPrefs';
@@ -114,11 +122,17 @@ async function cancelAll(): Promise<void> {
 }
 
 /**
- * Persist the preferences and (re)schedule every reminder.
+ * Persist the preferences and (re)schedule every reminder as dated
+ * notifications for the coming weeks, skipping closed pickup days.
  * Returns false only when the user enabled them but denied notification
- * permission, so the caller can revert the toggle.
+ * permission, so the caller can revert the toggle. With `prompt: false`
+ * (background reschedule) the permission is never requested, only checked.
  */
-export async function applyReminders(prefs: ReminderPrefs): Promise<boolean> {
+export async function applyReminders(
+  prefs: ReminderPrefs,
+  closures: readonly ClosureRange[] = [],
+  opts: { prompt?: boolean } = {},
+): Promise<boolean> {
   await persist(prefs);
   await cancelAll();
 
@@ -126,7 +140,7 @@ export async function applyReminders(prefs: ReminderPrefs): Promise<boolean> {
 
   const existing = await Notifications.getPermissionsAsync();
   let status = existing.status;
-  if (status !== 'granted') {
+  if (status !== 'granted' && opts.prompt !== false) {
     const requested = await Notifications.requestPermissionsAsync();
     status = requested.status;
   }
@@ -140,20 +154,35 @@ export async function applyReminders(prefs: ReminderPrefs): Promise<boolean> {
   }
 
   for (const slot of prefs.slots) {
-    await Notifications.scheduleNotificationAsync({
-      identifier: `${REMINDER_PREFIX}-${slot.id}`,
-      content: {
-        title: 'Smittenbrot',
-        body: 'Vergiss nicht, dein Brot zu bestellen!',
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        weekday: slot.weekday,
-        hour: slot.hour,
-        minute: slot.minute,
-        channelId: ANDROID_CHANNEL,
-      },
-    });
+    for (const at of reminderDates(slot, closures)) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${REMINDER_PREFIX}-${slot.id}-${at.getTime()}`,
+        content: {
+          title: 'Smittenbrot',
+          body: 'Vergiss nicht, dein Brot zu bestellen!',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: at,
+          channelId: ANDROID_CHANNEL,
+        },
+      });
+    }
   }
   return true;
+}
+
+/**
+ * Re-plan the saved reminders against the current closures (called by
+ * ClosureContext after every read). Never prompts for permission; a user
+ * who has reminders off or no permission is left alone.
+ */
+export async function rescheduleReminders(closures: readonly ClosureRange[]): Promise<void> {
+  try {
+    const prefs = await loadReminderPrefs();
+    if (!prefs.enabled || prefs.slots.length === 0) return;
+    await applyReminders(prefs, closures, { prompt: false });
+  } catch {
+    // best effort — the next read tries again
+  }
 }

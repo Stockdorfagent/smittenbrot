@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { theme } from '@/lib/theme';
 import { useTheme } from '@/context/ThemeContext';
+import { useClosures } from '@/context/ClosureContext';
 import type { ThemeColors } from '@/lib/theme';
 import {
   ReminderPrefs,
@@ -27,6 +28,7 @@ function dateFromHM(hour: number, minute: number): Date {
 
 export function ReminderSettings() {
   const { colors } = useTheme();
+  const { closures } = useClosures();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [prefs, setPrefs] = useState<ReminderPrefs>(DEFAULT_REMINDER);
   const [ready, setReady] = useState(false);
@@ -45,10 +47,10 @@ export function ReminderSettings() {
   // user enabled reminders but denied notification permission.
   const commit = async (next: ReminderPrefs) => {
     setPrefs(next);
-    const ok = await applyReminders(next);
+    const ok = await applyReminders(next, closures);
     if (!ok) {
       setPrefs({ ...next, enabled: false });
-      await applyReminders({ ...next, enabled: false });
+      await applyReminders({ ...next, enabled: false }, closures);
       Alert.alert(
         'Benachrichtigungen deaktiviert',
         'Erlaube Smittenbrot in den Einstellungen deines Geräts, dir Mitteilungen zu senden, um Erinnerungen zu erhalten.',

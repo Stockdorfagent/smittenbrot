@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, Re
 import { supabase } from '@/lib/supabase';
 import { localDateISO } from '@/lib/pickup';
 import type { ClosureRange } from '@/lib/pickup';
+import { rescheduleReminders } from '@/lib/reminder';
 
 /**
  * Schließzeiten for the app (public read, RLS closures_read_all): every
@@ -38,6 +39,9 @@ export function ClosureProvider({ children }: { children: ReactNode }) {
       setClosures(latest.current);
     }
     setLoaded(true);
+    // Personal order reminders are dated notifications on the device: re-plan
+    // them so a closure entered since the last read drops its reminder.
+    rescheduleReminders(latest.current);
     return latest.current;
   }, []);
 
